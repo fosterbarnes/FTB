@@ -7,3 +7,4 @@ publish/
 buildNotes.*
 .res/yapBot.json
 __pycache__/
+*.md

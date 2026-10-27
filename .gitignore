@@ -1,0 +1,9 @@
+.idea
+cmake-build-debug
+CMakeLists.txt
+build
+output
+publish/
+buildNotes.*
+.res/yapBot.json
+__pycache__/

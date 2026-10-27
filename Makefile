@@ -46,3 +46,6 @@ include buildtools/make_base
 
 # make_base passes the split version to makerom; swap in the packed one (recipes expand it later).
 COMMON_MAKEROM_FLAGS := $(subst -major $(VERSION_MAJOR) -minor $(VERSION_MINOR) -micro $(VERSION_MICRO),-ver $(TITLE_VERSION),$(COMMON_MAKEROM_FLAGS))
+
+# make_base still defines the pre-2.0 libctru macros, which makes 3ds.h warn in every file.
+CC_FLAGS := $(subst -DARM11 -D_3DS,-D__3DS__,$(CC_FLAGS))

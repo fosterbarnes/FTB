@@ -1,15 +1,32 @@
-"""Swaps the ETC1 textures inside the launch splash (meta/logo_3ds.bcma.lz) in place.
+"""Swaps the ETC1 textures inside the launch splash (meta/logo_3ds.bcma.lz) in place and re-signs it.
 
 Usage: genSplash.py <logo.bcma.lz> <name.bclim>=<tex3ds raw etc1 .bin> ...
+       genSplash.py --find-key <HOME Menu .dec.code>
 
-The splash is an LZ11-compressed DARC of layouts, animations, and BCLIM textures. Replacements must
-keep each texture's size and format, so only texture bytes change and no DARC offsets move.
+The splash is an LZ11-compressed DARC of layouts, animations, and BCLIM textures, followed by an
+HMAC-SHA256 of the DARC. HOME Menu checks that HMAC on launch and crashes (svcBreak) on a mismatch.
+Replacements must keep each texture's size and format, so only texture bytes change and no DARC
+offsets move; the HMAC is then recomputed with the HOME Menu logo key.
+
+The key is a Nintendo secret kept outside the repo in ~/.3ds/logo_hmackey_text (64 hex characters,
+the ctr-logobuilder convention). Never commit or print it. Get it once with --find-key from your own
+HOME Menu code: in GodMode9, open [1:] SYSNAND CTRNAND/title/00040030/<HOME Menu id>/content, then
+on the largest .app pick NCCH image options > Extract .code (writes 0:/gm9/out/<title id>.dec.code).
 """
+import hashlib
+import hmac
 import struct
 import sys
+from collections import Counter
+from pathlib import Path
 
 _LOGO_REGION = 0x2000
 _ETC1 = 10
+_HMAC_SIZE = 0x20
+_KEY_SIZE = 0x20
+_KEY_PATH = Path.home() / '.3ds' / 'logo_hmackey_text'
+# Stock homebrew splash, signed with the HOME Menu key: proves a key before it signs anything.
+_REFERENCE_LOGO = Path(__file__).resolve().parent.parent / 'buildtools' / '3ds' / 'logo.bcma.lz'
 
 
 def lz11Decompress(src):
@@ -65,6 +82,10 @@ def lz11Compress(data):
                     dist = pos - start
                     if dist > 0x1000:
                         break
+                    # No distance-1 copies, like bannertool's LZ11 output in every known-good splash;
+                    # HOME Menu's decompressor has never been tested with them.
+                    if dist < 2:
+                        continue
                     length = 0
                     limit = min(0x10110, len(data) - pos)
                     while length < limit and data[start + length] == data[pos + length]:
@@ -119,9 +140,61 @@ def readTex3dsRaw(path):
     return raw[4:]
 
 
+def darcMessage(logo):
+    """The signed part of a decompressed splash: the DARC, without its HMAC trailer."""
+    darcSize = struct.unpack_from('<I', logo, 0xC)[0]
+    if len(logo) != darcSize + _HMAC_SIZE:
+        raise ValueError(f'splash is {len(logo)} bytes, expected DARC {darcSize} + HMAC {_HMAC_SIZE}')
+    return bytes(logo[:darcSize])
+
+
+def logoHmac(key, logo):
+    return hmac.new(key, darcMessage(logo), hashlib.sha256).digest()
+
+
+def referenceLogo():
+    return lz11Decompress(_REFERENCE_LOGO.read_bytes())
+
+
+def loadKey():
+    if not _KEY_PATH.is_file():
+        raise SystemExit(f'{_KEY_PATH} is missing. Run genSplash.py --find-key <HOME Menu .dec.code> once.')
+    try:
+        key = bytes.fromhex(_KEY_PATH.read_text().strip())
+    except ValueError:
+        key = b''
+    if len(key) != _KEY_SIZE:
+        raise ValueError(f'{_KEY_PATH}: expected {_KEY_SIZE * 2} hex characters')
+    reference = referenceLogo()
+    if not hmac.compare_digest(logoHmac(key, reference), reference[-_HMAC_SIZE:]):
+        raise ValueError(f'{_KEY_PATH} does not sign {_REFERENCE_LOGO}; rerun --find-key')
+    return key
+
+
+def findKey(codePath):
+    code = Path(codePath).read_bytes()
+    reference = referenceLogo()
+    message, expected = darcMessage(reference), reference[-_HMAC_SIZE:]
+    for offset in range(len(code) - _KEY_SIZE + 1):
+        candidate = code[offset:offset + _KEY_SIZE]
+        # Keys look random; code and tables repeat byte values. A random key passes ~99.99%.
+        if max(Counter(candidate).values()) > 4:
+            continue
+        if hmac.compare_digest(hmac.new(candidate, message, hashlib.sha256).digest(), expected):
+            _KEY_PATH.parent.mkdir(exist_ok=True)
+            _KEY_PATH.write_text(candidate.hex() + '\n')
+            print(f'Logo key found at offset {offset:#x}; saved to {_KEY_PATH}')
+            return
+    raise ValueError(f'No logo HMAC key in {codePath}; is it the decompressed HOME Menu .code?')
+
+
 def main(args):
-    if len(args) < 2:
+    if len(args) == 2 and args[0] == '--find-key':
+        findKey(args[1])
+        return
+    if len(args) < 2 or args[0].startswith('--'):
         raise SystemExit(__doc__)
+    key = loadKey()
     logoPath = args[0]
     darc = bytearray(lz11Decompress(open(logoPath, 'rb').read()))
     files = darcFiles(darc)
@@ -140,6 +213,7 @@ def main(args):
         if len(texture) != dataSize:
             raise ValueError(f'{name}: {len(texture)} bytes, expected {dataSize} ({width}x{height})')
         darc[offset:offset + dataSize] = texture
+    darc[-_HMAC_SIZE:] = logoHmac(key, darc)
     packed = lz11Compress(bytes(darc))
     if lz11Decompress(packed) != darc:
         raise ValueError('LZ11 round trip mismatch')

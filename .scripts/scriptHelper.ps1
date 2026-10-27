@@ -16,10 +16,8 @@ $buildNotes = "$repoRoot\buildNotes.txt"
 $buildNotesMd = "$repoRoot\buildNotes.md"
 $readme = "$repoRoot\README.md"
 $appPublisher = 'fosterbarnes'
-# The repo keeps the fork's name; the app and its assets are FTB.
-$repoName = 'FBI-dark'
-$appURL = "https://github.com/$appPublisher/$repoName"
-$ghRepo = "$appPublisher/$repoName"
+$appURL = "https://github.com/$appPublisher/$projectName"
+$ghRepo = "$appPublisher/$projectName"
 # agentPush.ps1 publishes the GitHub release after every push (user decision 2026-10-27).
 $agentPushRelease = $true
 # Private word list for version tags (copied from oc, gitignored).

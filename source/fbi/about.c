@@ -87,6 +87,7 @@ static void about_build_text() {
     }
 
     snprintf(about_text, sizeof(about_text),
+             "v%d.%d.%d\n"
              "github.com/fosterbarnes/FTB\n"
              "\n"
              "Build: %s\n"
@@ -94,7 +95,7 @@ static void about_build_text() {
              "Data: sdmc:/ftb/\n"
              "\n"
              "made with <3 by fosterbarnes",
-             build, install);
+             VERSION_MAJOR, VERSION_MINOR, VERSION_MICRO, build, install);
 }
 
 // ciaGoober About layout: logo left at 1:1, title and info column right, centered as a group.

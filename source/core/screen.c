@@ -302,6 +302,11 @@ void screen_load_texture_tiled(u32 id, void* data, u32 size, u32 width, u32 heig
     C3D_TexFlush(&textures[id].tex);
 }
 
+// Morton-order texel index inside the GPU's 8x8 tiles.
+static u32 screen_tile_index(u32 x, u32 y, u32 pow2Width) {
+    return (((y >> 3) * (pow2Width >> 3) + (x >> 3)) << 6) + ((x & 1) | ((y & 1) << 1) | ((x & 2) << 1) | ((y & 2) << 2) | ((x & 4) << 2) | ((y & 4) << 3));
+}
+
 void screen_load_texture_untiled(u32 id, void* data, u32 size, u32 width, u32 height, GPU_TEXCOLOR format, bool linearFilter) {
     u32 pow2Width = 0;
     u32 pow2Height = 0;
@@ -309,11 +314,16 @@ void screen_load_texture_untiled(u32 id, void* data, u32 size, u32 width, u32 he
 
     u32 pixelSize = size / width / height;
 
+    // One extra column and row repeat the edge texels: linear filtering of stretched art (8x8 progress
+    // bars drawn 280 wide) otherwise blends the right and bottom edges into the transparent padding.
+    u32 padWidth = width < pow2Width ? width + 1 : width;
+    u32 padHeight = height < pow2Height ? height + 1 : height;
+
     memset(textures[id].tex.data, 0, textures[id].tex.size);
-    for(u32 x = 0; x < width; x++) {
-        for(u32 y = 0; y < height; y++) {
-            u32 dstPos = ((((y >> 3) * (pow2Width >> 3) + (x >> 3)) << 6) + ((x & 1) | ((y & 1) << 1) | ((x & 2) << 1) | ((y & 2) << 2) | ((x & 4) << 2) | ((y & 4) << 3))) * pixelSize;
-            u32 srcPos = (y * width + x) * pixelSize;
+    for(u32 x = 0; x < padWidth; x++) {
+        for(u32 y = 0; y < padHeight; y++) {
+            u32 dstPos = screen_tile_index(x, y, pow2Width) * pixelSize;
+            u32 srcPos = ((y < height ? y : height - 1) * width + (x < width ? x : width - 1)) * pixelSize;
 
             memcpy(&((u8*) textures[id].tex.data)[dstPos], &((u8*) data)[srcPos], pixelSize);
         }

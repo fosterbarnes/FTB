@@ -16,11 +16,10 @@ EXTRA_OUTPUT_FILES := servefiles
 # C++ is only the ftpd port (source/ftpd). Upstream builds it as C++20 release with IPv4 only.
 BUILD_FLAGS_CXX := -std=gnu++20 -DNDEBUG -DNO_IPV6
 
-# .version/version and .version/versionTag (bump with .scripts/bumpVersion.ps1).
+# .version/version (bump with .scripts/bumpVersion.ps1).
 VERSION_PARTS := $(subst ., ,$(firstword $(file < .version/version)))
-VERSION_TAG := $(firstword $(file < .version/versionTag))
 
-BUILD_FLAGS := -Wno-format-truncation -DVERSION_TAG=\"$(VERSION_TAG)\"
+BUILD_FLAGS := -Wno-format-truncation
 
 VERSION_MAJOR := $(word 1, $(VERSION_PARTS))
 VERSION_MINOR := $(word 2, $(VERSION_PARTS))

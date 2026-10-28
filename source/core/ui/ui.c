@@ -156,14 +156,6 @@ static void ui_draw_top(ui_view* ui) {
 
     screen_set_base_alpha(ui_fade_alpha);
 
-    char verText[64];
-    snprintf(verText, 64, "v%d.%d.%d %s", VERSION_MAJOR, VERSION_MINOR, VERSION_MICRO, VERSION_TAG);
-
-    float verWidth;
-    float verHeight;
-    screen_get_string_size(&verWidth, &verHeight, verText, 0.5f, 0.5f);
-    screen_draw_string(verText, topScreenTopBarX + 2, topScreenTopBarY + (topScreenTopBarHeight - verHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
-
     if(osGetTime() >= ui_status_last_update + 1000) {
         u8 batteryChargeState = 0;
         u8 batteryLevel = 0;
@@ -221,9 +213,7 @@ static void ui_draw_top(ui_view* ui) {
     float timeTextHeight;
     screen_get_string_size(&timeTextWidth, &timeTextHeight, timeText, 0.5f, 0.5f);
 
-    // Centered in the gap between the version text and the status icons.
-    float gapX1 = topScreenTopBarX + 2 + verWidth;
-    screen_draw_string(timeText, gapX1 + (wifiX - gapX1 - timeTextWidth) / 2, topScreenTopBarY + (topScreenTopBarHeight - timeTextHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
+    screen_draw_string(timeText, topScreenTopBarX + (topScreenTopBarWidth - timeTextWidth) / 2, topScreenTopBarY + (topScreenTopBarHeight - timeTextHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
 
     if(osGetTime() >= ui_free_space_last_update + 1000) {
         char* currBuffer = ui_free_space_buffer;

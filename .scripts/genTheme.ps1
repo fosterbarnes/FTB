@@ -16,8 +16,10 @@ $ACCENT = '#765E98'
 $LOGO_TEXT = '#D0D0D0'
 # Forward slashes: ImageMagick treats backslashes in font paths as escapes.
 $FONT = 'C:/Windows/Fonts/consolab.ttf'
-# Chosen so the ink box (28x12) leaves even margins on the 48px icon, which keeps it exactly centered.
-$LOGO_POINTSIZE = 18.5
+# Logo text point size per pixel of tile edge: "FTB" ink spans about 80% of the tile width.
+$LOGO_TEXT_SCALE = 0.52
+# Banner tile edge on the 256x128 banner.
+$BANNER_TILE = 120
 
 $TEXT_COLORS = [ordered]@{
     text = '#FFFFFF'; nand = '#F44336'; sd = '#4CAF50'; gamecard = '#03A9F4'; dstitle = '#AC98C7'
@@ -29,6 +31,15 @@ $TEXT_COLORS = [ordered]@{
 }
 
 function invokeMagick { runNativeCommand magick $args 'magick' }
+
+# Square "FTB" tile rendered at its final size with antialiasing; upscaling a small tile looks blocky.
+# Centered by the glyphs' trimmed ink box: -gravity center on text alone centers the font line box,
+# and caps have no descenders, so they would sit high.
+function newLogoTile([int] $size, [string] $out) {
+    $pointsize = [math]::Round($size * $LOGO_TEXT_SCALE, 1)
+    invokeMagick -size "${size}x$size" "xc:$ACCENT_STRONG" '(' -background none -fill $LOGO_TEXT -font $FONT `
+        -pointsize $pointsize label:FTB -trim +repage ')' -gravity center -composite "PNG24:$out"
+}
 
 function newFill([string] $name, [string] $size, [string] $color) {
     invokeMagick -size $size "xc:$color" "PNG32:$romfs\$name.png"
@@ -66,28 +77,18 @@ foreach ($name in 'battery0', 'battery1', 'battery2', 'battery3', 'battery4', 'b
     invokeMagick $path -fill $APP_BACKGROUND -opaque '#000000' "PNG32:$path"
 }
 
-# One 48px pixel-art tile feeds every logo; larger copies are integer point scales so pixels stay crisp.
 $temp = (New-Item -ItemType Directory -Path "$env:TEMP\ftbTheme$(Get-Random)").FullName
 try {
-    # Center by the glyphs' ink box: -gravity center on text alone centers the font line box, and caps
-    # have no descenders, so they would sit high.
-    invokeMagick -background none -fill $LOGO_TEXT -font $FONT -pointsize $LOGO_POINTSIZE +antialias `
-        label:FTB -trim +repage "PNG32:$temp\text.png"
-    $inkSize = & magick identify -format '%w %h' "$temp\text.png"
-    if ($LASTEXITCODE) { throw "magick identify failed (exit $LASTEXITCODE)." }
-    $inkW, $inkH = $inkSize -split ' ' | ForEach-Object { [int]$_ }
-    if ((48 - $inkW) % 2 -or (48 - $inkH) % 2) { throw "Logo text ${inkW}x$inkH cannot center on 48px; adjust LOGO_POINTSIZE." }
-
-    $icon = "$meta\icon_3ds.png"
-    invokeMagick -size 48x48 "xc:$ACCENT_STRONG" "$temp\text.png" -gravity center -composite "PNG24:$icon"
-    invokeMagick $icon -filter point -resize 300% "PNG24:$romfs\logo.png"
-    invokeMagick $icon -filter point -resize 200% "PNG24:$temp\icon2x.png"
-    invokeMagick -size 256x128 "xc:$APP_BACKGROUND" "$temp\icon2x.png" -gravity center -composite `
+    newLogoTile 48 "$meta\icon_3ds.png"
+    newLogoTile 144 "$romfs\logo.png"
+    newLogoTile $BANNER_TILE "$temp\bannerTile.png"
+    invokeMagick -size 256x128 "xc:$APP_BACKGROUND" "$temp\bannerTile.png" -gravity center -composite `
         "PNG24:$meta\banner_3ds.png"
 
     # Launch splash textures keep the original sizes: a 128px logo and a 16x256 strip (240 rows shown)
     # stretched across both screens, here drawn with the app's 20px top and bottom bars.
-    invokeMagick -size 128x128 "xc:$APP_BACKGROUND" "$temp\icon2x.png" -gravity center -composite `
+    newLogoTile 96 "$temp\splashTile.png"
+    invokeMagick -size 128x128 "xc:$APP_BACKGROUND" "$temp\splashTile.png" -gravity center -composite `
         "PNG24:$temp\splashLogo.png"
     invokeMagick -size 16x256 "xc:$CONTROL_ALT" -fill $APP_BACKGROUND -draw 'rectangle 0,20 15,219' `
         "PNG24:$temp\splashStrip.png"

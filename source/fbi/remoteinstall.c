@@ -496,5 +496,5 @@ static void remoteinstall_update(ui_view* view, void* data, linked_list* items, 
 }
 
 void remoteinstall_open() {
-    list_display("Remote Install", "A: Select, B: Return", NULL, remoteinstall_update, NULL);
+    list_display("Legacy Remote Install", "A: Select, B: Return", NULL, remoteinstall_update, NULL);
 }

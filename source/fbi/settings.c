@@ -18,9 +18,15 @@ static ftb_settings settings = {
         .titleLayout = TITLE_LAYOUT_GRID,
         .titleGridSize = LIST_GRID_SIZE_DEFAULT,
         .titleSort = TITLE_SORT_NAME,
-        .titleGroupLocation = true,
-        .titleShowCard = true,
-        .titleShowSD = true,
+        .titleGroup = TITLE_GROUP_LOCATION,
+        .titleHeaders = true,
+        .titleShowCategory = {
+                [TITLE_CATEGORY_3DS] = true,
+                [TITLE_CATEGORY_DS] = true,
+                [TITLE_CATEGORY_VC] = true,
+                [TITLE_CATEGORY_HOMEBREW] = true,
+                [TITLE_CATEGORY_OTHER] = true,
+        },
 };
 
 // On/off settings stored as key=0|1. The file is user-editable: anything else keeps the default.
@@ -32,10 +38,13 @@ static const struct {
         {"clock24h", &settings.clock24h},
         {"dateDayFirst", &settings.dateDayFirst},
         {"titleSortDesc", &settings.titleSortDesc},
-        {"titleGroupLocation", &settings.titleGroupLocation},
-        {"titleShowCard", &settings.titleShowCard},
-        {"titleShowSD", &settings.titleShowSD},
-        {"titleShowNAND", &settings.titleShowNAND},
+        {"titleHeaders", &settings.titleHeaders},
+        {"titleShow3DS", &settings.titleShowCategory[TITLE_CATEGORY_3DS]},
+        {"titleShowDS", &settings.titleShowCategory[TITLE_CATEGORY_DS]},
+        {"titleShowVC", &settings.titleShowCategory[TITLE_CATEGORY_VC]},
+        {"titleShowHomebrew", &settings.titleShowCategory[TITLE_CATEGORY_HOMEBREW]},
+        {"titleShowSystem", &settings.titleShowCategory[TITLE_CATEGORY_SYSTEM]},
+        {"titleShowOther", &settings.titleShowCategory[TITLE_CATEGORY_OTHER]},
 };
 
 // Choice settings stored as key=N, N below count; anything else keeps the default.
@@ -47,6 +56,7 @@ static const struct {
         {"titleLayout", &settings.titleLayout, TITLE_LAYOUT_COUNT},
         {"titleGridSize", &settings.titleGridSize, LIST_GRID_SIZE_COUNT},
         {"titleSort", &settings.titleSort, TITLE_SORT_COUNT},
+        {"titleGroup", &settings.titleGroup, TITLE_GROUP_COUNT},
 };
 
 #define SETTINGS_BOOL_COUNT (sizeof(settings_bools) / sizeof(settings_bools[0]))

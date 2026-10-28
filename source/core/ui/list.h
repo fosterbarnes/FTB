@@ -29,6 +29,10 @@ ui_view* list_display(const char* name, const char* info, void* data, void (*upd
 void list_set_layout(ui_view* view, list_layout layout, u32 (*itemIcon)(list_item* item));
 // size: 0 .. LIST_GRID_SIZE_COUNT - 1.
 void list_set_grid_size(ui_view* view, u32 size);
+// Section headers: label writes an item's section name, and a header starts wherever it differs from
+// the previous item's. Sections follow the items' order and rebuild on their own when the items change.
+// NULL (the default) draws no headers. Setting the same callback again does nothing.
+void list_set_sections(ui_view* view, void (*label)(void* data, list_item* item, char* out, size_t size));
 // While loading, the rows show a loading animation, input is ignored, and the update and drawTop
 // callbacks get no selection. Both directions start again at the first item.
 void list_set_loading(ui_view* view, bool loading);

@@ -7,6 +7,7 @@ void linked_list_init(linked_list* list) {
     list->first = NULL;
     list->last = NULL;
     list->size = 0;
+    list->version = 0;
 }
 
 void linked_list_destroy(linked_list* list) {
@@ -28,6 +29,7 @@ void linked_list_clear(linked_list* list) {
     list->first = NULL;
     list->last = NULL;
     list->size = 0;
+    list->version++;
 }
 
 bool linked_list_contains(linked_list* list, void* value) {
@@ -102,6 +104,7 @@ bool linked_list_add(linked_list* list, void* value) {
     }
 
     list->size++;
+    list->version++;
     return true;
 }
 
@@ -138,6 +141,7 @@ bool linked_list_add_at(linked_list* list, unsigned int index, void* value) {
     }
 
     list->size++;
+    list->version++;
     return true;
 }
 
@@ -171,6 +175,7 @@ bool linked_list_add_sorted(linked_list* list, void* value, void* userData, int 
     next->prev = node;
 
     list->size++;
+    list->version++;
     return true;
 }
 
@@ -192,6 +197,7 @@ static void linked_list_remove_node(linked_list* list, linked_list_node* node) {
     }
 
     list->size--;
+    list->version++;
 
     free(node);
 }
@@ -283,6 +289,7 @@ void linked_list_sort(linked_list* list, void* userData, int (*compare)(void* us
         if(merges <= 1) {
             list->first = head;
             list->last = tail;
+            list->version++;
             return;
         }
     }

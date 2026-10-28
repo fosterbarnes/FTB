@@ -12,6 +12,7 @@ typedef struct linked_list_s {
     linked_list_node* first;
     linked_list_node* last;
     unsigned int size;
+    unsigned int version; // bumped by every change, so views can tell when to rebuild derived state
 } linked_list;
 
 typedef struct linked_list_iter_s {

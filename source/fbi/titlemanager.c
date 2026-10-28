@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <malloc.h>
 #include <stdio.h>
 #include <string.h>
@@ -10,9 +11,9 @@
 #include "task/uitask.h"
 #include "../core/core.h"
 
-// Title Manager: FTB's title list. Layout, zoom, sort, and filters live in settings (titleLayout
-// etc.) and change from Options or Y (layout), X (grid zoom), L (sort). FBI's original screen
-// stays in titles.c as FBI Legacy > Titles.
+// Title Manager: FTB's title list. Layout, zoom, sort, grouping, headers, and category filters live
+// in settings (titleLayout etc.) and change from Options or Y (layout), X (grid zoom), L (sort).
+// FBI's original screen stays in titles.c as FBI Legacy > Titles.
 
 #define TITLEMANAGER_INFO "A: Select, B: Return, Y: Layout, Select: Options"
 #define TITLEMANAGER_INFO_GRID "A: Select, B: Return, X: Zoom, Y: Layout, Select: Options"
@@ -22,7 +23,7 @@
 typedef struct {
     u8 sort;
     bool desc;
-    bool group;
+    u8 group;
 } titlemanager_order;
 
 typedef struct {
@@ -40,21 +41,45 @@ typedef struct {
 
 static const list_layout titlemanager_layouts[TITLE_LAYOUT_COUNT] = {LIST_LAYOUT_GRID, LIST_LAYOUT_TOP, LIST_LAYOUT_BOTTOM};
 static const char* const titlemanager_layout_names[TITLE_LAYOUT_COUNT] = {"Grid", "List top", "List bottom"};
-static const char* const titlemanager_sort_names[TITLE_SORT_COUNT] = {"Name", "Title ID", "Size", "Publisher", "Type", "Region", "Game"};
+static const char* const titlemanager_sort_names[TITLE_SORT_COUNT] = {"Name", "Title ID", "Size", "Publisher", "Category", "Region", "Game"};
+static const char* const titlemanager_group_names[TITLE_GROUP_COUNT] = {"Off", "Location", "Category"};
+static const char* const titlemanager_category_names[TITLE_CATEGORY_COUNT] = {"3DS", "DS", "VC/Emulator", "Homebrew", "System", "Other"};
+
+// Section headers for Title ID sort: the title ID high word, with its usual name.
+static const struct {
+    u32 type;
+    const char* name;
+} titlemanager_type_names[] = {
+        {0x00040000, "Applications"},
+        {0x00040001, "Download Play"},
+        {0x00040002, "Demos"},
+        {0x0004000E, "Updates"},
+        {0x0004008C, "DLC"},
+        {0x00040010, "System applications"},
+        {0x0004001B, "System data"},
+        {0x00040030, "System applets"},
+        {0x0004009B, "Shared data"},
+        {0x000400DB, "System data"},
+        {0x00040130, "System modules"},
+        {0x00040138, "System firmware"},
+        {0x00048004, "DSiWare"},
+        {0x00048005, "DSi system"},
+        {0x0004800F, "DSi data"},
+};
 
 typedef enum {
     OPTION_LAYOUT,
     OPTION_SORT,
     OPTION_ORDER,
     OPTION_GROUP,
-    OPTION_SHOW_CARD,
-    OPTION_SHOW_SD,
-    OPTION_SHOW_NAND,
+    OPTION_HEADERS,
+    OPTION_SHOW,
     OPTION_REBUILD,
     OPTION_COUNT
 } titlemanager_option;
 
 static list_item titlemanager_option_items[OPTION_COUNT];
+static list_item titlemanager_show_items[TITLE_CATEGORY_COUNT];
 
 static u32 titlemanager_item_icon(list_item* item) {
     title_info* info = (title_info*) item->data;
@@ -74,8 +99,10 @@ static void titlemanager_apply_layout(titlemanager_data* data) {
 // The view name (bottom screen's top bar) shows the active order, so L and Options changes are visible.
 static void titlemanager_update_name(titlemanager_data* data) {
     const ftb_settings* settings = settings_get();
+    static const char* const groups[TITLE_GROUP_COUNT] = {"Ungrouped", "By location", "By category"};
+
     snprintf(data->name, sizeof(data->name), "%s, %s, %s", titlemanager_sort_names[settings->titleSort],
-             settings->titleSortDesc ? "Desc" : "Asc", settings->titleGroupLocation ? "Grouped" : "Ungrouped");
+             settings->titleSortDesc ? "Desc" : "Asc", groups[settings->titleGroup]);
 }
 
 static void titlemanager_save(const ftb_settings* next) {
@@ -112,9 +139,10 @@ static void titlemanager_cycle_sort(titlemanager_data* data) {
     data->sortDirty = true;
 }
 
-static void titlemanager_toggle_group(titlemanager_data* data) {
+// The Group row: Off -> Location -> Category.
+static void titlemanager_cycle_group(titlemanager_data* data) {
     ftb_settings next = *settings_get();
-    next.titleGroupLocation = !next.titleGroupLocation;
+    next.titleGroup = (u8) ((next.titleGroup + 1) % TITLE_GROUP_COUNT);
 
     titlemanager_save(&next);
     data->sortDirty = true;
@@ -146,7 +174,62 @@ static const char* titlemanager_sort_text(const list_item* item, u8 sort) {
 
 static void titlemanager_load_order(titlemanager_data* data) {
     const ftb_settings* settings = settings_get();
-    data->order = (titlemanager_order) {settings->titleSort, settings->titleSortDesc, settings->titleGroupLocation};
+    data->order = (titlemanager_order) {settings->titleSort, settings->titleSortDesc, settings->titleGroup};
+}
+
+static const char* titlemanager_size_section(u64 size) {
+    const u64 mb = 1024 * 1024;
+    return size < 10 * mb ? "Under 10 MB" : size < 100 * mb ? "10 - 100 MB" : size < 1024 * mb ? "100 MB - 1 GB" : "Over 1 GB";
+}
+
+// Section header text for an item. Reads the order the list was sorted with, so headers always match
+// the order on screen: the group when grouped, else the sort key.
+static void titlemanager_section(void* data, list_item* item, char* out, size_t size) {
+    const titlemanager_order* order = &((titlemanager_data*) data)->order;
+    const title_info* info = (const title_info*) item->data;
+
+    if(order->group == TITLE_GROUP_LOCATION) {
+        // Rank order; equal neighbors merge, so a DS game card is still one "Game card" section.
+        static const char* const locations[] = {"Game card", "Game card", "SD", "SD", "NAND", "DSiWare"};
+        snprintf(out, size, "%s", locations[titlemanager_location_rank(info)]);
+    } else if(order->group == TITLE_GROUP_CATEGORY || order->sort == TITLE_SORT_CATEGORY) {
+        snprintf(out, size, "%s", titlemanager_category_names[info->category]);
+    } else if(order->sort == TITLE_SORT_ID) {
+        u32 type = (u32) (info->titleId >> 32);
+        snprintf(out, size, "%08lX", type);
+        for(u32 i = 0; i < sizeof(titlemanager_type_names) / sizeof(titlemanager_type_names[0]); i++) {
+            if(titlemanager_type_names[i].type == type) {
+                snprintf(out, size, "%08lX %s", type, titlemanager_type_names[i].name);
+                break;
+            }
+        }
+    } else if(order->sort == TITLE_SORT_SIZE) {
+        snprintf(out, size, "%s", titlemanager_size_section(info->installedSize));
+    } else if(order->sort == TITLE_SORT_REGION) {
+        if(info->hasMeta) {
+            smdh_region_to_string(out, info->meta.region, size);
+        } else {
+            snprintf(out, size, "Unknown");
+        }
+    } else {
+        // Name and Publisher, from the same text the sort compares.
+        const char* text = titlemanager_sort_text(item, order->sort);
+        if(order->sort == TITLE_SORT_PUBLISHER) {
+            snprintf(out, size, "%s", text != NULL ? text : "Unknown publisher");
+        } else if(text == NULL) {
+            snprintf(out, size, "Unnamed");
+        } else {
+            // strcasecmp order: digits and symbols before A, non-ASCII (e.g. Japanese) after Z.
+            int first = tolower((unsigned char) text[0]);
+            if(first < 'a') {
+                snprintf(out, size, "#");
+            } else if(first > 'z') {
+                snprintf(out, size, "Other");
+            } else {
+                snprintf(out, size, "%c", toupper(first));
+            }
+        }
+    }
 }
 
 static int titlemanager_compare(void* data, const void* p1, const void* p2) {
@@ -158,11 +241,15 @@ static int titlemanager_compare(void* data, const void* p1, const void* p2) {
     const title_info* title1 = (const title_info*) item1->data;
     const title_info* title2 = (const title_info*) item2->data;
 
-    if(order->group) {
-        int location = titlemanager_location_rank(title1) - titlemanager_location_rank(title2);
-        if(location != 0) {
-            return location;
-        }
+    int group = 0;
+    if(order->group == TITLE_GROUP_LOCATION) {
+        group = titlemanager_location_rank(title1) - titlemanager_location_rank(title2);
+    } else if(order->group == TITLE_GROUP_CATEGORY) {
+        group = (int) title1->category - (int) title2->category;
+    }
+
+    if(group != 0) {
+        return group;
     }
 
     int result = 0;
@@ -170,8 +257,8 @@ static int titlemanager_compare(void* data, const void* p1, const void* p2) {
         result = titlemanager_compare_u64(title1->titleId, title2->titleId);
     } else if(order->sort == TITLE_SORT_SIZE) {
         result = titlemanager_compare_u64(title1->installedSize, title2->installedSize);
-    } else if(order->sort == TITLE_SORT_TYPE) {
-        result = titlemanager_compare_u64(title1->titleId >> 32, title2->titleId >> 32);
+    } else if(order->sort == TITLE_SORT_CATEGORY) {
+        result = (int) title1->category - (int) title2->category;
     } else if(order->sort == TITLE_SORT_GAME) {
         result = titlemanager_compare_u64((u32) title1->titleId, (u32) title2->titleId);
     } else if(order->sort == TITLE_SORT_REGION) {
@@ -204,25 +291,50 @@ static int titlemanager_compare(void* data, const void* p1, const void* p2) {
     return result != 0 ? result : titlemanager_compare_u64(title1->titleId, title2->titleId);
 }
 
-static bool titlemanager_filter(void* data, u64 titleId, FS_MediaType mediaType) {
-    const ftb_settings* settings = settings_get();
+static bool titlemanager_visible(void* data, title_category category) {
+    return settings_get()->titleShowCategory[category];
+}
 
-    if(mediaType == MEDIATYPE_GAME_CARD) {
-        return settings->titleShowCard;
-    } else if(mediaType == MEDIATYPE_SD) {
-        return settings->titleShowSD;
-    } else {
-        return settings->titleShowNAND;
+static void titlemanager_item_set(list_item* item, const char* name, const char* value, u32 color) {
+    snprintf(item->name, LIST_ITEM_NAME_MAX, "%s: %s", name, value);
+    item->color = color;
+}
+
+static void titlemanager_item_set_bool(list_item* item, const char* name, bool value) {
+    titlemanager_item_set(item, name, value ? "On" : "Off", value ? COLOR_ENABLED : COLOR_DISABLED);
+}
+
+// Options > Show: one On/Off row per category. Hidden titles are dropped while loading, so a change
+// reloads the list (from the cache) once Options closes.
+static void titlemanager_show_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
+    titlemanager_data* tmData = (titlemanager_data*) data;
+
+    if(hidKeysDown() & KEY_B) {
+        ui_pop();
+        list_destroy(view);
+
+        return;
     }
-}
 
-static void titlemanager_option_set(titlemanager_option option, const char* name, const char* value, u32 color) {
-    snprintf(titlemanager_option_items[option].name, LIST_ITEM_NAME_MAX, "%s: %s", name, value);
-    titlemanager_option_items[option].color = color;
-}
+    if(selected != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
+        u32 category = (u32) (selected - titlemanager_show_items);
 
-static void titlemanager_option_set_bool(titlemanager_option option, const char* name, bool value) {
-    titlemanager_option_set(option, name, value ? "On" : "Off", value ? COLOR_ENABLED : COLOR_DISABLED);
+        ftb_settings next = *settings_get();
+        next.titleShowCategory[category] = !next.titleShowCategory[category];
+
+        titlemanager_save(&next);
+        tmData->populated = false;
+    }
+
+    if(linked_list_size(items) == 0) {
+        for(u32 i = 0; i < TITLE_CATEGORY_COUNT; i++) {
+            linked_list_add(items, &titlemanager_show_items[i]);
+        }
+    }
+
+    for(u32 i = 0; i < TITLE_CATEGORY_COUNT; i++) {
+        titlemanager_item_set_bool(&titlemanager_show_items[i], titlemanager_category_names[i], settings_get()->titleShowCategory[i]);
+    }
 }
 
 static void titlemanager_options_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
@@ -251,29 +363,18 @@ static void titlemanager_options_update(ui_view* view, void* data, linked_list* 
     } else if(activated && option == OPTION_SORT) {
         titlemanager_cycle_sort(tmData);
     } else if(activated && option == OPTION_GROUP) {
-        titlemanager_toggle_group(tmData);
+        titlemanager_cycle_group(tmData);
+    } else if(activated && option == OPTION_SHOW) {
+        list_display("Show", "A: Toggle, B: Return", tmData, titlemanager_show_update, NULL);
     } else if(activated) {
         ftb_settings next = *settings_get();
 
-        switch(option) {
-            case OPTION_ORDER:
-                next.titleSortDesc = !next.titleSortDesc;
-                tmData->sortDirty = true;
-                break;
-            case OPTION_SHOW_CARD:
-                next.titleShowCard = !next.titleShowCard;
-                tmData->populated = false;
-                break;
-            case OPTION_SHOW_SD:
-                next.titleShowSD = !next.titleShowSD;
-                tmData->populated = false;
-                break;
-            case OPTION_SHOW_NAND:
-                next.titleShowNAND = !next.titleShowNAND;
-                tmData->populated = false;
-                break;
-            default:
-                break;
+        // Headers need no resort: titlemanager_update hands the list its section callback.
+        if(option == OPTION_ORDER) {
+            next.titleSortDesc = !next.titleSortDesc;
+            tmData->sortDirty = true;
+        } else if(option == OPTION_HEADERS) {
+            next.titleHeaders = !next.titleHeaders;
         }
 
         titlemanager_save(&next);
@@ -286,15 +387,28 @@ static void titlemanager_options_update(ui_view* view, void* data, linked_list* 
     }
 
     const ftb_settings* settings = settings_get();
-    titlemanager_option_set(OPTION_LAYOUT, "Layout", titlemanager_layout_names[settings->titleLayout], COLOR_TEXT);
-    titlemanager_option_set(OPTION_SORT, "Sort", titlemanager_sort_names[settings->titleSort], COLOR_TEXT);
-    titlemanager_option_set(OPTION_ORDER, "Order", settings->titleSortDesc ? "Descending" : "Ascending", COLOR_TEXT);
-    titlemanager_option_set_bool(OPTION_GROUP, "Group by location", settings->titleGroupLocation);
-    titlemanager_option_set_bool(OPTION_SHOW_CARD, "Show game card", settings->titleShowCard);
-    titlemanager_option_set_bool(OPTION_SHOW_SD, "Show SD", settings->titleShowSD);
-    titlemanager_option_set_bool(OPTION_SHOW_NAND, "Show NAND", settings->titleShowNAND);
-    snprintf(titlemanager_option_items[OPTION_REBUILD].name, LIST_ITEM_NAME_MAX, "Rebuild list");
-    titlemanager_option_items[OPTION_REBUILD].color = COLOR_TEXT;
+
+    u32 shown = 0;
+    for(u32 i = 0; i < TITLE_CATEGORY_COUNT; i++) {
+        shown += settings->titleShowCategory[i] ? 1 : 0;
+    }
+
+    char show[16];
+    if(shown == TITLE_CATEGORY_COUNT) {
+        snprintf(show, sizeof(show), "All");
+    } else {
+        snprintf(show, sizeof(show), "%lu of %d", shown, TITLE_CATEGORY_COUNT);
+    }
+
+    list_item* options = titlemanager_option_items;
+    titlemanager_item_set(&options[OPTION_LAYOUT], "Layout", titlemanager_layout_names[settings->titleLayout], COLOR_TEXT);
+    titlemanager_item_set(&options[OPTION_SORT], "Sort", titlemanager_sort_names[settings->titleSort], COLOR_TEXT);
+    titlemanager_item_set(&options[OPTION_ORDER], "Order", settings->titleSortDesc ? "Descending" : "Ascending", COLOR_TEXT);
+    titlemanager_item_set(&options[OPTION_GROUP], "Group", titlemanager_group_names[settings->titleGroup], COLOR_TEXT);
+    titlemanager_item_set_bool(&options[OPTION_HEADERS], "Headers", settings->titleHeaders);
+    titlemanager_item_set(&options[OPTION_SHOW], "Show", show, COLOR_TEXT);
+    snprintf(options[OPTION_REBUILD].name, LIST_ITEM_NAME_MAX, "Rebuild list");
+    options[OPTION_REBUILD].color = COLOR_TEXT;
 }
 
 static void titlemanager_draw_info(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
@@ -389,6 +503,11 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
         tmData->sortDirty = false;
     }
 
+    // Game sort has no useful sections (one per game), so it only gets headers when grouped.
+    const titlemanager_order* order = &tmData->order;
+    bool headers = settings_get()->titleHeaders && (order->group != TITLE_GROUP_OFF || order->sort != TITLE_SORT_GAME);
+    list_set_sections(view, headers ? titlemanager_section : NULL);
+
     // Reveal the finished list at its first title.
     if(tmData->populateData.finished && tmData->loading) {
         tmData->loading = false;
@@ -419,7 +538,7 @@ void titlemanager_open() {
     }
 
     data->populateData.userData = data;
-    data->populateData.filter = titlemanager_filter;
+    data->populateData.visible = titlemanager_visible;
 
     data->populateData.finished = true;
 

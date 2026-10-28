@@ -66,6 +66,13 @@ typedef struct title_pass_s {
 } title_pass;
 
 static Result task_populate_titles_add_record(populate_titles_data* data, FS_MediaType mediaType, const title_record* record) {
+    // Hidden before any allocation: no list item and no icon texture.
+    title_category category = title_category_get(record->titleId, record->twl, record->productCode, record->publisher, record->hasMeta);
+    if(data->visible != NULL && !data->visible(data->userData, category)) {
+        data->loaded++;
+        return 0;
+    }
+
     list_item* item = (list_item*) calloc(1, sizeof(list_item));
     if(item == NULL) {
         return R_APP_OUT_OF_MEMORY;
@@ -85,6 +92,7 @@ static Result task_populate_titles_add_record(populate_titles_data* data, FS_Med
     titleInfo->installedSize = record->installedSize;
     titleInfo->twl = record->twl;
     titleInfo->hasMeta = record->hasMeta;
+    titleInfo->category = category;
 
     if(record->hasMeta) {
         string_copy(item->name, record->name, sizeof(item->name));

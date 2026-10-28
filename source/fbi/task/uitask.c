@@ -266,11 +266,9 @@ void task_draw_title_info(ui_view* view, void* data, float x1, float y1, float x
 // right, progress bar under both. The title info text above is centered and its last line is
 // short, so the strip's left and right ends stay clear of it.
 #define TITLES_PROGRESS_DELAY_MS 200 // a fast open finishes before the strip would flash
-#define TITLES_PROGRESS_STEP_MS 150
 #define TITLES_PROGRESS_SCALE 0.4f
 #define TITLES_PROGRESS_MARGIN 8
 #define TITLES_PROGRESS_DOT 4
-#define TITLES_PROGRESS_DOTS 3
 #define TITLES_PROGRESS_BAR 2
 
 void task_draw_title_progress(populate_titles_data* populateData, u64 start, float x1, float x2, float y2) {
@@ -304,18 +302,13 @@ void task_draw_title_progress(populate_titles_data* populateData, u64 start, flo
     screen_get_string_size(NULL, &labelHeight, label, TITLES_PROGRESS_SCALE, TITLES_PROGRESS_SCALE);
     float textY = barY - 1 - labelHeight;
 
-    u32 activeDot = (u32) (osGetTime() / TITLES_PROGRESS_STEP_MS) % TITLES_PROGRESS_DOTS;
-    float dotY = textY + (labelHeight - TITLES_PROGRESS_DOT) / 2;
-    for(u32 i = 0; i < TITLES_PROGRESS_DOTS; i++) {
-        screen_set_base_alpha(i == activeDot ? 0xFF : 0x50);
-        screen_draw_texture(TEXTURE_PROGRESS_BAR_CONTENT, left + i * (TITLES_PROGRESS_DOT + 3), dotY, TITLES_PROGRESS_DOT, TITLES_PROGRESS_DOT);
-    }
+    ui_draw_loading_dots(left, textY + (labelHeight - TITLES_PROGRESS_DOT) / 2, TITLES_PROGRESS_DOT);
 
     screen_set_base_alpha(0x40);
     screen_draw_texture(TEXTURE_PROGRESS_BAR_CONTENT, left, barY, right - left, TITLES_PROGRESS_BAR);
     screen_set_base_alpha(0xFF);
 
-    float labelX = left + TITLES_PROGRESS_DOTS * (TITLES_PROGRESS_DOT + 3) + 3;
+    float labelX = left + ui_get_loading_dots_width(TITLES_PROGRESS_DOT) + 6;
     screen_draw_string(label, labelX, textY, TITLES_PROGRESS_SCALE, TITLES_PROGRESS_SCALE, COLOR_TEXT, false);
 
     if(total == 0) {

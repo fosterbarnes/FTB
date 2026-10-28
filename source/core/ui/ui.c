@@ -398,6 +398,24 @@ bool ui_update() {
     return ui != NULL;
 }
 
+#define UI_LOADING_DOTS 3
+#define UI_LOADING_STEP_MS 150
+
+void ui_draw_loading_dots(float x, float y, float dot) {
+    float gap = dot - 1;
+    u32 activeDot = (u32) (osGetTime() / UI_LOADING_STEP_MS) % UI_LOADING_DOTS;
+    for(u32 i = 0; i < UI_LOADING_DOTS; i++) {
+        screen_set_base_alpha(i == activeDot ? 0xFF : 0x50);
+        screen_draw_texture(TEXTURE_PROGRESS_BAR_CONTENT, x + i * (dot + gap), y, dot, dot);
+    }
+
+    screen_set_base_alpha(0xFF);
+}
+
+float ui_get_loading_dots_width(float dot) {
+    return UI_LOADING_DOTS * dot + (UI_LOADING_DOTS - 1) * (dot - 1);
+}
+
 const char* ui_get_display_eta(u32 seconds) {
     static char disp[12];
 

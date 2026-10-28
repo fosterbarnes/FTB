@@ -24,6 +24,7 @@ typedef struct {
     bool populated;
     bool rebuild; // the next population rebuilds the title cache (Options > Rebuild list)
     bool sortDirty; // the sort changed: resort once population has finished
+    bool loading; // a cached load: the list shows a loading animation until population finishes
     u64 populateStart; // osGetTime() when the current population began
     char name[64]; // view name: current sort and grouping
 } titlemanager_data;
@@ -350,6 +351,11 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
         tmData->populateData.cacheMode = cacheMode;
         tmData->populateStart = osGetTime();
         tmData->sortDirty = false; // a new population inserts in the current order
+        // Cached titles arrive in a burst, and inserting them sorted would drag the selection away
+        // from the top, so the list stays hidden until the load is done. Uncached loads are slow
+        // enough that showing titles as they arrive stays more useful.
+        tmData->loading = cacheMode == TITLE_CACHE_ON;
+        list_set_loading(view, tmData->loading);
         Result res = task_populate_titles(&tmData->populateData);
         if(R_FAILED(res)) {
             error_display_res(NULL, NULL, res, "Failed to initiate title list population.");
@@ -362,6 +368,12 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
     if(tmData->populateData.finished && tmData->sortDirty) {
         linked_list_sort(items, NULL, titlemanager_compare);
         tmData->sortDirty = false;
+    }
+
+    // Reveal the finished list at its first title.
+    if(tmData->populateData.finished && tmData->loading) {
+        tmData->loading = false;
+        list_set_loading(view, false);
     }
 
     if(tmData->populateData.finished && R_FAILED(tmData->populateData.result)) {

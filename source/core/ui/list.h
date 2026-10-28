@@ -29,4 +29,7 @@ ui_view* list_display(const char* name, const char* info, void* data, void (*upd
 void list_set_layout(ui_view* view, list_layout layout, u32 (*itemIcon)(list_item* item));
 // size: 0 .. LIST_GRID_SIZE_COUNT - 1.
 void list_set_grid_size(ui_view* view, u32 size);
+// While loading, the rows show a loading animation, input is ignored, and the update and drawTop
+// callbacks get no selection. Both directions start again at the first item.
+void list_set_loading(ui_view* view, bool loading);
 void list_destroy(ui_view* view);

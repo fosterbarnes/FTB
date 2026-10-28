@@ -5,7 +5,8 @@ Usage: genBanner.py <pycgfx checkout> <400x240 banner.png> <out.cgfx>
 HOME Menu views banners through a fixed camera (pycgfx's banner-camera.gltf): 30 degree vertical FOV
 from (0, 1, 44.786), so at depth 0 the 240 px screen height spans 24 units and 1 unit is 10 px. Two
 flat quads covering x -20..20, y -11..13 at z 0 therefore show the image 1:1 on the top screen, at
-screen depth (no 3D offset).
+screen depth (no 3D offset). HOME Menu spins every banner model, so the quads are screen-facing
+billboards (see pinToScreen).
 
 pycgfx (https://github.com/skyfloogle/pycgfx, no license, so not vendored) converts the scene. It caps
 textures at 256 px, so each half (200x240) gets its own 256x256 texture. Its materials are lit, which
@@ -103,6 +104,21 @@ def makeUnlit(cgfx):
             combiner.combine_rgb = combiner.combine_alpha = 0
 
 
+def pinToScreen(cgfx):
+    """Makes each quad's bone a Screen billboard so HOME Menu's own spin (every banner model turns
+    about y once per 10 s) leaves the image still. The bones sit at the origin, on the spin axis, so
+    they never move either. Each mesh also records its bone (mesh_node_name), which hardware-tested
+    pycgfx banners (daaaaavia/CBC-for-YANBF, GabeSud0/pokeplatinum-3ds) needed for billboards."""
+    from cgfx.sobj import BillboardMode
+
+    model = cgfx.data.models['COMMON']
+    for mesh in model.meshes.data.contents:
+        # pycgfx names meshes '<glTF mesh>_<material>'; each glTF node and its bone share the mesh name.
+        bone = model.skeleton.bones[mesh.name.split('_')[0]]
+        bone.billboard_mode = BillboardMode.Screen
+        mesh.mesh_node_name = bone
+
+
 def main():
     if len(sys.argv) != 4:
         sys.exit(__doc__)
@@ -129,6 +145,7 @@ def main():
         cgfx = pycgfx.convert_gltf(gltf)
 
     makeUnlit(cgfx)
+    pinToScreen(cgfx)
     data = pycgfx.write(cgfx)
     if len(data) > _MAX_CGFX:
         sys.exit(f'CGFX is {len(data)} bytes; HOME Menu allows at most {_MAX_CGFX}.')

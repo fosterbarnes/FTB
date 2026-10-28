@@ -17,6 +17,10 @@
 #define FLING_MAX_VELOCITY 2.4f
 #define SCROLL_BAR_MIN_HEIGHT 16.0f
 
+// Loading: centered dots in place of the rows, shown after a delay so a fast load never flashes them.
+#define LOADING_DELAY_MS 200
+#define LOADING_DOT 8
+
 // Grid layout: icon cells on the top screen. Per zoom level: icon edge, columns across the 390 px
 // left of the scroll bar, row height. Icons scale by icon / GRID_NATIVE_ICON (CTR 48, TWL 32 native),
 // and each cell leaves room for the selection ring.
@@ -57,6 +61,8 @@ typedef struct {
     list_layout layout;
     u32 gridSize;
     u32 (*itemIcon)(list_item* item);
+    bool loading;
+    u64 loadingStart;
     void (*update)(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched);
     void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected);
 } list_data;
@@ -347,6 +353,14 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
 
     list_validate(listData, by1, by2);
 
+    if(listData->loading) {
+        if(listData->update != NULL) {
+            listData->update(view, listData->data, &listData->items, NULL, false);
+        }
+
+        return;
+    }
+
     bool selectedTouched = false;
     if(size > 0) {
         bool scrolls = false;
@@ -483,6 +497,15 @@ static void list_draw_grid(list_data* listData, float x1, float y1, float x2, fl
 }
 
 static void list_draw_rows(list_data* listData, float x1, float y1, float x2, float y2) {
+    if(listData->loading) {
+        if(osGetTime() - listData->loadingStart >= LOADING_DELAY_MS) {
+            float width = ui_get_loading_dots_width(LOADING_DOT);
+            ui_draw_loading_dots(x1 + (x2 - x1 - width) / 2, y1 + (y2 - y1 - LOADING_DOT) / 2, LOADING_DOT);
+        }
+
+        return;
+    }
+
     if(listData->layout == LIST_LAYOUT_GRID) {
         list_draw_grid(listData, x1, y1, x2, y2);
         return;
@@ -526,7 +549,7 @@ static void list_draw_info(ui_view* view, list_data* listData, float x1, float y
     if(listData->drawTop != NULL) {
         list_validate(listData, y1, y2);
 
-        listData->drawTop(view, listData->data, x1, y1, x2, y2, listData->selectedItem);
+        listData->drawTop(view, listData->data, x1, y1, x2, y2, listData->loading ? NULL : listData->selectedItem);
     }
 }
 
@@ -614,6 +637,17 @@ void list_set_grid_size(ui_view* view, u32 size) {
     list_data* listData = (list_data*) view->data;
 
     listData->gridSize = size < LIST_GRID_SIZE_COUNT ? size : LIST_GRID_SIZE_DEFAULT;
+    list_reset_scroll(listData);
+}
+
+void list_set_loading(ui_view* view, bool loading) {
+    list_data* listData = (list_data*) view->data;
+
+    listData->loading = loading;
+    listData->loadingStart = osGetTime();
+
+    listData->selectedIndex = 0;
+    listData->selectedItem = NULL;
     list_reset_scroll(listData);
 }
 

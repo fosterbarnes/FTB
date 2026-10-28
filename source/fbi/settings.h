@@ -29,6 +29,9 @@ typedef enum title_sort_e {
     TITLE_SORT_ID,
     TITLE_SORT_SIZE,
     TITLE_SORT_PUBLISHER,
+    TITLE_SORT_TYPE, // title ID high word: app, demo, update, DLC, system, DSiWare blocks
+    TITLE_SORT_REGION, // SMDH region lockout mask
+    TITLE_SORT_GAME, // title ID low word, so an app sits next to its update and DLC
     TITLE_SORT_COUNT
 } title_sort;
 

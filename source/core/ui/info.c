@@ -163,6 +163,9 @@ static void info_draw_data_op(info_data* infoData, float x1, float y1, float x2,
         }
     } else if(batch) {
         snprintf(left, sizeof(left), "%lu / %lu", processed + 1, total);
+    } else if(!busy && bytesPerSecond != 0) {
+        // A single item's ETA takes the empty top-left slot: beside bytes and speed it overflows the bar.
+        snprintf(left, sizeof(left), "ETA %s", ui_get_display_eta(eta));
     }
 
     if(!busy) {
@@ -188,10 +191,7 @@ static void info_draw_data_op(info_data* infoData, float x1, float y1, float x2,
     }
 
     if(!busy && bytesPerSecond != 0) {
-        size_t pos = snprintf(right, sizeof(right), "%.1f %s/s", ui_get_display_size(bytesPerSecond), ui_get_display_size_units(bytesPerSecond));
-        if(!batch) {
-            snprintf(right + pos, sizeof(right) - pos, ", ETA %s", ui_get_display_eta(eta));
-        }
+        snprintf(right, sizeof(right), "%.1f %s/s", ui_get_display_size(bytesPerSecond), ui_get_display_size_units(bytesPerSecond));
     }
 
     info_draw_row(left, right, x, y);

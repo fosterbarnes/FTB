@@ -11,7 +11,7 @@
 #include "../core/core.h"
 
 // Title Manager: FTB's title list. Layout, zoom, sort, and filters live in settings (titleLayout
-// etc.) and change from Options or Y (layout), X (grid zoom), L (grouping). FBI's original screen
+// etc.) and change from Options or Y (layout), X (grid zoom), L (sort). FBI's original screen
 // stays in titles.c as Titles (FBI Legacy).
 
 #define TITLEMANAGER_INFO "A: Select, B: Return, Y: Layout, Select: Options"
@@ -30,7 +30,7 @@ typedef struct {
 
 static const list_layout titlemanager_layouts[TITLE_LAYOUT_COUNT] = {LIST_LAYOUT_GRID, LIST_LAYOUT_TOP, LIST_LAYOUT_BOTTOM};
 static const char* const titlemanager_layout_names[TITLE_LAYOUT_COUNT] = {"Grid", "List top", "List bottom"};
-static const char* const titlemanager_sort_names[TITLE_SORT_COUNT] = {"Name", "Title ID", "Size", "Publisher"};
+static const char* const titlemanager_sort_names[TITLE_SORT_COUNT] = {"Name", "Title ID", "Size", "Publisher", "Type", "Region", "Game"};
 
 typedef enum {
     OPTION_LAYOUT,
@@ -55,7 +55,7 @@ static void titlemanager_apply_layout(titlemanager_data* data) {
     u8 layout = settings_get()->titleLayout;
 
     data->view->info = layout == TITLE_LAYOUT_GRID ? TITLEMANAGER_INFO_GRID : TITLEMANAGER_INFO;
-    data->view->hintLeft = "L: Group";
+    data->view->hintLeft = "L: Sort";
     data->view->hintRight = layout == TITLE_LAYOUT_GRID ? "R: Page" : NULL;
     list_set_layout(data->view, titlemanager_layouts[layout], titlemanager_item_icon);
     list_set_grid_size(data->view, settings_get()->titleGridSize);
@@ -93,7 +93,15 @@ static void titlemanager_cycle_grid_size(titlemanager_data* data) {
     list_set_grid_size(data->view, next.titleGridSize);
 }
 
-// L and the Options row: grouping by location only reorders, so no reload.
+// L and the Sort row: next sort key. Sorting and grouping only reorder, so no reload.
+static void titlemanager_cycle_sort(titlemanager_data* data) {
+    ftb_settings next = *settings_get();
+    next.titleSort = (u8) ((next.titleSort + 1) % TITLE_SORT_COUNT);
+
+    titlemanager_save(&next);
+    data->sortDirty = true;
+}
+
 static void titlemanager_toggle_group(titlemanager_data* data) {
     ftb_settings next = *settings_get();
     next.titleGroupLocation = !next.titleGroupLocation;
@@ -147,6 +155,17 @@ static int titlemanager_compare(void* data, const void* p1, const void* p2) {
         result = titlemanager_compare_u64(title1->titleId, title2->titleId);
     } else if(settings->titleSort == TITLE_SORT_SIZE) {
         result = titlemanager_compare_u64(title1->installedSize, title2->installedSize);
+    } else if(settings->titleSort == TITLE_SORT_TYPE) {
+        result = titlemanager_compare_u64(title1->titleId >> 32, title2->titleId >> 32);
+    } else if(settings->titleSort == TITLE_SORT_GAME) {
+        result = titlemanager_compare_u64((u32) title1->titleId, (u32) title2->titleId);
+    } else if(settings->titleSort == TITLE_SORT_REGION) {
+        // Titles without an SMDH sort last in either order.
+        if(title1->hasMeta != title2->hasMeta) {
+            return title1->hasMeta ? -1 : 1;
+        }
+
+        result = title1->hasMeta ? titlemanager_compare_u64(title1->meta.region, title2->meta.region) : 0;
     } else {
         // Titles without the text sort last in either order.
         const char* text1 = titlemanager_sort_text(item1, settings->titleSort);
@@ -214,16 +233,14 @@ static void titlemanager_options_update(ui_view* view, void* data, linked_list* 
         return;
     } else if(activated && option == OPTION_LAYOUT) {
         titlemanager_cycle_layout(tmData);
+    } else if(activated && option == OPTION_SORT) {
+        titlemanager_cycle_sort(tmData);
     } else if(activated && option == OPTION_GROUP) {
         titlemanager_toggle_group(tmData);
     } else if(activated) {
         ftb_settings next = *settings_get();
 
         switch(option) {
-            case OPTION_SORT:
-                next.titleSort = (u8) ((next.titleSort + 1) % TITLE_SORT_COUNT);
-                tmData->sortDirty = true;
-                break;
             case OPTION_ORDER:
                 next.titleSortDesc = !next.titleSortDesc;
                 tmData->sortDirty = true;
@@ -315,7 +332,7 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
     }
 
     if(hidKeysDown() & KEY_L) {
-        titlemanager_toggle_group(tmData);
+        titlemanager_cycle_sort(tmData);
     }
 
     titlemanager_update_name(tmData);

@@ -1,6 +1,6 @@
 # ftb
 
-Fork of [FBI](https://github.com/Steveice10/FBI) with added features.
+[FBI](https://github.com/Steveice10/FBI) with added features. 3ds title manager, FTP server, and more.
 
 ## Download
 <!-- Quick Reference -->
@@ -40,25 +40,30 @@ This project is in active development.
 
 ## Screenshots
 
-| <h3> Home </h3> |
-|:---:|
-| <img src="./.res/scr/1.png" width="400" style="margin: 20px; padding: 20px;"> |
-
-| <h3> Title Manager </h3> |
-|:---:|
-| <img src="./.res/scr/2.png" width="400" style="margin: 20px; padding: 20px;"> |
-
-| <h3> FTP Server </h3> |
-|:---:|
-| <img src="./.res/scr/3.png" width="400" style="margin: 20px; padding: 20px;"> |
-
-| <h3> Installation & Downloading </h3> |
-|:---:|
-| <img src="./.res/scr/4.png" width="400" style="margin: 20px; padding: 20px;"> |
-
-| <h3> SD Browser </h3> |
-|:---:|
-| <img src="./.res/scr/5.png" width="400" style="margin: 20px; padding: 20px;"> |
+<table>
+  <tr>
+    <th>Home</th>
+    <th>Title Manager </th> 
+  </tr>
+  <tr>
+    <td align="center"><img src="./.res/scr/1.png" width="300" vspace="15"></td>
+    <td align="center"><img src="./.res/scr/2.png" width="300" vspace="15"></td>
+  </tr>
+  <tr>
+    <th>FTP Server</th>
+    <th>Progress Bar</th>
+  </tr>
+  <tr>
+    <td align="center"><img src="./.res/scr/3.png" width="300" vspace="15"></td>
+    <td align="center"><img src="./.res/scr/4.png" width="300" vspace="15"></td>
+  </tr>
+  <tr>
+    <th colspan="2">SD Browser</th>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><img src="./.res/scr/5.png" width="300" vspace="15"></td>
+  </tr>
+</table>
 
 ## Credit
 

@@ -121,8 +121,10 @@ static void info_draw_data_op(info_data* infoData, float x1, float y1, float x2,
     u32 total = op->total != 0 ? op->total : 1;
     u32 processed = op->processed < total ? op->processed : total - 1;
     u64 currTotal = op->currTotal;
-    u64 currProcessed = op->currProcessed;
+    // doneBytes before currProcessed: the worker's item handoff (dataop.c) depends on this order.
     u64 doneBytes = op->doneBytes;
+    __dmb();
+    u64 currProcessed = op->currProcessed;
     u32 bytesPerSecond = op->bytesPerSecond;
     u32 eta = op->estimatedRemainingSeconds;
 

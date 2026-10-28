@@ -16,10 +16,12 @@ Result cia_get_title_id(u64* titleId, u8* cia, size_t size) {
         return R_APP_BAD_DATA;
     }
 
-    u32 headerSize = ((*(u32*) &cia[0x00]) + 0x3F) & ~0x3F;
-    u32 certSize = ((*(u32*) &cia[0x08]) + 0x3F) & ~0x3F;
-    u32 ticketSize = ((*(u32*) &cia[0x0C]) + 0x3F) & ~0x3F;
-    u32 offset = headerSize + certSize + ticketSize;
+    // u64 like cia_get_seed_state: header sizes from a bad download can wrap a u32 sum back into the
+    // buffer and pass the bounds check.
+    u64 headerSize = ((u64) *(u32*) &cia[0x00] + 0x3F) & ~0x3F;
+    u64 certSize = ((u64) *(u32*) &cia[0x08] + 0x3F) & ~0x3F;
+    u64 ticketSize = ((u64) *(u32*) &cia[0x0C] + 0x3F) & ~0x3F;
+    u64 offset = headerSize + certSize + ticketSize;
 
     if(offset >= size) {
         return R_APP_BAD_DATA;

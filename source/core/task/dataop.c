@@ -89,7 +89,8 @@ static Result task_data_op_copy(data_op_data* data, u32 index) {
                         res = R_APP_BAD_DATA;
                     }
                 } else {
-                    u8* buffer = (u8*) calloc(1, data->bufferSize);
+                    // Every byte written was read first, so the buffer needs no zeroing.
+                    u8* buffer = (u8*) malloc(data->bufferSize);
                     if(buffer != NULL) {
                         u32 dstHandle = 0;
 
@@ -257,10 +258,13 @@ static void task_data_op_thread(void* arg) {
 
         data->result = res;
 
-        // Bytes of this item count toward the batch; a retry below takes them back out.
+        // Bytes of this item count toward the batch; a retry below takes them back out. The UI sums
+        // doneBytes + currProcessed, reading doneBytes first, so zeroing currProcessed before the add
+        // (with barriers on both sides) can only show a one-frame dip, never the item counted twice.
         u64 itemBytes = data->currProcessed;
-        data->doneBytes += itemBytes;
         data->currProcessed = 0;
+        __dmb();
+        data->doneBytes += itemBytes;
 
         if(R_FAILED(res)) {
             if(res == R_APP_CANCELLED) {
@@ -331,6 +335,10 @@ Result task_data_op(data_op_data* data) {
     data->result = 0;
     data->cancelEvent = 0;
 
+    // Blocked before the worker starts: it allows sleep again when it ends, and a quick op could end
+    // before this thread got here, leaving sleep blocked.
+    aptSetSleepAllowed(false);
+
     Result res = 0;
     if(R_SUCCEEDED(res = svcCreateEvent(&data->cancelEvent, RESET_STICKY))) {
         if(threadCreate(task_data_op_thread, data, 0x10000, 0x18, 1, true) == NULL) {
@@ -345,9 +353,9 @@ Result task_data_op(data_op_data* data) {
             svcCloseHandle(data->cancelEvent);
             data->cancelEvent = 0;
         }
-    }
 
-    aptSetSleepAllowed(false);
+        aptSetSleepAllowed(true);
+    }
 
     return res;
 }

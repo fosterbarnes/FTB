@@ -22,6 +22,12 @@ static Handle ui_stack_mutex = 0;
 static u64 ui_free_space_last_update = 0;
 static char ui_free_space_buffer[128];
 
+// Battery and Wi-Fi are service calls (ptm, ac); polling them once a second instead of every frame
+// is plenty for icons.
+static u64 ui_status_last_update = 0;
+static u32 ui_battery_icon = 0;
+static u32 ui_wifi_icon = 0;
+
 static u64 ui_fade_begin_time = 0;
 static u8 ui_fade_alpha = 0;
 
@@ -158,40 +164,42 @@ static void ui_draw_top(ui_view* ui) {
     screen_get_string_size(&verWidth, &verHeight, verText, 0.5f, 0.5f);
     screen_draw_string(verText, topScreenTopBarX + 2, topScreenTopBarY + (topScreenTopBarHeight - verHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
 
-    u32 batteryIcon = 0;
-    u8 batteryChargeState = 0;
-    u8 batteryLevel = 0;
-    if(R_SUCCEEDED(PTMU_GetBatteryChargeState(&batteryChargeState)) && batteryChargeState) {
-        batteryIcon = TEXTURE_BATTERY_CHARGING;
-    } else if(R_SUCCEEDED(PTMU_GetBatteryLevel(&batteryLevel))) {
-        batteryIcon = TEXTURE_BATTERY_0 + batteryLevel;
-    } else {
-        batteryIcon = TEXTURE_BATTERY_0;
+    if(osGetTime() >= ui_status_last_update + 1000) {
+        u8 batteryChargeState = 0;
+        u8 batteryLevel = 0;
+        if(R_SUCCEEDED(PTMU_GetBatteryChargeState(&batteryChargeState)) && batteryChargeState) {
+            ui_battery_icon = TEXTURE_BATTERY_CHARGING;
+        } else if(R_SUCCEEDED(PTMU_GetBatteryLevel(&batteryLevel))) {
+            ui_battery_icon = TEXTURE_BATTERY_0 + batteryLevel;
+        } else {
+            ui_battery_icon = TEXTURE_BATTERY_0;
+        }
+
+        u32 wifiStatus = 0;
+        if(R_SUCCEEDED(ACU_GetWifiStatus(&wifiStatus)) && wifiStatus) {
+            ui_wifi_icon = TEXTURE_WIFI_0 + osGetWifiStrength();
+        } else {
+            ui_wifi_icon = TEXTURE_WIFI_DISCONNECTED;
+        }
+
+        ui_status_last_update = osGetTime();
     }
 
     u32 batteryWidth;
     u32 batteryHeight;
-    screen_get_texture_size(&batteryWidth, &batteryHeight, batteryIcon);
+    screen_get_texture_size(&batteryWidth, &batteryHeight, ui_battery_icon);
 
     float batteryX = topScreenTopBarX + topScreenTopBarWidth - 2 - batteryWidth;
     float batteryY = topScreenTopBarY + (topScreenTopBarHeight - batteryHeight) / 2;
-    screen_draw_texture(batteryIcon, batteryX, batteryY, batteryWidth, batteryHeight);
-
-    u32 wifiIcon = 0;
-    u32 wifiStatus = 0;
-    if(R_SUCCEEDED(ACU_GetWifiStatus(&wifiStatus)) && wifiStatus) {
-        wifiIcon = TEXTURE_WIFI_0 + osGetWifiStrength();
-    } else {
-        wifiIcon = TEXTURE_WIFI_DISCONNECTED;
-    }
+    screen_draw_texture(ui_battery_icon, batteryX, batteryY, batteryWidth, batteryHeight);
 
     u32 wifiWidth;
     u32 wifiHeight;
-    screen_get_texture_size(&wifiWidth, &wifiHeight, wifiIcon);
+    screen_get_texture_size(&wifiWidth, &wifiHeight, ui_wifi_icon);
 
     float wifiX = topScreenTopBarX + topScreenTopBarWidth - 2 - batteryWidth - 4 - wifiWidth;
     float wifiY = topScreenTopBarY + (topScreenTopBarHeight - wifiHeight) / 2;
-    screen_draw_texture(wifiIcon, wifiX, wifiY, wifiWidth, wifiHeight);
+    screen_draw_texture(ui_wifi_icon, wifiX, wifiY, wifiWidth, wifiHeight);
 
     // Date and time order follow the Settings formats (default 10/27/26 11:16 PM).
     const ftb_settings* settings = settings_get();
@@ -417,14 +425,13 @@ float ui_get_loading_dots_width(float dot) {
 }
 
 const char* ui_get_display_eta(u32 seconds) {
-    static char disp[12];
+    static char disp[16];
 
-    u8 hours     = seconds / 3600;
-    seconds     -= hours * 3600;
-    u8 minutes   = seconds / 60;
-    seconds     -= minutes* 60;
+    // u32 hours: a stalled transfer's ETA can pass 255 hours, which wrapped a u8.
+    u32 hours = seconds / 3600;
+    u32 minutes = seconds / 60 % 60;
 
-    snprintf(disp, 12, "%02u:%02u:%02u", hours, minutes, (u8) seconds);
+    snprintf(disp, sizeof(disp), "%02lu:%02lu:%02lu", hours, minutes, seconds % 60);
     return disp;
 }
 

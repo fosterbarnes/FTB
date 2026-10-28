@@ -304,17 +304,18 @@ Result http_download_callback(const char* url, u32 bufferSize, void* userData, R
                       && (checkRunning == NULL || R_SUCCEEDED(res = checkRunning(userData)))
                       && R_SUCCEEDED(res = httpc_read(context, &currSize, buf, bufferSize))
                       && R_SUCCEEDED(res = callback(userData, buf, currSize))) {
+                    total += currSize;
+
+                    // After the block is written, so the last block counts and an item ends at 100%.
                     if(progress != NULL) {
                         progress(userData, dlSize, total);
                     }
-
-                    total += currSize;
                 }
+            }
 
-                Result closeRes = httpc_close(context);
-                if(R_SUCCEEDED(res)) {
-                    res = closeRes;
-                }
+            Result closeRes = httpc_close(context);
+            if(R_SUCCEEDED(res)) {
+                res = closeRes;
             }
         } else if(res == R_HTTP_TLS_VERIFY_FAILED) {
             res = 0;

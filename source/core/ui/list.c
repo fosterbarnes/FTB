@@ -253,8 +253,14 @@ static void list_update_touch(list_data* listData, float bx2, float by1, float b
         } else {
             listData->touchMode = LIST_TOUCH_LIST;
 
-            if(rowsUnderTouch && !catching) {
-                u32 index = (u32) ((listData->scrollPos + (pos.py - by1)) / screen_get_font_height(0.5f));
+            // Only a row under the stylus counts: a tap on the top or bottom bar or below the last row
+            // used to select (and on a second tap open) a row that was not touched.
+            u32 index = UINT32_MAX;
+            if(rowsUnderTouch && !catching && pos.py >= by1 && pos.py < by2) {
+                index = (u32) ((listData->scrollPos + (pos.py - by1)) / screen_get_font_height(0.5f));
+            }
+
+            if(index < linked_list_size(&listData->items)) {
                 if(listData->selectedIndex == index) {
                     // Activation usually opens another view; this touch must not drag the list later.
                     listData->touchMode = LIST_TOUCH_NONE;

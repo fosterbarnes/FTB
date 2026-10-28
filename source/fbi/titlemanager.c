@@ -350,11 +350,14 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
         tmData->rebuild = false;
         tmData->populateData.cacheMode = cacheMode;
         tmData->populateStart = osGetTime();
-        tmData->sortDirty = false; // a new population inserts in the current order
         // Cached titles arrive in a burst, and inserting them sorted would drag the selection away
         // from the top, so the list stays hidden until the load is done. Uncached loads are slow
         // enough that showing titles as they arrive stays more useful.
         tmData->loading = cacheMode == TITLE_CACHE_ON;
+        // A hidden list takes titles unsorted and sorts once at the end; inserting each one in order
+        // costs a walk of the list per title. A shown list inserts in the current order.
+        tmData->populateData.compare = tmData->loading ? NULL : titlemanager_compare;
+        tmData->sortDirty = tmData->loading;
         list_set_loading(view, tmData->loading);
         Result res = task_populate_titles(&tmData->populateData);
         if(R_FAILED(res)) {
@@ -382,7 +385,10 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
         tmData->populateData.result = 0;
     }
 
-    if(selected != NULL && selected->data != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
+    // Actions such as Delete Title remove items, which the populate thread may be walking until it
+    // finishes, so titles open once the list is complete.
+    if(selected != NULL && selected->data != NULL && tmData->populateData.finished
+       && (selectedTouched || (hidKeysDown() & KEY_A))) {
         titles_action_open(items, selected);
         return;
     }
@@ -398,7 +404,6 @@ void titlemanager_open() {
 
     data->populateData.userData = data;
     data->populateData.filter = titlemanager_filter;
-    data->populateData.compare = titlemanager_compare;
 
     data->populateData.finished = true;
 

@@ -118,7 +118,12 @@ static Result task_populate_titles_add_record(populate_titles_data* data, FS_Med
 
     item->data = titleInfo;
 
-    linked_list_add_sorted(data->items, item, data->userData, data->compare);
+    if(!linked_list_add_sorted(data->items, item, data->userData, data->compare)) {
+        task_free_title(item);
+
+        return R_APP_OUT_OF_MEMORY;
+    }
+
     data->loaded++;
     return 0;
 }

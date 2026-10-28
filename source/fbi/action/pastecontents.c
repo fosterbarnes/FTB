@@ -177,6 +177,18 @@ static Result action_paste_contents_close_dst(void* data, u32 index, bool succee
         char dstPath[FILE_PATH_MAX];
         action_paste_contents_get_dst_path(pasteData, index, dstPath);
 
+        // A cancelled or failed copy leaves a truncated file; remove it so it never passes for a
+        // complete one (a cut-off CIA, for example).
+        if(!succeeded) {
+            FS_Path* fsPath = fs_make_path_utf8(dstPath);
+            if(fsPath != NULL) {
+                FSUSER_DeleteFile(pasteData->target->archive, *fsPath);
+                fs_free_path_utf8(fsPath);
+            }
+
+            return res;
+        }
+
         char parentPath[FILE_PATH_MAX];
         string_get_parent_path(parentPath, dstPath, FILE_PATH_MAX);
 

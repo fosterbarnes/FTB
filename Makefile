@@ -41,7 +41,7 @@ UNIQUE_ID := 0xF8F7B
 ICON_FLAGS := --flags visible,ratingrequired,recordusage --cero 153 --esrb 153 --usk 153 --pegigen 153 --pegiptr 153 --pegibbfc 153 --cob 153 --grb 153 --cgsrr 153
 
 BANNER_AUDIO := meta/audio_3ds.wav
-BANNER_IMAGE := meta/banner_3ds.cgfx
+BANNER_IMAGE := meta/banner_3ds.png
 ICON := meta/icon_3ds.png
 LOGO := meta/logo_3ds.bcma.lz
 

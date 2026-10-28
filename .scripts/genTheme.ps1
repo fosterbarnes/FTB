@@ -1,7 +1,7 @@
 #requires -Version 7.0
 # Regenerates romfs theme textures, romfs/textcolor.cfg, the home-menu icon and banner, and the launch
-# splash from the tokens below and the logo master. Requires ImageMagick 7 (`magick`), Python 3, pycgfx
-# (see $PYCGFX), and devkitPro's tex3ds.
+# splash from the tokens below and the logo master. Requires ImageMagick 7 (`magick`), Python 3, and
+# devkitPro's tex3ds.
 # Safe to rerun: icon recolors are idempotent.
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\scriptHelper.ps1"
@@ -16,15 +16,13 @@ $ACCENT = '#765E98'
 # Hand-made 144px "ftb" logo (Consolas Bold on AccentStrong, #3A2C4F border); every logo size comes
 # from it.
 $LOGO_MASTER = "$repoRoot\.res\logo.png"
-# The full-width banner is the logo tile widened to the 400x240 top screen: same fill and border, with
-# the text cut from a $BANNER_TILE px tile. Fill and border match the logo master.
+# The HOME Menu banner is the logo tile widened to bannertool's 256x128 banner image: same fill and
+# border, with the text cut from a $BANNER_TILE px tile. Fill and border match the logo master. (The
+# v0.0.16-18 full-screen 3D model showed far too big on hardware, cropped to an oval.)
 $BANNER_TILE = 120
 $BANNER_BORDER = 8
 $LOGO_FILL = '#523E6E'
 $LOGO_BORDER = '#3A2C4F'
-# genBanner.py runs pycgfx from this checkout (pinned commit 1f78850, plus `pip install --user gltflib
-# pillow`); it has no license, so it is not in the repo.
-$PYCGFX = "$env:LOCALAPPDATA\pycgfx"
 
 $TEXT_COLORS = [ordered]@{
     text = '#FFFFFF'; nand = '#F44336'; sd = '#4CAF50'; gamecard = '#03A9F4'; dstitle = '#AC98C7'
@@ -89,11 +87,9 @@ try {
     newLogoTile $BANNER_TILE "$temp\bannerTile.png"
     invokeMagick "$temp\bannerTile.png" -gravity center -crop "${inner}x$inner+0+0" +repage `
         "PNG24:$temp\bannerText.png"
-    invokeMagick -size 400x240 "xc:$LOGO_BORDER" -fill $LOGO_FILL `
-        -draw "rectangle $BANNER_BORDER,$BANNER_BORDER $(399 - $BANNER_BORDER),$(239 - $BANNER_BORDER)" `
+    invokeMagick -size 256x128 "xc:$LOGO_BORDER" -fill $LOGO_FILL `
+        -draw "rectangle $BANNER_BORDER,$BANNER_BORDER $(255 - $BANNER_BORDER),$(127 - $BANNER_BORDER)" `
         "$temp\bannerText.png" -gravity center -composite "PNG24:$meta\banner_3ds.png"
-    runNativeCommand python @('-P', "$PSScriptRoot\genBanner.py", $PYCGFX, "$meta\banner_3ds.png",
-        "$meta\banner_3ds.cgfx") 'genBanner.py'
 
     # Launch splash textures keep the original sizes: a 128px logo and a 16x256 strip (240 rows shown)
     # stretched across both screens, here drawn with the app's 20px top and bottom bars.

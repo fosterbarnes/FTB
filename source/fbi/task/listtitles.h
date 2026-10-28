@@ -20,6 +20,7 @@ typedef struct populate_titles_data_s {
     void* userData;
     bool (*filter)(void* data, u64 titleId, FS_MediaType mediaType);
     int (*compare)(void* data, const void* p1, const void* p2);
+    bool useCache; // false: reload every title and rewrite sdmc:/ftb/cache/
 
     volatile bool finished;
     Result result;

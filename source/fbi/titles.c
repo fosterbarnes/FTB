@@ -229,6 +229,7 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
         }
 
         listData->populateData.items = items;
+        listData->populateData.useCache = !(hidKeysDown() & KEY_X);
         Result res = task_populate_titles(&listData->populateData);
         if(R_FAILED(res)) {
             error_display_res(NULL, NULL, res, "Failed to initiate title list population.");

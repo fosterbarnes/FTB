@@ -251,16 +251,6 @@ static void action_paste_contents_update(ui_view* view, void* data, float* progr
     if((hidKeysDown() & KEY_B) && !pasteData->pasteInfo.finished) {
         svcSignalEvent(pasteData->pasteInfo.cancelEvent);
     }
-
-    *progress = pasteData->pasteInfo.currTotal != 0 ? (float) ((double) pasteData->pasteInfo.currProcessed / (double) pasteData->pasteInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, "%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s", pasteData->pasteInfo.processed, pasteData->pasteInfo.total,
-             ui_get_display_size(pasteData->pasteInfo.currProcessed),
-             ui_get_display_size_units(pasteData->pasteInfo.currProcessed),
-             ui_get_display_size(pasteData->pasteInfo.currTotal),
-             ui_get_display_size_units(pasteData->pasteInfo.currTotal),
-             ui_get_display_size(pasteData->pasteInfo.bytesPerSecond),
-             ui_get_display_size_units(pasteData->pasteInfo.bytesPerSecond),
-             ui_get_display_eta(pasteData->pasteInfo.estimatedRemainingSeconds));
 }
 
 static void action_paste_contents_onresponse(ui_view* view, void* data, u32 response) {
@@ -268,7 +258,8 @@ static void action_paste_contents_onresponse(ui_view* view, void* data, u32 resp
     if(response == PROMPT_YES) {
         Result res = task_data_op(&pasteData->pasteInfo);
         if(R_SUCCEEDED(res)) {
-            info_display("Pasting Contents", "Press B to cancel.", true, data, action_paste_contents_update, action_paste_contents_draw_top);
+            ui_view* progressView = info_display("Pasting Contents", "Press B to cancel.", true, data, action_paste_contents_update, action_paste_contents_draw_top);
+            info_set_data_op(progressView, &pasteData->pasteInfo);
         } else {
             error_display_res(NULL, NULL, res, "Failed to initiate paste operation.");
 

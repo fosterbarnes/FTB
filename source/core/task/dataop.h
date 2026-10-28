@@ -27,6 +27,15 @@ typedef struct data_op_data_s {
     u32 bytesPerSecond;
     u32 estimatedRemainingSeconds;
 
+    // Batch progress: totalBytes is set by the caller (0 = unknown, progress by item count);
+    // doneBytes counts bytes moved by finished items.
+    u64 totalBytes;
+    u64 doneBytes;
+
+    // What the worker is doing while no bytes move ("Finishing install"); NULL while transferring.
+    // Set by the engine and by callbacks, shown by the progress view.
+    const char* volatile stage;
+
     u32 bufferSize;
 
     Result (*openDst)(void* data, u32 index, void* initialReadBlock, u64 size, u32* handle);
@@ -63,9 +72,14 @@ typedef struct data_op_data_s {
     volatile bool finished;
     Result result;
     Handle cancelEvent;
+    u64 startTime;
 
     // Internal
     volatile bool retryResponse;
+    u64 rateTime;
+    u64 rateBytes;
 } data_op_data;
 
 Result task_data_op(data_op_data* data);
+// "<headline>\n25.9 GiB in 00:12:31" for finish prompts.
+void task_data_op_format_summary(const data_op_data* data, const char* headline, char* out, size_t size);

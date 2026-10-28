@@ -103,13 +103,6 @@ static void dumpnand_update(ui_view* view, void* data, float* progress, char* te
     if(hidKeysDown() & KEY_B) {
         svcSignalEvent(dumpData->cancelEvent);
     }
-
-    *progress = dumpData->currTotal != 0 ? (float) ((double) dumpData->currProcessed / (double) dumpData->currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, "%.2f %s / %.2f %s\n%.2f %s/s, ETA %s",
-             ui_get_display_size(dumpData->currProcessed), ui_get_display_size_units(dumpData->currProcessed),
-             ui_get_display_size(dumpData->currTotal), ui_get_display_size_units(dumpData->currTotal),
-             ui_get_display_size(dumpData->bytesPerSecond), ui_get_display_size_units(dumpData->bytesPerSecond),
-             ui_get_display_eta(dumpData->estimatedRemainingSeconds));
 }
 
 static void dumpnand_onresponse(ui_view* view, void* data, u32 response) {
@@ -118,7 +111,8 @@ static void dumpnand_onresponse(ui_view* view, void* data, u32 response) {
 
         Result res = task_data_op(dumpData);
         if(R_SUCCEEDED(res)) {
-            info_display("Dumping NAND", "Press B to cancel.", true, data, dumpnand_update, NULL);
+            ui_view* progressView = info_display("Dumping NAND", "Press B to cancel.", true, data, dumpnand_update, NULL);
+            info_set_data_op(progressView, dumpData);
         } else {
             error_display_res(NULL, NULL, res, "Failed to initiate NAND dump.");
             free(data);

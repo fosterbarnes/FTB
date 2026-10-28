@@ -27,6 +27,7 @@ typedef struct {
 
     content_type contentType;
     u64 currTitleId;
+    cia_seed seed;
     volatile bool n3dsContinue;
     ticket_info ticketInfo;
     char currPath[FILE_PATH_MAX];
@@ -90,7 +91,9 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
 
     installData->contentType = CONTENT_CIA;
     installData->currTitleId = 0;
+    installData->seed = CIA_SEED_UNKNOWN;
     installData->n3dsContinue = false;
+    installData->installInfo.stage = "Preparing";
     memset(&installData->ticketInfo, 0, sizeof(installData->ticketInfo));
     memset(&installData->currPath, 0, sizeof(installData->currPath));
 
@@ -187,10 +190,17 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
 
     if(succeeded) {
         if(installData->contentType == CONTENT_CIA) {
+            installData->installInfo.stage = "Finishing install";
+
             if(R_SUCCEEDED(res = AM_FinishCiaInstall(handle))) {
-                http_download_seed(installData->currTitleId);
+                // Only seeded titles (or unreadable CIAs) need the seed lookup, which can mean a server request.
+                if(installData->seed != CIA_SEED_NO) {
+                    installData->installInfo.stage = "Importing seed";
+                    http_download_seed(installData->currTitleId);
+                }
 
                 if(installData->currTitleId == 0x0004013800000002 || installData->currTitleId == 0x0004013820000002) {
+                    installData->installInfo.stage = "Installing firmware";
                     res = AM_InstallFirm(installData->currTitleId);
                 }
             }
@@ -229,6 +239,12 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
 }
 
 static Result action_install_url_write_dst(void* data, u32 handle, u32* bytesWritten, void* buffer, u64 offset, u32 size) {
+    install_url_data* installData = (install_url_data*) data;
+
+    if(offset == 0 && installData->contentType == CONTENT_CIA) {
+        installData->seed = cia_get_seed_state((u8*) buffer, size);
+    }
+
     return FSFILE_Write(handle, bytesWritten, offset, buffer, size, 0);
 }
 
@@ -261,7 +277,9 @@ static void action_install_url_install_update(ui_view* view, void* data, float* 
         info_destroy(view);
 
         if(R_SUCCEEDED(installData->installInfo.result)) {
-            prompt_display_notify("Success", "Install finished.", COLOR_TEXT, NULL, NULL, NULL);
+            static char summary[64];
+            task_data_op_format_summary(&installData->installInfo, "Install finished.", summary, sizeof(summary));
+            prompt_display_notify("Success", summary, COLOR_TEXT, NULL, NULL, NULL);
         }
 
         action_install_url_free_data(installData);
@@ -272,16 +290,6 @@ static void action_install_url_install_update(ui_view* view, void* data, float* 
     if(hidKeysDown() & KEY_B) {
         svcSignalEvent(installData->installInfo.cancelEvent);
     }
-
-    *progress = installData->installInfo.currTotal != 0 ? (float) ((double) installData->installInfo.currProcessed / (double) installData->installInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, "%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s", installData->installInfo.processed, installData->installInfo.total,
-             ui_get_display_size(installData->installInfo.currProcessed),
-             ui_get_display_size_units(installData->installInfo.currProcessed),
-             ui_get_display_size(installData->installInfo.currTotal),
-             ui_get_display_size_units(installData->installInfo.currTotal),
-             ui_get_display_size(installData->installInfo.bytesPerSecond),
-             ui_get_display_size_units(installData->installInfo.bytesPerSecond),
-             ui_get_display_eta(installData->installInfo.estimatedRemainingSeconds));
 }
 
 static void action_install_url_confirm_onresponse(ui_view* view, void* data, u32 response) {
@@ -290,7 +298,8 @@ static void action_install_url_confirm_onresponse(ui_view* view, void* data, u32
     if(response == PROMPT_YES) {
         Result res = task_data_op(&installData->installInfo);
         if(R_SUCCEEDED(res)) {
-            info_display("Installing From URL(s)", "Press B to cancel.", true, data, action_install_url_install_update, action_install_url_draw_top);
+            ui_view* progressView = info_display("Installing From URL(s)", "Press B to cancel.", true, data, action_install_url_install_update, action_install_url_draw_top);
+            info_set_data_op(progressView, &installData->installInfo);
         } else {
             error_display_res(NULL, NULL, res, "Failed to initiate installation.");
 

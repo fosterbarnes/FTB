@@ -1,5 +1,8 @@
 #pragma once
 
+typedef struct linked_list_s linked_list;
+typedef struct list_item_s list_item;
+
 Result app_restart();
 
 void mainmenu_open();
@@ -19,5 +22,7 @@ void remoteinstall_open();
 void settings_open();
 void systemsavedata_open();
 void tickets_open();
-void titles_open();
+void titlemanager_open();
+void titles_action_open(linked_list* items, list_item* selected);
+void titles_legacy_open();
 void update_open();

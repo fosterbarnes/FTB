@@ -74,6 +74,20 @@ Result tmd_get_content_id(u32* id, u8* tmd, size_t size, u32 num) {
     return 0;
 }
 
+Result tmd_get_content_type(u16* type, u8* tmd, size_t size, u32 num) {
+    u8* data = NULL;
+    Result res = tmd_get(&data, tmd, size, 0x9C4 + (num * 0x30) + 0x6, sizeof(u16));
+    if(R_FAILED(res)) {
+        return res;
+    }
+
+    if(type != NULL) {
+        *type = __builtin_bswap16(*(u16*) data);
+    }
+
+    return 0;
+}
+
 Result tmd_get_content_index(u16* index, u8* tmd, size_t size, u32 num) {
     u8* data = NULL;
     Result res = tmd_get(&data, tmd, size, 0x9C4 + (num * 0x30) + 0x4, sizeof(u16));

@@ -13,7 +13,14 @@
 #define SETTINGS_PATH "sdmc:/ftb/settings.cfg"
 #define SETTINGS_TEXT_MARGIN 10
 
-static ftb_settings settings = {.titleCache = true};
+static ftb_settings settings = {
+        .titleCache = true,
+        .titleLayout = TITLE_LAYOUT_GRID,
+        .titleSort = TITLE_SORT_NAME,
+        .titleGroupLocation = true,
+        .titleShowCard = true,
+        .titleShowSD = true,
+};
 
 // On/off settings stored as key=0|1. The file is user-editable: anything else keeps the default.
 static const struct {
@@ -23,9 +30,25 @@ static const struct {
         {"titleCache", &settings.titleCache},
         {"clock24h", &settings.clock24h},
         {"dateDayFirst", &settings.dateDayFirst},
+        {"titleSortDesc", &settings.titleSortDesc},
+        {"titleGroupLocation", &settings.titleGroupLocation},
+        {"titleShowCard", &settings.titleShowCard},
+        {"titleShowSD", &settings.titleShowSD},
+        {"titleShowNAND", &settings.titleShowNAND},
+};
+
+// Choice settings stored as key=N, N below count; anything else keeps the default.
+static const struct {
+    const char* key;
+    u8* value;
+    u8 count;
+} settings_choices[] = {
+        {"titleLayout", &settings.titleLayout, TITLE_LAYOUT_COUNT},
+        {"titleSort", &settings.titleSort, TITLE_SORT_COUNT},
 };
 
 #define SETTINGS_BOOL_COUNT (sizeof(settings_bools) / sizeof(settings_bools[0]))
+#define SETTINGS_CHOICE_COUNT (sizeof(settings_choices) / sizeof(settings_choices[0]))
 
 const ftb_settings* settings_get() {
     return &settings;
@@ -41,16 +64,24 @@ void settings_load() {
     while(fgets(line, sizeof(line), fd) != NULL) {
         line[strcspn(line, "\r\n")] = '\0';
 
+        // Values are one digit.
         char* value = strchr(line, '=');
-        if(value == NULL || (strcmp(value + 1, "0") != 0 && strcmp(value + 1, "1") != 0)) {
+        if(value == NULL || value[1] < '0' || value[1] > '9' || value[2] != '\0') {
             continue;
         }
 
         *value++ = '\0';
+        u8 number = (u8) (value[0] - '0');
 
         for(u32 i = 0; i < SETTINGS_BOOL_COUNT; i++) {
-            if(strcmp(line, settings_bools[i].key) == 0) {
-                *settings_bools[i].value = value[0] == '1';
+            if(number <= 1 && strcmp(line, settings_bools[i].key) == 0) {
+                *settings_bools[i].value = number == 1;
+            }
+        }
+
+        for(u32 i = 0; i < SETTINGS_CHOICE_COUNT; i++) {
+            if(number < settings_choices[i].count && strcmp(line, settings_choices[i].key) == 0) {
+                *settings_choices[i].value = number;
             }
         }
     }
@@ -71,7 +102,16 @@ static bool settings_save() {
         written = fprintf(fd, "%s=%d\n", settings_bools[i].key, *settings_bools[i].value ? 1 : 0) > 0;
     }
 
+    for(u32 i = 0; i < SETTINGS_CHOICE_COUNT && written; i++) {
+        written = fprintf(fd, "%s=%d\n", settings_choices[i].key, *settings_choices[i].value) > 0;
+    }
+
     return fclose(fd) == 0 && written;
+}
+
+bool settings_set(const ftb_settings* next) {
+    settings = *next;
+    return settings_save();
 }
 
 typedef struct settings_entry_s {

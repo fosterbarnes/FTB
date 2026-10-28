@@ -21,6 +21,9 @@ typedef struct {
 
     volatile bool n3dsContinue;
 
+    // Seed need of the CIA being installed, read from its first block.
+    cia_seed seed;
+
     data_op_data installInfo;
 } install_cias_data;
 
@@ -75,6 +78,8 @@ static Result action_install_cias_close_src(void* data, u32 index, bool succeede
     Result res = 0;
 
     if(R_SUCCEEDED(res = FSFILE_Close(handle)) && installData->delete && succeeded) {
+        installData->installInfo.stage = "Deleting source";
+
         FS_Path* fsPath = fs_make_path_utf8(info->path);
         if(fsPath != NULL) {
             if(R_SUCCEEDED(FSUSER_DeleteFile(info->archive, *fsPath))) {
@@ -113,6 +118,8 @@ static Result action_install_cias_open_dst(void* data, u32 index, void* initialR
     install_cias_data* installData = (install_cias_data*) data;
 
     installData->n3dsContinue = false;
+    installData->seed = CIA_SEED_UNKNOWN;
+    installData->installInfo.stage = "Preparing";
 
     file_info* info = (file_info*) ((list_item*) linked_list_get(&installData->contents, index))->data;
 
@@ -152,11 +159,18 @@ static Result action_install_cias_close_dst(void* data, u32 index, bool succeede
 
         file_info* info = (file_info*) ((list_item*) linked_list_get(&installData->contents, index))->data;
 
+        installData->installInfo.stage = "Finishing install";
+
         Result res = 0;
         if(R_SUCCEEDED(res = AM_FinishCiaInstall(handle))) {
-            http_download_seed(info->ciaInfo.titleId);
+            // Only seeded titles (or unreadable CIAs) need the seed lookup, which can mean a server request.
+            if(installData->seed != CIA_SEED_NO) {
+                installData->installInfo.stage = "Importing seed";
+                http_download_seed(info->ciaInfo.titleId);
+            }
 
             if((info->ciaInfo.titleId & 0xFFFFFFF) == 0x0000002) {
+                installData->installInfo.stage = "Installing firmware";
                 res = AM_InstallFirm(info->ciaInfo.titleId);
             }
         }
@@ -168,6 +182,10 @@ static Result action_install_cias_close_dst(void* data, u32 index, bool succeede
 }
 
 static Result action_install_cias_write_dst(void* data, u32 handle, u32* bytesWritten, void* buffer, u64 offset, u32 size) {
+    if(offset == 0) {
+        ((install_cias_data*) data)->seed = cia_get_seed_state((u8*) buffer, size);
+    }
+
     return FSFILE_Write(handle, bytesWritten, offset, buffer, size, 0);
 }
 
@@ -209,7 +227,9 @@ static void action_install_cias_update(ui_view* view, void* data, float* progres
         info_destroy(view);
 
         if(R_SUCCEEDED(installData->installInfo.result)) {
-            prompt_display_notify("Success", "Install finished.", COLOR_TEXT, NULL, NULL, NULL);
+            static char summary[64];
+            task_data_op_format_summary(&installData->installInfo, "Install finished.", summary, sizeof(summary));
+            prompt_display_notify("Success", summary, COLOR_TEXT, NULL, NULL, NULL);
         }
 
         action_install_cias_free_data(installData);
@@ -220,25 +240,24 @@ static void action_install_cias_update(ui_view* view, void* data, float* progres
     if((hidKeysDown() & KEY_B) && !installData->installInfo.finished) {
         svcSignalEvent(installData->installInfo.cancelEvent);
     }
-
-    *progress = installData->installInfo.currTotal != 0 ? (float) ((double) installData->installInfo.currProcessed / (double) installData->installInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, "%lu / %lu\n%.2f %s / %.2f %s\n%.2f %s/s, ETA %s", installData->installInfo.processed, installData->installInfo.total,
-             ui_get_display_size(installData->installInfo.currProcessed),
-             ui_get_display_size_units(installData->installInfo.currProcessed),
-             ui_get_display_size(installData->installInfo.currTotal),
-             ui_get_display_size_units(installData->installInfo.currTotal),
-             ui_get_display_size(installData->installInfo.bytesPerSecond),
-             ui_get_display_size_units(installData->installInfo.bytesPerSecond),
-             ui_get_display_eta(installData->installInfo.estimatedRemainingSeconds));
 }
 
 static void action_install_cias_onresponse(ui_view* view, void* data, u32 response) {
     install_cias_data* installData = (install_cias_data*) data;
 
     if(response == PROMPT_YES) {
+        installData->installInfo.totalBytes = 0;
+
+        linked_list_iter iter;
+        linked_list_iterate(&installData->contents, &iter);
+        while(linked_list_iter_has_next(&iter)) {
+            installData->installInfo.totalBytes += ((file_info*) ((list_item*) linked_list_iter_next(&iter))->data)->size;
+        }
+
         Result res = task_data_op(&installData->installInfo);
         if(R_SUCCEEDED(res)) {
-            info_display("Installing CIA(s)", "Press B to cancel.", true, data, action_install_cias_update, action_install_cias_draw_top);
+            ui_view* progressView = info_display("Installing CIA(s)", "Press B to cancel.", true, data, action_install_cias_update, action_install_cias_draw_top);
+            info_set_data_op(progressView, &installData->installInfo);
         } else {
             error_display_res(NULL, NULL, res, "Failed to initiate CIA installation.");
 
@@ -288,7 +307,14 @@ static void action_install_cias_loading_update(ui_view* view, void* data, float*
         svcSignalEvent(loadingData->popData.cancelEvent);
     }
 
-    snprintf(text, PROGRESS_TEXT_MAX, "Fetching CIA list...");
+    u32 metaLoaded = loadingData->popData.metaLoaded;
+    u32 metaTotal = loadingData->popData.metaTotal;
+    if(metaTotal != 0) {
+        *progress = (float) metaLoaded / metaTotal;
+        snprintf(text, PROGRESS_TEXT_MAX, "Reading CIAs %lu / %lu", metaLoaded, metaTotal);
+    } else {
+        snprintf(text, PROGRESS_TEXT_MAX, "Fetching CIA list...");
+    }
 }
 
 static void action_install_cias_internal(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData, const char* message, bool delete) {
@@ -376,7 +402,7 @@ static void action_install_cias_internal(linked_list* items, list_item* selected
         return;
     }
 
-    info_display("Loading", "Press B to cancel.", false, loadingData, action_install_cias_loading_update, action_install_cias_loading_draw_top);
+    info_display("Loading", "Press B to cancel.", true, loadingData, action_install_cias_loading_update, action_install_cias_loading_draw_top);
 }
 
 void action_install_cia(linked_list* items, list_item* selected) {

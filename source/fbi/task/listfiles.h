@@ -45,6 +45,10 @@ typedef struct populate_files_data_s {
     bool (*filter)(void* data, const char* name, u32 attributes);
     void* filterData;
 
+    // Meta loading progress, written by the populate thread after listing.
+    volatile u32 metaLoaded;
+    volatile u32 metaTotal;
+
     volatile bool finished;
     Result result;
     Handle cancelEvent;

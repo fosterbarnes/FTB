@@ -11,7 +11,7 @@
 static void mainmenu_legacy_open();
 
 static list_item sd = {"SD", COLOR_TEXT, files_open_sd};
-static list_item titles = {"Title Manager", COLOR_TEXT, titles_open};
+static list_item titles = {"Title Manager", COLOR_TEXT, titlemanager_open};
 static list_item ftp_server = {"FTP Server", COLOR_TEXT, ftp_open};
 static list_item fbi_legacy = {"FBI Legacy", COLOR_TEXT, mainmenu_legacy_open};
 static list_item update = {"Update", COLOR_TEXT, update_open};
@@ -19,6 +19,7 @@ static list_item settings = {"Settings", COLOR_TEXT, settings_open};
 static list_item about = {"About", COLOR_TEXT, about_open};
 
 // FBI Legacy submenu.
+static list_item titles_legacy = {"Titles (FBI Legacy)", COLOR_TEXT, titles_legacy_open};
 static list_item ctr_nand = {"CTR NAND", COLOR_TEXT, files_open_ctr_nand};
 static list_item twl_nand = {"TWL NAND", COLOR_TEXT, files_open_twl_nand};
 static list_item twl_photo = {"TWL Photo", COLOR_TEXT, files_open_twl_photo};
@@ -76,6 +77,7 @@ static void mainmenu_legacy_update(ui_view* view, void* data, linked_list* items
     }
 
     if(linked_list_size(items) == 0) {
+        linked_list_add(items, &titles_legacy);
         linked_list_add(items, &ctr_nand);
         linked_list_add(items, &twl_nand);
         linked_list_add(items, &twl_photo);

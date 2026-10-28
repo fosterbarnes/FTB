@@ -17,6 +17,13 @@
 #define FLING_MAX_VELOCITY 2.4f
 #define SCROLL_BAR_MIN_HEIGHT 16.0f
 
+// Grid layout: icon cells on the top screen. Three rows fit the 200 px content rect.
+#define GRID_COLUMNS 7
+#define GRID_ROW_HEIGHT 64
+#define GRID_PAGE_ROWS 3
+#define GRID_SELECTION_SIZE 52
+#define GRID_PLACEHOLDER_SIZE 48
+
 enum {
     LIST_TOUCH_NONE,
     LIST_TOUCH_LIST,
@@ -39,10 +46,27 @@ typedef struct {
     float scrollVelocity;
     u64 lastScrollTime;
     u64 nextActionTime;
+    list_layout layout;
+    u32 (*itemIcon)(list_item* item);
     void (*update)(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched);
     void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected);
 } list_data;
 
+// A row layout is a grid with one column of font-height rows, so scroll math works in rows.
+static u32 list_columns(list_data* listData) {
+    return listData->layout == LIST_LAYOUT_GRID ? GRID_COLUMNS : 1;
+}
+
+static float list_row_height(list_data* listData) {
+    return listData->layout == LIST_LAYOUT_GRID ? GRID_ROW_HEIGHT : screen_get_font_height(0.5f);
+}
+
+static u32 list_row_count(list_data* listData) {
+    u32 columns = list_columns(listData);
+    return (linked_list_size(&listData->items) + columns - 1) / columns;
+}
+
+// Every content rect is 200 px tall, so validating against the top or bottom rect is the same.
 static void list_validate(list_data* listData, float by1, float by2) {
     u32 size = linked_list_size(&listData->items);
 
@@ -60,7 +84,8 @@ static void list_validate(list_data* listData, float by1, float by2) {
         }
 
         float viewSize = by2 - by1;
-        float fontHeight = screen_get_font_height(0.5f);
+        float rowHeight = list_row_height(listData);
+        u32 columns = list_columns(listData);
 
         bool found = false;
         if(listData->selectedItem != NULL) {
@@ -72,7 +97,7 @@ static void list_validate(list_data* listData, float by1, float by2) {
                 listData->selectedIndex = (u32) index;
 
                 if(listData->selectedIndex != oldIndex) {
-                    listData->scrollPos += (listData->selectedIndex * fontHeight) - (oldIndex * fontHeight);
+                    listData->scrollPos += (listData->selectedIndex / columns * rowHeight) - (oldIndex / columns * rowHeight);
                 }
             }
         }
@@ -84,9 +109,9 @@ static void list_validate(list_data* listData, float by1, float by2) {
             listData->nextSelectionScrollResetTime = 0;
         }
 
-        float itemY = listData->selectedIndex * fontHeight;
+        float itemY = listData->selectedIndex / columns * rowHeight;
 
-        float minItemScrollPos = itemY - (viewSize - fontHeight);
+        float minItemScrollPos = itemY - (viewSize - rowHeight);
         if(listData->scrollPos < minItemScrollPos) {
             listData->scrollPos = minItemScrollPos;
         }
@@ -95,7 +120,7 @@ static void list_validate(list_data* listData, float by1, float by2) {
             listData->scrollPos = itemY;
         }
 
-        float maxScrollPos = (size * fontHeight) - viewSize;
+        float maxScrollPos = (list_row_count(listData) * rowHeight) - viewSize;
         if(listData->scrollPos > maxScrollPos) {
             listData->scrollPos = maxScrollPos;
         }
@@ -107,7 +132,7 @@ static void list_validate(list_data* listData, float by1, float by2) {
 }
 
 static float list_get_max_scroll_pos(list_data* listData, float viewSize) {
-    float maxScrollPos = linked_list_size(&listData->items) * screen_get_font_height(0.5f) - viewSize;
+    float maxScrollPos = list_row_count(listData) * list_row_height(listData) - viewSize;
     return maxScrollPos > 0 ? maxScrollPos : 0;
 }
 
@@ -143,24 +168,31 @@ static bool list_follow_scroll(list_data* listData, float viewSize) {
         clamped = false;
     }
 
-    float fontHeight = screen_get_font_height(0.5f);
-    u32 first = (u32) (listData->scrollPos / fontHeight);
-    if(first * fontHeight < listData->scrollPos) {
+    // Rows, not items: a grid keeps the selected column.
+    float rowHeight = list_row_height(listData);
+    u32 first = (u32) (listData->scrollPos / rowHeight);
+    if(first * rowHeight < listData->scrollPos) {
         first++;
     }
 
-    u32 visible = (u32) ((listData->scrollPos + viewSize) / fontHeight);
+    u32 visible = (u32) ((listData->scrollPos + viewSize) / rowHeight);
     u32 last = visible > first ? visible - 1 : first;
-    u32 size = linked_list_size(&listData->items);
-    if(last > size - 1) {
-        last = size - 1;
+    u32 rows = list_row_count(listData);
+    if(last > rows - 1) {
+        last = rows - 1;
     }
 
-    if(listData->selectedIndex < first) {
-        listData->selectedIndex = first;
-    } else if(listData->selectedIndex > last) {
-        listData->selectedIndex = last;
+    u32 columns = list_columns(listData);
+    u32 row = listData->selectedIndex / columns;
+    if(row < first) {
+        row = first;
+    } else if(row > last) {
+        row = last;
     }
+
+    u32 index = row * columns + listData->selectedIndex % columns;
+    u32 size = linked_list_size(&listData->items);
+    listData->selectedIndex = index < size ? index : size - 1;
 
     return clamped;
 }
@@ -193,9 +225,12 @@ static void list_update_touch(list_data* listData, float bx2, float by1, float b
         u32 scrollBarWidth = 0;
         screen_get_texture_size(&scrollBarWidth, NULL, TEXTURE_SCROLL_BAR);
 
+        // Top-screen layouts: the rows are not under the stylus, so the bottom screen only scrolls.
+        bool rowsUnderTouch = listData->layout == LIST_LAYOUT_BOTTOM;
+
         float barY = 0;
         float barHeight = 0;
-        if(list_get_scroll_bar(listData, by1, by2, &barY, &barHeight) && pos.px >= bx2 - 2 * scrollBarWidth) {
+        if(rowsUnderTouch && list_get_scroll_bar(listData, by1, by2, &barY, &barHeight) && pos.px >= bx2 - 2 * scrollBarWidth) {
             listData->touchMode = LIST_TOUCH_SCROLL_BAR;
             // Grabbing the bar keeps its offset; touching the track centers the bar on the stylus.
             listData->scrollBarGrabOffset = pos.py >= barY && pos.py < barY + barHeight ? pos.py - barY : barHeight / 2;
@@ -203,7 +238,7 @@ static void list_update_touch(list_data* listData, float bx2, float by1, float b
         } else {
             listData->touchMode = LIST_TOUCH_LIST;
 
-            if(!catching) {
+            if(rowsUnderTouch && !catching) {
                 u32 index = (u32) ((listData->scrollPos + (pos.py - by1)) / screen_get_font_height(0.5f));
                 if(listData->selectedIndex == index) {
                     // Activation usually opens another view; this touch must not drag the list later.
@@ -272,6 +307,30 @@ static void list_update_touch(list_data* listData, float bx2, float by1, float b
     }
 }
 
+// Moves the selection by step on a press or held repeat. A step clamps at the list ends; pressing
+// again from the first or last item wraps around.
+static void list_move(list_data* listData, u32 key, int step, u32 size) {
+    bool pressed = (hidKeysDown() & key) != 0;
+    if(!pressed && !((hidKeysHeld() & key) && osGetTime() >= listData->nextActionTime)) {
+        return;
+    }
+
+    u32 index = listData->selectedIndex;
+    if(step > 0) {
+        u32 remaining = size - 1 - index;
+        listData->selectedIndex = remaining == 0 ? 0 : index + (remaining < (u32) step ? remaining : (u32) step);
+    } else {
+        listData->selectedIndex = index == 0 ? size - 1 : index - (index < (u32) -step ? index : (u32) -step);
+    }
+
+    // A key press wins over a running fling; list_validate then scrolls to the new selection.
+    if(pressed) {
+        listData->scrollVelocity = 0;
+    }
+
+    listData->nextActionTime = osGetTime() + (pressed ? 500 : 100);
+}
+
 static void list_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     list_data* listData = (list_data*) data;
 
@@ -282,13 +341,15 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
     bool selectedTouched = false;
     if(size > 0) {
         bool scrolls = false;
-        if(listData->selectedItem != NULL) {
+        if(listData->selectedItem != NULL && listData->layout != LIST_LAYOUT_GRID) {
+            float rowWidth = listData->layout == LIST_LAYOUT_TOP ? TOP_SCREEN_WIDTH : bx2 - bx1;
+
             float itemWidth;
             screen_get_string_size(&itemWidth, NULL, listData->selectedItem->name, 0.5f, 0.5f);
-            if(itemWidth > bx2 - bx1) {
+            if(itemWidth > rowWidth) {
                 scrolls = true;
 
-                if(listData->selectionScroll == 0 || listData->selectionScroll >= itemWidth - (bx2 - bx1)) {
+                if(listData->selectionScroll == 0 || listData->selectionScroll >= itemWidth - rowWidth) {
                     if(listData->nextSelectionScrollResetTime == 0) {
                         listData->nextSelectionScrollResetTime = osGetTime() + 2000;
                     } else if(osGetTime() >= listData->nextSelectionScrollResetTime) {
@@ -308,51 +369,18 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
 
         u32 lastSelectedIndex = listData->selectedIndex;
 
-        if((hidKeysDown() & KEY_DOWN) || ((hidKeysHeld() & KEY_DOWN) && osGetTime() >= listData->nextActionTime)) {
-            if(listData->selectedIndex < size - 1) {
-                listData->selectedIndex++;
-            } else {
-                listData->selectedIndex = 0;
-            }
-
-            listData->nextActionTime = osGetTime() + ((hidKeysDown() & KEY_DOWN) ? 500 : 100);
-        }
-
-        if((hidKeysDown() & KEY_UP) || ((hidKeysHeld() & KEY_UP) && osGetTime() >= listData->nextActionTime)) {
-            if(listData->selectedIndex > 0) {
-                listData->selectedIndex--;
-            } else {
-                listData->selectedIndex = size - 1;
-            }
-
-            listData->nextActionTime = osGetTime() + ((hidKeysDown() & KEY_UP) ? 500 : 100);
-        }
-
-        if((hidKeysDown() & KEY_RIGHT) || ((hidKeysHeld() & KEY_RIGHT) && osGetTime() >= listData->nextActionTime)) {
-            if(listData->selectedIndex < size - 1) {
-                u32 remaining = size - 1 - listData->selectedIndex;
-                listData->selectedIndex += remaining < 13 ? remaining : 13;
-            } else {
-                listData->selectedIndex = 0;
-            }
-
-            listData->nextActionTime = osGetTime() + ((hidKeysDown() & KEY_RIGHT) ? 500 : 100);
-        }
-
-        if((hidKeysDown() & KEY_LEFT) || ((hidKeysHeld() & KEY_LEFT) && osGetTime() >= listData->nextActionTime)) {
-            if(listData->selectedIndex > 0) {
-                u32 remaining = listData->selectedIndex;
-                listData->selectedIndex -= remaining < 13 ? remaining : 13;
-            } else {
-                listData->selectedIndex = size - 1;
-            }
-
-            listData->nextActionTime = osGetTime() + ((hidKeysDown() & KEY_LEFT) ? 500 : 100);
-        }
-
-        // D-pad wins over a running fling; list_validate then scrolls to the new selection.
-        if(hidKeysDown() & (KEY_UP | KEY_DOWN | KEY_LEFT | KEY_RIGHT)) {
-            listData->scrollVelocity = 0;
+        if(listData->layout == LIST_LAYOUT_GRID) {
+            list_move(listData, KEY_DOWN, GRID_COLUMNS, size);
+            list_move(listData, KEY_UP, -GRID_COLUMNS, size);
+            list_move(listData, KEY_RIGHT, 1, size);
+            list_move(listData, KEY_LEFT, -1, size);
+            list_move(listData, KEY_R, GRID_COLUMNS * GRID_PAGE_ROWS, size);
+            list_move(listData, KEY_L, -GRID_COLUMNS * GRID_PAGE_ROWS, size);
+        } else {
+            list_move(listData, KEY_DOWN, 1, size);
+            list_move(listData, KEY_UP, -1, size);
+            list_move(listData, KEY_RIGHT, 13, size);
+            list_move(listData, KEY_LEFT, -13, size);
         }
 
         list_update_touch(listData, bx2, by1, by2, &selectedTouched);
@@ -372,20 +400,70 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
     }
 }
 
-static void list_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
-    list_data* listData = (list_data*) data;
+static void list_draw_scroll_bar(list_data* listData, float x2, float y1, float y2) {
+    float scrollBarY = 0;
+    float scrollBarHeight = 0;
+    if(list_get_scroll_bar(listData, y1, y2, &scrollBarY, &scrollBarHeight)) {
+        u32 scrollBarWidth = 0;
+        screen_get_texture_size(&scrollBarWidth, NULL, TEXTURE_SCROLL_BAR);
 
-    if(listData->drawTop != NULL) {
-        list_validate(listData, y1, y2);
-
-        listData->drawTop(view, listData->data, x1, y1, x2, y2, listData->selectedItem);
+        screen_draw_texture(TEXTURE_SCROLL_BAR, x2 - scrollBarWidth, scrollBarY, scrollBarWidth, scrollBarHeight);
     }
 }
 
-static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
-    list_data* listData = (list_data*) data;
+static void list_draw_grid(list_data* listData, float x1, float y1, float x2, float y2) {
+    u32 scrollBarWidth = 0;
+    screen_get_texture_size(&scrollBarWidth, NULL, TEXTURE_SCROLL_BAR);
 
-    list_validate(listData, y1, y2);
+    // Whole-pixel cells, centered in the space left of the scroll bar.
+    float gridWidth = x2 - x1 - scrollBarWidth;
+    float cellWidth = (float) (u32) (gridWidth / GRID_COLUMNS);
+    float gridX = x1 + (float) (u32) ((gridWidth - cellWidth * GRID_COLUMNS) / 2);
+
+    linked_list_iter iter;
+    linked_list_iterate(&listData->items, &iter);
+
+    u32 index = 0;
+    while(linked_list_iter_has_next(&iter)) {
+        float y = y1 - listData->scrollPos + index / GRID_COLUMNS * GRID_ROW_HEIGHT;
+        if(y > y2) {
+            break;
+        }
+
+        list_item* item = linked_list_iter_next(&iter);
+
+        if(y > y1 - GRID_ROW_HEIGHT) {
+            float x = gridX + index % GRID_COLUMNS * cellWidth;
+
+            if(item == listData->selectedItem) {
+                screen_draw_texture(TEXTURE_SELECTION_OVERLAY, x + (cellWidth - GRID_SELECTION_SIZE) / 2, y + (GRID_ROW_HEIGHT - GRID_SELECTION_SIZE) / 2,
+                                    GRID_SELECTION_SIZE, GRID_SELECTION_SIZE);
+            }
+
+            // Icons draw at native size (CTR 48x48, TWL 32x32); a title without one gets a gray tile.
+            u32 icon = listData->itemIcon != NULL ? listData->itemIcon(item) : 0;
+            if(icon != 0) {
+                u32 iconWidth = 0;
+                u32 iconHeight = 0;
+                screen_get_texture_size(&iconWidth, &iconHeight, icon);
+                screen_draw_texture(icon, x + (cellWidth - iconWidth) / 2, y + (GRID_ROW_HEIGHT - iconHeight) / 2, iconWidth, iconHeight);
+            } else {
+                screen_draw_texture(TEXTURE_SCROLL_BAR, x + (cellWidth - GRID_PLACEHOLDER_SIZE) / 2, y + (GRID_ROW_HEIGHT - GRID_PLACEHOLDER_SIZE) / 2,
+                                    GRID_PLACEHOLDER_SIZE, GRID_PLACEHOLDER_SIZE);
+            }
+        }
+
+        index++;
+    }
+
+    list_draw_scroll_bar(listData, x2, y1, y2);
+}
+
+static void list_draw_rows(list_data* listData, float x1, float y1, float x2, float y2) {
+    if(listData->layout == LIST_LAYOUT_GRID) {
+        list_draw_grid(listData, x1, y1, x2, y2);
+        return;
+    }
 
     float fontHeight = screen_get_font_height(0.5f);
     float y = y1 - listData->scrollPos;
@@ -408,9 +486,7 @@ static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
 
             // Overlay goes behind the text so an opaque selection fill keeps the row readable.
             if(item == listData->selectedItem) {
-                u32 selectionOverlayWidth = 0;
-                screen_get_texture_size(&selectionOverlayWidth, NULL, TEXTURE_SELECTION_OVERLAY);
-                screen_draw_texture(TEXTURE_SELECTION_OVERLAY, (x1 + x2 - selectionOverlayWidth) / 2, y, selectionOverlayWidth, fontHeight);
+                screen_draw_texture(TEXTURE_SELECTION_OVERLAY, x1, y, x2 - x1, fontHeight);
             }
 
             screen_draw_string(item->name, x, y, 0.5f, 0.5f, item->color, true);
@@ -419,13 +495,37 @@ static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
         y += fontHeight;
     }
 
-    float scrollBarY = 0;
-    float scrollBarHeight = 0;
-    if(list_get_scroll_bar(listData, y1, y2, &scrollBarY, &scrollBarHeight)) {
-        u32 scrollBarWidth = 0;
-        screen_get_texture_size(&scrollBarWidth, NULL, TEXTURE_SCROLL_BAR);
+    list_draw_scroll_bar(listData, x2, y1, y2);
+}
 
-        screen_draw_texture(TEXTURE_SCROLL_BAR, x2 - scrollBarWidth, scrollBarY, scrollBarWidth, scrollBarHeight);
+// The info callback (list_display's drawTop) goes on whichever screen the rows are not on.
+static void list_draw_info(ui_view* view, list_data* listData, float x1, float y1, float x2, float y2) {
+    if(listData->drawTop != NULL) {
+        list_validate(listData, y1, y2);
+
+        listData->drawTop(view, listData->data, x1, y1, x2, y2, listData->selectedItem);
+    }
+}
+
+static void list_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    list_data* listData = (list_data*) data;
+
+    if(listData->layout == LIST_LAYOUT_BOTTOM) {
+        list_draw_info(view, listData, x1, y1, x2, y2);
+    } else {
+        list_validate(listData, y1, y2);
+        list_draw_rows(listData, x1, y1, x2, y2);
+    }
+}
+
+static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    list_data* listData = (list_data*) data;
+
+    if(listData->layout == LIST_LAYOUT_BOTTOM) {
+        list_validate(listData, y1, y2);
+        list_draw_rows(listData, x1, y1, x2, y2);
+    } else {
+        list_draw_info(view, listData, x1, y1, x2, y2);
     }
 }
 
@@ -451,6 +551,8 @@ ui_view* list_display(const char* name, const char* info, void* data, void (*upd
     listData->dragVelocity = 0;
     listData->scrollVelocity = 0;
     listData->lastScrollTime = 0;
+    listData->layout = LIST_LAYOUT_BOTTOM;
+    listData->itemIcon = NULL;
     listData->update = update;
     listData->drawTop = drawTop;
 
@@ -464,6 +566,21 @@ ui_view* list_display(const char* name, const char* info, void* data, void (*upd
     ui_push(view);
 
     return view;
+}
+
+void list_set_layout(ui_view* view, list_layout layout, u32 (*itemIcon)(list_item* item)) {
+    list_data* listData = (list_data*) view->data;
+
+    listData->layout = layout;
+    listData->itemIcon = itemIcon;
+
+    // Row heights differ per layout; list_validate scrolls back to the kept selection.
+    listData->scrollPos = 0;
+    listData->touchMode = LIST_TOUCH_NONE;
+    listData->dragVelocity = 0;
+    listData->scrollVelocity = 0;
+    listData->selectionScroll = 0;
+    listData->nextSelectionScrollResetTime = 0;
 }
 
 void list_destroy(ui_view* view) {

@@ -7,6 +7,40 @@
 #include "dataop.h"
 #include "../core.h"
 
+#define DATAOP_RATE_INTERVAL_MS 250
+#define DATAOP_RATE_SMOOTHING 0.3f
+
+// Speed is a moving average of all bytes moved, sampled every 250 ms, so it stays steady across items
+// and slow non-transfer steps. ETA covers the whole batch when its size is known.
+static void task_data_op_update_rate(data_op_data* data) {
+    u64 time = osGetTime();
+    u64 elapsed = time - data->rateTime;
+    if(elapsed < DATAOP_RATE_INTERVAL_MS) {
+        return;
+    }
+
+    u64 moved = data->doneBytes + data->currProcessed;
+
+    // A retried item restarts at 0; skip that sample instead of reading it as negative speed.
+    if(moved >= data->rateBytes) {
+        float instant = (moved - data->rateBytes) * 1000.0f / elapsed;
+        float average = data->bytesPerSecond == 0 ? instant : data->bytesPerSecond + (instant - data->bytesPerSecond) * DATAOP_RATE_SMOOTHING;
+        data->bytesPerSecond = (u32) average;
+    }
+
+    u64 remaining = 0;
+    if(data->totalBytes != 0) {
+        remaining = data->totalBytes > moved ? data->totalBytes - moved : 0;
+    } else if(data->currTotal > data->currProcessed) {
+        remaining = data->currTotal - data->currProcessed;
+    }
+
+    data->estimatedRemainingSeconds = data->bytesPerSecond != 0 ? (u32) (remaining / data->bytesPerSecond) : 0;
+
+    data->rateTime = time;
+    data->rateBytes = moved;
+}
+
 static Result task_data_op_check_running(data_op_data* data) {
     Result res = 0;
 
@@ -36,9 +70,6 @@ static Result task_data_op_copy(data_op_data* data, u32 index) {
     data->currProcessed = 0;
     data->currTotal = 0;
 
-    data->bytesPerSecond = 0;
-    data->estimatedRemainingSeconds = 0;
-
     Result res = 0;
 
     bool isDir = false;
@@ -62,10 +93,6 @@ static Result task_data_op_copy(data_op_data* data, u32 index) {
                     if(buffer != NULL) {
                         u32 dstHandle = 0;
 
-                        u64 ioStartTime = 0;
-                        u64 lastBytesPerSecondUpdate = osGetTime();
-                        u32 bytesSinceUpdate = 0;
-
                         bool firstRun = true;
                         while(data->currProcessed < data->currTotal) {
                             if(R_FAILED(res = task_data_op_check_running(data))) {
@@ -83,6 +110,8 @@ static Result task_data_op_copy(data_op_data* data, u32 index) {
                                 if(R_FAILED(res = data->openDst(data->data, index, buffer, data->currTotal, &dstHandle))) {
                                     break;
                                 }
+
+                                data->stage = NULL;
                             }
 
                             u32 bytesWritten = 0;
@@ -91,26 +120,7 @@ static Result task_data_op_copy(data_op_data* data, u32 index) {
                             }
 
                             data->currProcessed += bytesWritten;
-                            bytesSinceUpdate += bytesWritten;
-
-                            u64 time = osGetTime();
-                            u64 elapsed = time - lastBytesPerSecondUpdate;
-                            if(elapsed >= 1000) {
-                                data->bytesPerSecond = (u32) (bytesSinceUpdate / (elapsed / 1000.0f));
-
-                                if(ioStartTime != 0) {
-                                    data->estimatedRemainingSeconds = (u32) ((data->currTotal - data->currProcessed) / (data->currProcessed / ((time - ioStartTime) / 1000.0f)));
-                                } else {
-                                    data->estimatedRemainingSeconds = 0;
-                                }
-
-                                if(ioStartTime == 0 && data->currProcessed > 0) {
-                                    ioStartTime = time;
-                                }
-
-                                bytesSinceUpdate = 0;
-                                lastBytesPerSecondUpdate = time;
-                            }
+                            task_data_op_update_rate(data);
                         }
 
                         if(dstHandle != 0) {
@@ -144,9 +154,6 @@ typedef struct {
 
     u32 dstHandle;
     bool firstRun;
-    u64 ioStartTime;
-    u64 lastBytesPerSecondUpdate;
-    u32 bytesSinceUpdate;
 
     u64 writeOffset;
 } data_op_download_data;
@@ -162,6 +169,8 @@ static Result task_data_op_download_callback(void* userData, void* buffer, size_
         if(R_FAILED(res)) {
             return res;
         }
+
+        data->stage = NULL;
     }
 
     u32 bytesWritten = 0;
@@ -181,29 +190,10 @@ static Result task_data_op_download_progress(void* userData, u64 total, u64 curr
     data_op_download_data* downloadData = (data_op_download_data*) userData;
     data_op_data* data = downloadData->data;
 
-    downloadData->bytesSinceUpdate += curr - data->currProcessed;
-
     data->currTotal = total;
     data->currProcessed = curr;
 
-    u64 time = osGetTime();
-    u64 elapsed = time - downloadData->lastBytesPerSecondUpdate;
-    if(elapsed >= 1000) {
-        data->bytesPerSecond = (u32) (downloadData->bytesSinceUpdate / (elapsed / 1000.0f));
-
-        if(downloadData->ioStartTime != 0) {
-            data->estimatedRemainingSeconds = (u32) ((data->currTotal - data->currProcessed) / (data->currProcessed / ((time - downloadData->ioStartTime) / 1000.0f)));
-        } else {
-            data->estimatedRemainingSeconds = 0;
-        }
-
-        if(downloadData->ioStartTime == 0 && data->currProcessed > 0) {
-            downloadData->ioStartTime = time;
-        }
-
-        downloadData->bytesSinceUpdate = 0;
-        downloadData->lastBytesPerSecondUpdate = time;
-    }
+    task_data_op_update_rate(data);
 
     return 0;
 }
@@ -212,14 +202,14 @@ static Result task_data_op_download(data_op_data* data, u32 index) {
     data->currProcessed = 0;
     data->currTotal = 0;
 
-    data->bytesPerSecond = 0;
-    data->estimatedRemainingSeconds = 0;
-
     Result res = 0;
 
     char url[DOWNLOAD_URL_MAX];
     if(R_SUCCEEDED(res = data->getSrcUrl(data->data, index, url, DOWNLOAD_URL_MAX))) {
-        data_op_download_data downloadData = {data, index, 0, true, 0, osGetTime(), 0, 0};
+        // Cleared once the destination opens on the first received block.
+        data->stage = "Connecting";
+
+        data_op_download_data downloadData = {data, index, 0, true, 0};
         res = http_download_callback(url, data->bufferSize, &downloadData, task_data_op_download_callback, task_data_op_download_check_running, task_data_op_download_progress);
 
         if(downloadData.dstHandle != 0) {
@@ -247,6 +237,8 @@ static void task_data_op_thread(void* arg) {
     for(data->processed = 0; data->processed < data->total; data->processed++) {
         Result res = 0;
 
+        data->stage = NULL;
+
         if(R_SUCCEEDED(res = task_data_op_check_running(data))) {
             switch(data->op) {
                 case DATAOP_COPY:
@@ -264,6 +256,11 @@ static void task_data_op_thread(void* arg) {
         }
 
         data->result = res;
+
+        // Bytes of this item count toward the batch; a retry below takes them back out.
+        u64 itemBytes = data->currProcessed;
+        data->doneBytes += itemBytes;
+        data->currProcessed = 0;
 
         if(R_FAILED(res)) {
             if(res == R_APP_CANCELLED) {
@@ -284,8 +281,10 @@ static void task_data_op_thread(void* arg) {
                     if(data->retryResponse) {
                         if(proceed) {
                             data->processed--;
+                            data->doneBytes -= itemBytes;
                         } else {
                             data->processed = 0;
+                            data->doneBytes = 0;
                         }
                     } else if(!proceed) {
                         break;
@@ -302,6 +301,13 @@ static void task_data_op_thread(void* arg) {
     aptSetSleepAllowed(true);
 }
 
+void task_data_op_format_summary(const data_op_data* data, const char* headline, char* out, size_t size) {
+    u64 bytes = data->doneBytes;
+    u32 seconds = (u32) ((osGetTime() - data->startTime) / 1000);
+
+    snprintf(out, size, "%s\n%.1f %s in %s", headline, ui_get_display_size(bytes), ui_get_display_size_units(bytes), ui_get_display_eta(seconds));
+}
+
 Result task_data_op(data_op_data* data) {
     if(data == NULL) {
         return R_APP_INVALID_ARGUMENT;
@@ -311,6 +317,15 @@ Result task_data_op(data_op_data* data) {
 
     data->currProcessed = 0;
     data->currTotal = 0;
+
+    data->bytesPerSecond = 0;
+    data->estimatedRemainingSeconds = 0;
+    data->doneBytes = 0;
+    data->stage = NULL;
+
+    data->startTime = osGetTime();
+    data->rateTime = data->startTime;
+    data->rateBytes = 0;
 
     data->finished = false;
     data->result = 0;

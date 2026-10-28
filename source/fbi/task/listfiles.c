@@ -280,6 +280,8 @@ static void task_populate_files_thread(void* arg) {
     }
 
     if(R_SUCCEEDED(res) && data->meta) {
+        data->metaTotal = linked_list_size(data->items);
+
         linked_list_iter iter;
         linked_list_iterate(data->items, &iter);
 
@@ -293,6 +295,7 @@ static void task_populate_files_thread(void* arg) {
             file_info* fileInfo = (file_info*) item->data;
 
             task_populate_files_retrieve_meta(fileInfo);
+            data->metaLoaded++;
         }
     }
 
@@ -342,6 +345,8 @@ Result task_populate_files(populate_files_data* data) {
 
     task_clear_files(data->items);
 
+    data->metaLoaded = 0;
+    data->metaTotal = 0;
     data->finished = false;
     data->result = 0;
     data->cancelEvent = 0;

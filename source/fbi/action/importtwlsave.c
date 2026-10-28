@@ -106,16 +106,6 @@ static void action_import_twl_save_update(ui_view* view, void* data, float* prog
     if(hidKeysDown() & KEY_B) {
         svcSignalEvent(importData->importInfo.cancelEvent);
     }
-
-    *progress = importData->importInfo.currTotal != 0 ? (float) ((double) importData->importInfo.currProcessed / (double) importData->importInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, "%.2f %s / %.2f %s\n%.2f %s/s, ETA %s",
-             ui_get_display_size(importData->importInfo.currProcessed),
-             ui_get_display_size_units(importData->importInfo.currProcessed),
-             ui_get_display_size(importData->importInfo.currTotal),
-             ui_get_display_size_units(importData->importInfo.currTotal),
-             ui_get_display_size(importData->importInfo.bytesPerSecond),
-             ui_get_display_size_units(importData->importInfo.bytesPerSecond),
-             ui_get_display_eta(importData->importInfo.estimatedRemainingSeconds));
 }
 
 static void action_import_twl_save_onresponse(ui_view* view, void* data, u32 response) {
@@ -124,7 +114,8 @@ static void action_import_twl_save_onresponse(ui_view* view, void* data, u32 res
 
         Result res = task_data_op(&importData->importInfo);
         if(R_SUCCEEDED(res)) {
-            info_display("Importing Save", "Press B to cancel.", true, data, action_import_twl_save_update, action_import_twl_save_draw_top);
+            ui_view* progressView = info_display("Importing Save", "Press B to cancel.", true, data, action_import_twl_save_update, action_import_twl_save_draw_top);
+            info_set_data_op(progressView, &importData->importInfo);
         } else {
             error_display_res(importData->title, task_draw_title_info, res, "Failed to initiate save import.");
             free(data);

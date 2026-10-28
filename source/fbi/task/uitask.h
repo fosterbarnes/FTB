@@ -24,3 +24,6 @@ void task_draw_title_info(ui_view* view, void* data, float x1, float y1, float x
 #include "listtickets.h"
 #include "listtitles.h"
 #include "listfiles.h"
+
+// Title list loading strip along the bottom of a rect; start is osGetTime() when population began.
+void task_draw_title_progress(populate_titles_data* data, u64 start, float x1, float x2, float y2);

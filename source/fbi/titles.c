@@ -104,7 +104,8 @@ static void titles_action_update(ui_view* view, void* data, linked_list* items, 
     }
 }
 
-static void titles_action_open(linked_list* items, list_item* selected) {
+// Shared with the Title Manager (titlemanager.c).
+void titles_action_open(linked_list* items, list_item* selected) {
     titles_action_data* data = (titles_action_data*) calloc(1, sizeof(titles_action_data));
     if(data == NULL) {
         error_display(NULL, NULL, "Failed to allocate titles action data.");
@@ -191,83 +192,13 @@ static void titles_options_open(titles_data* data) {
     list_display("Options", "A: Toggle, B: Return", data, titles_options_update, NULL);
 }
 
-// Loading strip at the bottom of the top screen: animated dots and stage on the left, count on the
-// right, progress bar under both. The title info text above is centered and its last line is
-// short, so the strip's left and right ends stay clear of it.
-#define TITLES_PROGRESS_DELAY_MS 200 // a fast open finishes before the strip would flash
-#define TITLES_PROGRESS_STEP_MS 150
-#define TITLES_PROGRESS_SCALE 0.4f
-#define TITLES_PROGRESS_MARGIN 8
-#define TITLES_PROGRESS_DOT 4
-#define TITLES_PROGRESS_DOTS 3
-#define TITLES_PROGRESS_BAR 2
-
-static void titles_draw_progress(titles_data* listData, float x1, float x2, float y2) {
-    populate_titles_data* populateData = &listData->populateData;
-    if(populateData->finished || osGetTime() - listData->populateStart < TITLES_PROGRESS_DELAY_MS) {
-        return;
-    }
-
-    // Snapshot: the populate thread keeps writing these. A total read before the thread set it can
-    // pair with a newer count, so clamp.
-    title_load_stage stage = populateData->stage;
-    u32 total = populateData->total;
-    u32 loaded = populateData->loaded;
-    if(loaded > total) {
-        loaded = total;
-    }
-
-    const char* label = "Listing titles";
-    if(stage == TITLE_STAGE_CACHE) {
-        label = "Loading from cache";
-    } else if(stage == TITLE_STAGE_LOADING) {
-        label = populateData->cacheMode == TITLE_CACHE_OFF ? "Loading titles" : "Creating cache";
-    } else if(stage == TITLE_STAGE_SAVING) {
-        label = "Saving cache";
-    }
-
-    float left = x1 + TITLES_PROGRESS_MARGIN;
-    float right = x2 - TITLES_PROGRESS_MARGIN;
-    float barY = y2 - TITLES_PROGRESS_BAR - 2;
-
-    float labelHeight = 0;
-    screen_get_string_size(NULL, &labelHeight, label, TITLES_PROGRESS_SCALE, TITLES_PROGRESS_SCALE);
-    float textY = barY - 1 - labelHeight;
-
-    u32 activeDot = (u32) (osGetTime() / TITLES_PROGRESS_STEP_MS) % TITLES_PROGRESS_DOTS;
-    float dotY = textY + (labelHeight - TITLES_PROGRESS_DOT) / 2;
-    for(u32 i = 0; i < TITLES_PROGRESS_DOTS; i++) {
-        screen_set_base_alpha(i == activeDot ? 0xFF : 0x50);
-        screen_draw_texture(TEXTURE_PROGRESS_BAR_CONTENT, left + i * (TITLES_PROGRESS_DOT + 3), dotY, TITLES_PROGRESS_DOT, TITLES_PROGRESS_DOT);
-    }
-
-    screen_set_base_alpha(0x40);
-    screen_draw_texture(TEXTURE_PROGRESS_BAR_CONTENT, left, barY, right - left, TITLES_PROGRESS_BAR);
-    screen_set_base_alpha(0xFF);
-
-    float labelX = left + TITLES_PROGRESS_DOTS * (TITLES_PROGRESS_DOT + 3) + 3;
-    screen_draw_string(label, labelX, textY, TITLES_PROGRESS_SCALE, TITLES_PROGRESS_SCALE, COLOR_TEXT, false);
-
-    if(total == 0) {
-        return;
-    }
-
-    char count[32];
-    snprintf(count, sizeof(count), "%lu / %lu", loaded, total);
-
-    float countWidth = 0;
-    screen_get_string_size(&countWidth, NULL, count, TITLES_PROGRESS_SCALE, TITLES_PROGRESS_SCALE);
-    screen_draw_string(count, right - countWidth, textY, TITLES_PROGRESS_SCALE, TITLES_PROGRESS_SCALE, COLOR_TEXT, false);
-
-    screen_draw_texture(TEXTURE_PROGRESS_BAR_CONTENT, left, barY, (right - left) * loaded / total, TITLES_PROGRESS_BAR);
-}
-
 static void titles_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
     if(selected != NULL && selected->data != NULL) {
         task_draw_title_info(view, selected->data, x1, y1, x2, y2);
     }
 
-    titles_draw_progress((titles_data*) data, x1, x2, y2);
+    titles_data* listData = (titles_data*) data;
+    task_draw_title_progress(&listData->populateData, listData->populateStart, x1, x2, y2);
 }
 
 static void titles_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
@@ -391,7 +322,8 @@ static int titles_compare(void* data, const void* p1, const void* p2) {
     }
 }
 
-void titles_open() {
+// FBI's title list, kept as it was: FBI Legacy > Titles (FBI Legacy). New features go in titlemanager.c.
+void titles_legacy_open() {
     titles_data* data = (titles_data*) calloc(1, sizeof(titles_data));
     if(data == NULL) {
         error_display(NULL, NULL, "Failed to allocate titles data.");
@@ -412,5 +344,5 @@ void titles_open() {
     data->sortByName = true;
     data->sortBySize = false;
 
-    list_display("Title Manager", "A: Select, B: Return, X: Refresh, Select: Options", data, titles_update, titles_draw_top);
+    list_display("Titles (FBI Legacy)", "A: Select, B: Return, X: Refresh, Select: Options", data, titles_update, titles_draw_top);
 }

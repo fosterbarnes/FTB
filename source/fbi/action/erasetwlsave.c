@@ -98,16 +98,6 @@ static void action_erase_twl_save_update(ui_view* view, void* data, float* progr
     if(hidKeysDown() & KEY_B) {
         svcSignalEvent(eraseData->eraseInfo.cancelEvent);
     }
-
-    *progress = eraseData->eraseInfo.currTotal != 0 ? (float) ((double) eraseData->eraseInfo.currProcessed / (double) eraseData->eraseInfo.currTotal) : 0;
-    snprintf(text, PROGRESS_TEXT_MAX, "%.2f %s / %.2f %s\n%.2f %s/s, ETA %s",
-             ui_get_display_size(eraseData->eraseInfo.currProcessed),
-             ui_get_display_size_units(eraseData->eraseInfo.currProcessed),
-             ui_get_display_size(eraseData->eraseInfo.currTotal),
-             ui_get_display_size_units(eraseData->eraseInfo.currTotal),
-             ui_get_display_size(eraseData->eraseInfo.bytesPerSecond),
-             ui_get_display_size_units(eraseData->eraseInfo.bytesPerSecond),
-             ui_get_display_eta(eraseData->eraseInfo.estimatedRemainingSeconds));
 }
 
 static void action_erase_twl_save_onresponse(ui_view* view, void* data, u32 response) {
@@ -116,7 +106,8 @@ static void action_erase_twl_save_onresponse(ui_view* view, void* data, u32 resp
 
         Result res = task_data_op(&eraseData->eraseInfo);
         if(R_SUCCEEDED(res)) {
-            info_display("Erasing Save", "Press B to cancel.", true, data, action_erase_twl_save_update, action_erase_twl_save_draw_top);
+            ui_view* progressView = info_display("Erasing Save", "Press B to cancel.", true, data, action_erase_twl_save_update, action_erase_twl_save_draw_top);
+            info_set_data_op(progressView, &eraseData->eraseInfo);
         } else {
             error_display_res(eraseData->title, task_draw_title_info, res, "Failed to initiate save erase.");
             free(data);

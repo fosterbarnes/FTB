@@ -8,6 +8,7 @@ typedef struct ftb_settings_s {
 
     // Title Manager view, changed from its Options menu.
     u8 titleLayout; // title_layout
+    u8 titleGridSize; // grid zoom, 0 .. LIST_GRID_SIZE_COUNT - 1
     u8 titleSort; // title_sort
     bool titleSortDesc;
     bool titleGroupLocation; // game card, SD, NAND, DSiWare blocks before the sort key

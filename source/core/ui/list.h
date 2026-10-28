@@ -19,8 +19,14 @@ typedef enum list_layout_e {
     LIST_LAYOUT_GRID
 } list_layout;
 
+// Grid zoom levels, smallest first; the default draws 48 px icons 1:1.
+#define LIST_GRID_SIZE_COUNT 4
+#define LIST_GRID_SIZE_DEFAULT 1
+
 ui_view* list_display(const char* name, const char* info, void* data, void (*update)(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched),
                                                                       void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected));
 // itemIcon returns an item's texture id, or 0 for none; only GRID uses it.
 void list_set_layout(ui_view* view, list_layout layout, u32 (*itemIcon)(list_item* item));
+// size: 0 .. LIST_GRID_SIZE_COUNT - 1.
+void list_set_grid_size(ui_view* view, u32 size);
 void list_destroy(ui_view* view);

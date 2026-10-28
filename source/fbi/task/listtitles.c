@@ -94,10 +94,11 @@ static Result task_populate_titles_add_record(populate_titles_data* data, FS_Med
         titleInfo->meta.region = record->region;
         titleInfo->meta.texture = screen_allocate_free_texture();
 
+        // Linear filtering smooths the Title Manager's zoomed grid; 1:1 draws are unchanged.
         if(record->twl) {
-            screen_load_texture_untiled(titleInfo->meta.texture, (void*) record->icon, 32 * 32 * 2, 32, 32, GPU_RGBA5551, false);
+            screen_load_texture_untiled(titleInfo->meta.texture, (void*) record->icon, 32 * 32 * 2, 32, 32, GPU_RGBA5551, true);
         } else {
-            screen_load_texture_tiled(titleInfo->meta.texture, (void*) record->icon, 48 * 48 * 2, 48, 48, GPU_RGB565, false);
+            screen_load_texture_tiled(titleInfo->meta.texture, (void*) record->icon, 48 * 48 * 2, 48, 48, GPU_RGB565, true);
         }
     }
 

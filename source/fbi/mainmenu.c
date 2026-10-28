@@ -16,7 +16,6 @@ static list_item ftp_server = {"FTP Server", COLOR_TEXT, ftp_open};
 static list_item fbi_legacy = {"FBI Legacy", COLOR_TEXT, mainmenu_legacy_open};
 static list_item update = {"Update", COLOR_TEXT, update_open};
 static list_item settings = {"Settings", COLOR_TEXT, settings_open};
-static list_item about = {"About", COLOR_TEXT, about_open};
 
 // FBI Legacy submenu.
 static list_item titles_legacy = {"Titles (FBI Legacy)", COLOR_TEXT, titles_legacy_open};
@@ -59,7 +58,6 @@ static void mainmenu_update(ui_view* view, void* data, linked_list* items, list_
         linked_list_add(items, &fbi_legacy);
         linked_list_add(items, &update);
         linked_list_add(items, &settings);
-        linked_list_add(items, &about);
     }
 }
 

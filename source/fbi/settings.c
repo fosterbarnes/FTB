@@ -16,6 +16,7 @@
 static ftb_settings settings = {
         .titleCache = true,
         .titleLayout = TITLE_LAYOUT_GRID,
+        .titleGridSize = LIST_GRID_SIZE_DEFAULT,
         .titleSort = TITLE_SORT_NAME,
         .titleGroupLocation = true,
         .titleShowCard = true,
@@ -44,6 +45,7 @@ static const struct {
     u8 count;
 } settings_choices[] = {
         {"titleLayout", &settings.titleLayout, TITLE_LAYOUT_COUNT},
+        {"titleGridSize", &settings.titleGridSize, LIST_GRID_SIZE_COUNT},
         {"titleSort", &settings.titleSort, TITLE_SORT_COUNT},
 };
 
@@ -178,10 +180,16 @@ static settings_entry date_day_first_entry = {
         "Date in the top bar: month first (10/27/26) or day first (27/10/26)."
 };
 
+static settings_entry about_entry = {
+        about_open,
+        "Build type, install location, data folder, credits, and licenses."
+};
+
 static list_item title_cache_item = {"", COLOR_TEXT, &title_cache_entry};
 static list_item clear_title_cache_item = {"Clear title cache", COLOR_TEXT, &clear_title_cache_entry};
 static list_item clock24h_item = {"", COLOR_TEXT, &clock24h_entry};
 static list_item date_day_first_item = {"", COLOR_TEXT, &date_day_first_entry};
+static list_item about_item = {"About", COLOR_TEXT, &about_entry};
 
 static void settings_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
     if(selected == NULL || selected->data == NULL) {
@@ -218,6 +226,7 @@ static void settings_update(ui_view* view, void* data, linked_list* items, list_
         linked_list_add(items, &clear_title_cache_item);
         linked_list_add(items, &clock24h_item);
         linked_list_add(items, &date_day_first_item);
+        linked_list_add(items, &about_item);
     }
 
     snprintf(title_cache_item.name, LIST_ITEM_NAME_MAX, "Title cache: %s", settings.titleCache ? "On" : "Off");

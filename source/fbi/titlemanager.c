@@ -10,17 +10,19 @@
 #include "task/uitask.h"
 #include "../core/core.h"
 
-// Title Manager: FTB's title list. Layout, sort, and filters live in settings (titleLayout etc.)
-// and are changed from Options. FBI's original screen stays in titles.c as Titles (FBI Legacy).
+// Title Manager: FTB's title list. Layout, zoom, sort, and filters live in settings (titleLayout
+// etc.) and change from Options or X (layout), Y (grid zoom), L (grouping). FBI's original screen
+// stays in titles.c as Titles (FBI Legacy).
 
-#define TITLEMANAGER_INFO "A: Select, B: Return, X: Refresh, Select: Options"
-#define TITLEMANAGER_INFO_GRID "A: Select, B: Return, X: Refresh, L/R: Page, Select: Options"
+#define TITLEMANAGER_INFO "A: Select, B: Return, X: Layout, L: Group, Select: Options"
+#define TITLEMANAGER_INFO_GRID "A: Select, B: Return, X: Layout, Y: Zoom, L: Group, R: Page, Select: Options"
 
 typedef struct {
     populate_titles_data populateData;
     ui_view* view;
 
     bool populated;
+    bool rebuild; // the next population rebuilds the title cache (Options > Rebuild list)
     bool sortDirty; // the sort changed: resort once population has finished
     u64 populateStart; // osGetTime() when the current population began
 } titlemanager_data;
@@ -37,6 +39,7 @@ typedef enum {
     OPTION_SHOW_CARD,
     OPTION_SHOW_SD,
     OPTION_SHOW_NAND,
+    OPTION_REBUILD,
     OPTION_COUNT
 } titlemanager_option;
 
@@ -52,6 +55,41 @@ static void titlemanager_apply_layout(titlemanager_data* data) {
 
     data->view->info = layout == TITLE_LAYOUT_GRID ? TITLEMANAGER_INFO_GRID : TITLEMANAGER_INFO;
     list_set_layout(data->view, titlemanager_layouts[layout], titlemanager_item_icon);
+    list_set_grid_size(data->view, settings_get()->titleGridSize);
+}
+
+static void titlemanager_save(const ftb_settings* next) {
+    // The new values still apply for this session.
+    if(!settings_set(next)) {
+        prompt_display_notify("Failure", "Saving settings failed.", COLOR_TEXT, NULL, NULL, NULL);
+    }
+}
+
+// X in the Title Manager and the Layout row in Options: Grid -> List top -> List bottom.
+static void titlemanager_cycle_layout(titlemanager_data* data) {
+    ftb_settings next = *settings_get();
+    next.titleLayout = (u8) ((next.titleLayout + 1) % TITLE_LAYOUT_COUNT);
+
+    titlemanager_save(&next);
+    titlemanager_apply_layout(data);
+}
+
+// Y in the grid: zoom in one step, back to the smallest after the largest.
+static void titlemanager_cycle_grid_size(titlemanager_data* data) {
+    ftb_settings next = *settings_get();
+    next.titleGridSize = (u8) ((next.titleGridSize + 1) % LIST_GRID_SIZE_COUNT);
+
+    titlemanager_save(&next);
+    list_set_grid_size(data->view, next.titleGridSize);
+}
+
+// L and the Options row: grouping by location only reorders, so no reload.
+static void titlemanager_toggle_group(titlemanager_data* data) {
+    ftb_settings next = *settings_get();
+    next.titleGroupLocation = !next.titleGroupLocation;
+
+    titlemanager_save(&next);
+    data->sortDirty = true;
 }
 
 // Game card, SD, NAND, then DSiWare: the order FBI lists them in.
@@ -153,24 +191,31 @@ static void titlemanager_options_update(ui_view* view, void* data, linked_list* 
         return;
     }
 
-    if(selected != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
+    titlemanager_option option = selected != NULL ? (titlemanager_option) (selected - titlemanager_option_items) : OPTION_COUNT;
+    bool activated = option != OPTION_COUNT && (selectedTouched || (hidKeysDown() & KEY_A));
+    if(activated && option == OPTION_REBUILD) {
+        // Back to the list so the reload shows.
+        tmData->rebuild = true;
+        tmData->populated = false;
+
+        ui_pop();
+        list_destroy(view);
+
+        return;
+    } else if(activated && option == OPTION_LAYOUT) {
+        titlemanager_cycle_layout(tmData);
+    } else if(activated && option == OPTION_GROUP) {
+        titlemanager_toggle_group(tmData);
+    } else if(activated) {
         ftb_settings next = *settings_get();
-        titlemanager_option option = (titlemanager_option) (selected - titlemanager_option_items);
 
         switch(option) {
-            case OPTION_LAYOUT:
-                next.titleLayout = (u8) ((next.titleLayout + 1) % TITLE_LAYOUT_COUNT);
-                break;
             case OPTION_SORT:
                 next.titleSort = (u8) ((next.titleSort + 1) % TITLE_SORT_COUNT);
                 tmData->sortDirty = true;
                 break;
             case OPTION_ORDER:
                 next.titleSortDesc = !next.titleSortDesc;
-                tmData->sortDirty = true;
-                break;
-            case OPTION_GROUP:
-                next.titleGroupLocation = !next.titleGroupLocation;
                 tmData->sortDirty = true;
                 break;
             case OPTION_SHOW_CARD:
@@ -189,15 +234,7 @@ static void titlemanager_options_update(ui_view* view, void* data, linked_list* 
                 break;
         }
 
-        // The new values still apply for this session.
-        bool saved = settings_set(&next);
-        if(option == OPTION_LAYOUT) {
-            titlemanager_apply_layout(tmData);
-        }
-
-        if(!saved) {
-            prompt_display_notify("Failure", "Saving settings failed.", COLOR_TEXT, NULL, NULL, NULL);
-        }
+        titlemanager_save(&next);
     }
 
     if(linked_list_size(items) == 0) {
@@ -214,6 +251,8 @@ static void titlemanager_options_update(ui_view* view, void* data, linked_list* 
     titlemanager_option_set_bool(OPTION_SHOW_CARD, "Show game card", settings->titleShowCard);
     titlemanager_option_set_bool(OPTION_SHOW_SD, "Show SD", settings->titleShowSD);
     titlemanager_option_set_bool(OPTION_SHOW_NAND, "Show NAND", settings->titleShowNAND);
+    snprintf(titlemanager_option_items[OPTION_REBUILD].name, LIST_ITEM_NAME_MAX, "Rebuild list");
+    titlemanager_option_items[OPTION_REBUILD].color = COLOR_TEXT;
 }
 
 static void titlemanager_draw_info(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
@@ -255,15 +294,30 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
         return;
     }
 
-    if(!tmData->populated || (hidKeysDown() & KEY_X)) {
+    if(hidKeysDown() & KEY_X) {
+        titlemanager_cycle_layout(tmData);
+        return;
+    }
+
+    if((hidKeysDown() & KEY_Y) && settings_get()->titleLayout == TITLE_LAYOUT_GRID) {
+        titlemanager_cycle_grid_size(tmData);
+        return;
+    }
+
+    if(hidKeysDown() & KEY_L) {
+        titlemanager_toggle_group(tmData);
+    }
+
+    if(!tmData->populated) {
         titlemanager_wait_populate(tmData);
 
         tmData->populateData.items = items;
         title_cache_mode cacheMode = TITLE_CACHE_OFF;
         if(settings_get()->titleCache) {
-            cacheMode = (hidKeysDown() & KEY_X) ? TITLE_CACHE_REBUILD : TITLE_CACHE_ON;
+            cacheMode = tmData->rebuild ? TITLE_CACHE_REBUILD : TITLE_CACHE_ON;
         }
 
+        tmData->rebuild = false;
         tmData->populateData.cacheMode = cacheMode;
         tmData->populateStart = osGetTime();
         tmData->sortDirty = false; // a new population inserts in the current order

@@ -17,12 +17,22 @@
 #define FLING_MAX_VELOCITY 2.4f
 #define SCROLL_BAR_MIN_HEIGHT 16.0f
 
-// Grid layout: icon cells on the top screen. Three rows fit the 200 px content rect.
-#define GRID_COLUMNS 7
-#define GRID_ROW_HEIGHT 64
-#define GRID_PAGE_ROWS 3
-#define GRID_SELECTION_SIZE 52
-#define GRID_PLACEHOLDER_SIZE 48
+// Grid layout: icon cells on the top screen. Per zoom level: icon edge, columns across the 390 px
+// left of the scroll bar, row height. Icons scale by icon / GRID_NATIVE_ICON (CTR 48, TWL 32 native),
+// and each cell leaves room for the selection ring.
+#define GRID_NATIVE_ICON 48
+#define GRID_SELECTION_BORDER 4
+
+static const struct {
+    u32 icon;
+    u32 columns;
+    u32 rowHeight;
+} list_grid_sizes[LIST_GRID_SIZE_COUNT] = {
+        {32, 9, 44},
+        {48, 7, 64},
+        {64, 5, 80},
+        {80, 4, 100},
+};
 
 enum {
     LIST_TOUCH_NONE,
@@ -47,6 +57,7 @@ typedef struct {
     u64 lastScrollTime;
     u64 nextActionTime;
     list_layout layout;
+    u32 gridSize;
     u32 (*itemIcon)(list_item* item);
     void (*update)(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched);
     void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected);
@@ -54,11 +65,11 @@ typedef struct {
 
 // A row layout is a grid with one column of font-height rows, so scroll math works in rows.
 static u32 list_columns(list_data* listData) {
-    return listData->layout == LIST_LAYOUT_GRID ? GRID_COLUMNS : 1;
+    return listData->layout == LIST_LAYOUT_GRID ? list_grid_sizes[listData->gridSize].columns : 1;
 }
 
 static float list_row_height(list_data* listData) {
-    return listData->layout == LIST_LAYOUT_GRID ? GRID_ROW_HEIGHT : screen_get_font_height(0.5f);
+    return listData->layout == LIST_LAYOUT_GRID ? list_grid_sizes[listData->gridSize].rowHeight : screen_get_font_height(0.5f);
 }
 
 static u32 list_row_count(list_data* listData) {
@@ -370,12 +381,15 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
         u32 lastSelectedIndex = listData->selectedIndex;
 
         if(listData->layout == LIST_LAYOUT_GRID) {
-            list_move(listData, KEY_DOWN, GRID_COLUMNS, size);
-            list_move(listData, KEY_UP, -GRID_COLUMNS, size);
+            int columns = (int) list_columns(listData);
+            int pageRows = (int) ((by2 - by1) / list_row_height(listData));
+            int page = columns * (pageRows > 0 ? pageRows : 1);
+
+            list_move(listData, KEY_DOWN, columns, size);
+            list_move(listData, KEY_UP, -columns, size);
             list_move(listData, KEY_RIGHT, 1, size);
             list_move(listData, KEY_LEFT, -1, size);
-            list_move(listData, KEY_R, GRID_COLUMNS * GRID_PAGE_ROWS, size);
-            list_move(listData, KEY_L, -GRID_COLUMNS * GRID_PAGE_ROWS, size);
+            list_move(listData, KEY_R, page, size);
         } else {
             list_move(listData, KEY_DOWN, 1, size);
             list_move(listData, KEY_UP, -1, size);
@@ -415,42 +429,53 @@ static void list_draw_grid(list_data* listData, float x1, float y1, float x2, fl
     u32 scrollBarWidth = 0;
     screen_get_texture_size(&scrollBarWidth, NULL, TEXTURE_SCROLL_BAR);
 
+    u32 iconSize = list_grid_sizes[listData->gridSize].icon;
+    u32 columns = list_grid_sizes[listData->gridSize].columns;
+    u32 rowHeight = list_grid_sizes[listData->gridSize].rowHeight;
+
     // Whole-pixel cells, centered in the space left of the scroll bar.
     float gridWidth = x2 - x1 - scrollBarWidth;
-    float cellWidth = (float) (u32) (gridWidth / GRID_COLUMNS);
-    float gridX = x1 + (float) (u32) ((gridWidth - cellWidth * GRID_COLUMNS) / 2);
+    float cellWidth = (float) (u32) (gridWidth / columns);
+    float gridX = x1 + (float) (u32) ((gridWidth - cellWidth * columns) / 2);
 
     linked_list_iter iter;
     linked_list_iterate(&listData->items, &iter);
 
     u32 index = 0;
     while(linked_list_iter_has_next(&iter)) {
-        float y = y1 - listData->scrollPos + index / GRID_COLUMNS * GRID_ROW_HEIGHT;
+        float y = y1 - listData->scrollPos + index / columns * rowHeight;
         if(y > y2) {
             break;
         }
 
         list_item* item = linked_list_iter_next(&iter);
 
-        if(y > y1 - GRID_ROW_HEIGHT) {
-            float x = gridX + index % GRID_COLUMNS * cellWidth;
+        if(y > y1 - rowHeight) {
+            float x = gridX + index % columns * cellWidth;
 
-            if(item == listData->selectedItem) {
-                screen_draw_texture(TEXTURE_SELECTION_OVERLAY, x + (cellWidth - GRID_SELECTION_SIZE) / 2, y + (GRID_ROW_HEIGHT - GRID_SELECTION_SIZE) / 2,
-                                    GRID_SELECTION_SIZE, GRID_SELECTION_SIZE);
-            }
-
-            // Icons draw at native size (CTR 48x48, TWL 32x32); a title without one gets a gray tile.
+            // Icons scale with the zoom level from their native size (CTR 48, TWL 32); a title without
+            // one gets a gray tile.
             u32 icon = listData->itemIcon != NULL ? listData->itemIcon(item) : 0;
+            u32 iconWidth = GRID_NATIVE_ICON;
+            u32 iconHeight = GRID_NATIVE_ICON;
             if(icon != 0) {
-                u32 iconWidth = 0;
-                u32 iconHeight = 0;
                 screen_get_texture_size(&iconWidth, &iconHeight, icon);
-                screen_draw_texture(icon, x + (cellWidth - iconWidth) / 2, y + (GRID_ROW_HEIGHT - iconHeight) / 2, iconWidth, iconHeight);
-            } else {
-                screen_draw_texture(TEXTURE_SCROLL_BAR, x + (cellWidth - GRID_PLACEHOLDER_SIZE) / 2, y + (GRID_ROW_HEIGHT - GRID_PLACEHOLDER_SIZE) / 2,
-                                    GRID_PLACEHOLDER_SIZE, GRID_PLACEHOLDER_SIZE);
             }
+
+            iconWidth = iconWidth * iconSize / GRID_NATIVE_ICON;
+            iconHeight = iconHeight * iconSize / GRID_NATIVE_ICON;
+
+            // Whole-pixel offsets keep the selection ring the same width on every side.
+            float iconX = x + (u32) ((cellWidth - iconWidth) / 2);
+            float iconY = y + (rowHeight - iconHeight) / 2;
+
+            // Selection: a solid accent ring around the icon (the accent tile is the progress bar fill).
+            if(item == listData->selectedItem) {
+                screen_draw_texture(TEXTURE_PROGRESS_BAR_CONTENT, iconX - GRID_SELECTION_BORDER, iconY - GRID_SELECTION_BORDER,
+                                    iconWidth + GRID_SELECTION_BORDER * 2, iconHeight + GRID_SELECTION_BORDER * 2);
+            }
+
+            screen_draw_texture(icon != 0 ? icon : TEXTURE_SCROLL_BAR, iconX, iconY, iconWidth, iconHeight);
         }
 
         index++;
@@ -529,6 +554,16 @@ static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
     }
 }
 
+// Row heights differ per layout and grid size; list_validate scrolls back to the kept selection.
+static void list_reset_scroll(list_data* listData) {
+    listData->scrollPos = 0;
+    listData->touchMode = LIST_TOUCH_NONE;
+    listData->dragVelocity = 0;
+    listData->scrollVelocity = 0;
+    listData->selectionScroll = 0;
+    listData->nextSelectionScrollResetTime = 0;
+}
+
 ui_view* list_display(const char* name, const char* info, void* data, void (*update)(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched),
                                                                       void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected)) {
     list_data* listData = (list_data*) calloc(1, sizeof(list_data));
@@ -552,6 +587,7 @@ ui_view* list_display(const char* name, const char* info, void* data, void (*upd
     listData->scrollVelocity = 0;
     listData->lastScrollTime = 0;
     listData->layout = LIST_LAYOUT_BOTTOM;
+    listData->gridSize = LIST_GRID_SIZE_DEFAULT;
     listData->itemIcon = NULL;
     listData->update = update;
     listData->drawTop = drawTop;
@@ -573,14 +609,14 @@ void list_set_layout(ui_view* view, list_layout layout, u32 (*itemIcon)(list_ite
 
     listData->layout = layout;
     listData->itemIcon = itemIcon;
+    list_reset_scroll(listData);
+}
 
-    // Row heights differ per layout; list_validate scrolls back to the kept selection.
-    listData->scrollPos = 0;
-    listData->touchMode = LIST_TOUCH_NONE;
-    listData->dragVelocity = 0;
-    listData->scrollVelocity = 0;
-    listData->selectionScroll = 0;
-    listData->nextSelectionScrollResetTime = 0;
+void list_set_grid_size(ui_view* view, u32 size) {
+    list_data* listData = (list_data*) view->data;
+
+    listData->gridSize = size < LIST_GRID_SIZE_COUNT ? size : LIST_GRID_SIZE_DEFAULT;
+    list_reset_scroll(listData);
 }
 
 void list_destroy(ui_view* view) {

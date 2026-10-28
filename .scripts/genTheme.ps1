@@ -1,6 +1,7 @@
 #requires -Version 7.0
 # Regenerates romfs theme textures, romfs/textcolor.cfg, the home-menu icon and banner, and the launch
-# splash from the tokens below. Requires ImageMagick 7 (`magick`), Python 3, and devkitPro's tex3ds.
+# splash from the tokens below and the logo master. Requires ImageMagick 7 (`magick`), Python 3, and
+# devkitPro's tex3ds.
 # Safe to rerun: icon recolors are idempotent.
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\scriptHelper.ps1"
@@ -11,16 +12,10 @@ $meta = "$repoRoot\meta"
 $APP_BACKGROUND = '#1B1B1B'
 $CONTROL_ALT = '#2A2A2A'
 $PRESSED = '#383838'
-$ACCENT_STRONG = '#523E6E'
 $ACCENT = '#765E98'
-$LOGO_TEXT = '#D0D0D0'
-# Logo frame, after the original FBI icon's border; AccentStrong darkened.
-$LOGO_BORDER = '#3A2C4F'
-# Forward slashes: ImageMagick treats backslashes in font paths as escapes.
-$FONT = 'C:/Windows/Fonts/consolab.ttf'
-# Logo text point size per pixel of tile edge: "ftb" ink spans about 75% of the tile width, clear of
-# the border on the 48px icon.
-$LOGO_TEXT_SCALE = 0.48
+# Hand-made 144px "ftb" logo (Consolas Bold on AccentStrong, #3A2C4F border); every logo size comes
+# from it.
+$LOGO_MASTER = "$repoRoot\.res\logo.png"
 # Banner tile edge on the 256x128 banner.
 $BANNER_TILE = 120
 
@@ -35,15 +30,9 @@ $TEXT_COLORS = [ordered]@{
 
 function invokeMagick { runNativeCommand magick $args 'magick' }
 
-# Square "ftb" tile rendered at its final size with antialiasing; upscaling a small tile looks blocky.
-# Centered by the glyphs' trimmed ink box: -gravity center on text alone centers the font line box,
-# which leaves the glyphs off center. Border is 1/16 of the edge, like the FBI icon.
+# Smaller tiles are downscaled from the master; the 144px one is the master unchanged.
 function newLogoTile([int] $size, [string] $out) {
-    $pointsize = [math]::Round($size * $LOGO_TEXT_SCALE, 1)
-    $border = [math]::Round($size / 16)
-    invokeMagick -size "${size}x$size" "xc:$ACCENT_STRONG" '(' -background none -fill $LOGO_TEXT -font $FONT `
-        -pointsize $pointsize label:ftb -trim +repage ')' -gravity center -composite `
-        -shave "${border}x$border" -bordercolor $LOGO_BORDER -border "${border}x$border" "PNG24:$out"
+    invokeMagick $LOGO_MASTER -resize "${size}x$size" "PNG24:$out"
 }
 
 function newFill([string] $name, [string] $size, [string] $color) {

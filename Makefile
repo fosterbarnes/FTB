@@ -37,10 +37,12 @@ AUTHOR := Steveice10, fosterbarnes
 PRODUCT_CODE := CTR-P-CFTB
 UNIQUE_ID := 0xF8F7B
 
-ICON_FLAGS := --flags visible,ratingrequired,recordusage --cero 153 --esrb 153 --usk 153 --pegigen 153 --pegiptr 153 --pegibbfc 153 --cob 153 --grb 153 --cgsrr 153
+# extendedbanner: HOME Menu treats the CGFX banner as a 3D extended banner (ClouDS Music FA, tested).
+ICON_FLAGS := --flags visible,ratingrequired,recordusage,extendedbanner --cero 153 --esrb 153 --usk 153 --pegigen 153 --pegiptr 153 --pegibbfc 153 --cob 153 --grb 153 --cgsrr 153
 
 BANNER_AUDIO := meta/audio_3ds.wav
-BANNER_IMAGE := meta/banner_3ds.png
+# 3D model from .scripts/genBanner.py; genTheme still writes the flat meta/banner_3ds.png card.
+BANNER_IMAGE := meta/banner_3ds.cgfx
 ICON := meta/icon_3ds.png
 LOGO := meta/logo_3ds.bcma.lz
 

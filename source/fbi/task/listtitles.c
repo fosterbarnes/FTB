@@ -16,6 +16,9 @@
 // title list decides which titles exist; a cached record is reused only while its title ID, version,
 // and installed size still match, so installs, deletes, and updates never show stale entries.
 #define TITLE_CACHE_DIR "sdmc:/ftb/cache"
+#define TITLE_CACHE_SD_PATH TITLE_CACHE_DIR "/sdTitles.bin"
+#define TITLE_CACHE_NAND_PATH TITLE_CACHE_DIR "/nandTitles.bin"
+#define TITLE_CACHE_TWL_PATH TITLE_CACHE_DIR "/twlTitles.bin"
 #define TITLE_CACHE_MAGIC 0x54425446 // "FTBT"
 #define TITLE_CACHE_FORMAT 1
 #define TITLE_CACHE_BUFFER_SIZE 0x10000
@@ -115,6 +118,7 @@ static Result task_populate_titles_add_record(populate_titles_data* data, FS_Med
     item->data = titleInfo;
 
     linked_list_add_sorted(data->items, item, data->userData, data->compare);
+    data->loaded++;
     return 0;
 }
 
@@ -432,7 +436,7 @@ static FILE* task_populate_titles_open_cache(const char* path, u8 language) {
 // Phase 1: adds every title whose cached record still matches AM. Both sides are sorted by title ID,
 // so one forward merge finds hits, misses, and stale records.
 static Result task_populate_titles_add_cached(populate_titles_data* data, title_pass* pass, u8 language) {
-    if(pass->path == NULL || !data->useCache) {
+    if(pass->path == NULL || data->cacheMode != TITLE_CACHE_ON) {
         return 0;
     }
 
@@ -552,9 +556,9 @@ static void task_populate_titles_thread(void* arg) {
 
     title_pass passes[] = {
             {.mediaType = MEDIATYPE_GAME_CARD},
-            {.mediaType = MEDIATYPE_SD, .path = TITLE_CACHE_DIR "/sdTitles.bin"},
-            {.mediaType = MEDIATYPE_NAND, .path = TITLE_CACHE_DIR "/nandTitles.bin"},
-            {.mediaType = MEDIATYPE_NAND, .twl = true, .path = TITLE_CACHE_DIR "/twlTitles.bin"},
+            {.mediaType = MEDIATYPE_SD, .path = TITLE_CACHE_SD_PATH},
+            {.mediaType = MEDIATYPE_NAND, .path = TITLE_CACHE_NAND_PATH},
+            {.mediaType = MEDIATYPE_NAND, .twl = true, .path = TITLE_CACHE_TWL_PATH},
     };
     const u32 passCount = sizeof(passes) / sizeof(passes[0]);
 
@@ -562,23 +566,46 @@ static void task_populate_titles_thread(void* arg) {
     u8 language = 0xFF;
     CFGU_GetSystemLanguage(&language);
 
-    // Show every cached title first, then load the new and changed ones. A failing pass stops the
-    // passes after it, but the ones before it still finish.
+    // List every pass first so the progress total is known before any title shows. A failing pass
+    // stops the passes after it, but the ones before it still finish.
     Result res = 0;
     u32 ready = 0;
-    while(ready < passCount && R_SUCCEEDED(res = task_populate_titles_prepare(data, &passes[ready]))
-          && R_SUCCEEDED(res = task_populate_titles_add_cached(data, &passes[ready], language))) {
+    while(ready < passCount && R_SUCCEEDED(res = task_populate_titles_prepare(data, &passes[ready]))) {
         ready++;
     }
 
+    u32 total = 0;
     for(u32 i = 0; i < ready; i++) {
+        total += passes[i].count;
+    }
+
+    data->total = total;
+
+    // Show every cached title first, then load the new and changed ones.
+    if(data->cacheMode == TITLE_CACHE_ON) {
+        data->stage = TITLE_STAGE_CACHE;
+    }
+
+    for(u32 i = 0; i < ready; i++) {
+        Result cacheRes = task_populate_titles_add_cached(data, &passes[i], language);
+        if(R_FAILED(cacheRes)) {
+            res = cacheRes;
+            ready = i;
+            break;
+        }
+    }
+
+    for(u32 i = 0; i < ready; i++) {
+        data->stage = TITLE_STAGE_LOADING;
+
         Result passRes = task_populate_titles_add_missing(data, &passes[i]);
         if(R_FAILED(passRes)) {
             res = passRes;
             break;
         }
 
-        if(passes[i].path != NULL && passes[i].complete && passes[i].changed) {
+        if(data->cacheMode != TITLE_CACHE_OFF && passes[i].path != NULL && passes[i].complete && passes[i].changed) {
+            data->stage = TITLE_STAGE_SAVING;
             task_populate_titles_write_cache(&passes[i], language);
         }
     }
@@ -633,6 +660,10 @@ Result task_populate_titles(populate_titles_data* data) {
 
     task_clear_titles(data->items);
 
+    data->stage = TITLE_STAGE_LISTING;
+    data->total = 0;
+    data->loaded = 0;
+
     data->finished = false;
     data->result = 0;
     data->cancelEvent = 0;
@@ -654,4 +685,23 @@ Result task_populate_titles(populate_titles_data* data) {
     }
 
     return res;
+}
+
+static bool task_clear_title_cache_file(const char* path) {
+    return remove(path) == 0 || errno == ENOENT;
+}
+
+bool task_clear_title_cache() {
+    static const char* const paths[] = {TITLE_CACHE_SD_PATH, TITLE_CACHE_NAND_PATH, TITLE_CACHE_TWL_PATH};
+
+    bool cleared = true;
+    for(u32 i = 0; i < sizeof(paths) / sizeof(paths[0]); i++) {
+        char tempPath[64];
+        snprintf(tempPath, sizeof(tempPath), "%s.tmp", paths[i]);
+
+        cleared = task_clear_title_cache_file(paths[i]) && cleared;
+        cleared = task_clear_title_cache_file(tempPath) && cleared;
+    }
+
+    return cleared;
 }

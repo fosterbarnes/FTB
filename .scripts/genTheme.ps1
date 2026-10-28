@@ -14,10 +14,13 @@ $PRESSED = '#383838'
 $ACCENT_STRONG = '#523E6E'
 $ACCENT = '#765E98'
 $LOGO_TEXT = '#D0D0D0'
+# Logo frame, after the original FBI icon's border; AccentStrong darkened.
+$LOGO_BORDER = '#3A2C4F'
 # Forward slashes: ImageMagick treats backslashes in font paths as escapes.
 $FONT = 'C:/Windows/Fonts/consolab.ttf'
-# Logo text point size per pixel of tile edge: "FTB" ink spans about 80% of the tile width.
-$LOGO_TEXT_SCALE = 0.52
+# Logo text point size per pixel of tile edge: "ftb" ink spans about 75% of the tile width, clear of
+# the border on the 48px icon.
+$LOGO_TEXT_SCALE = 0.48
 # Banner tile edge on the 256x128 banner.
 $BANNER_TILE = 120
 
@@ -32,13 +35,15 @@ $TEXT_COLORS = [ordered]@{
 
 function invokeMagick { runNativeCommand magick $args 'magick' }
 
-# Square "FTB" tile rendered at its final size with antialiasing; upscaling a small tile looks blocky.
+# Square "ftb" tile rendered at its final size with antialiasing; upscaling a small tile looks blocky.
 # Centered by the glyphs' trimmed ink box: -gravity center on text alone centers the font line box,
-# and caps have no descenders, so they would sit high.
+# which leaves the glyphs off center. Border is 1/16 of the edge, like the FBI icon.
 function newLogoTile([int] $size, [string] $out) {
     $pointsize = [math]::Round($size * $LOGO_TEXT_SCALE, 1)
+    $border = [math]::Round($size / 16)
     invokeMagick -size "${size}x$size" "xc:$ACCENT_STRONG" '(' -background none -fill $LOGO_TEXT -font $FONT `
-        -pointsize $pointsize label:FTB -trim +repage ')' -gravity center -composite "PNG24:$out"
+        -pointsize $pointsize label:ftb -trim +repage ')' -gravity center -composite `
+        -shave "${border}x$border" -bordercolor $LOGO_BORDER -border "${border}x$border" "PNG24:$out"
 }
 
 function newFill([string] $name, [string] $size, [string] $color) {

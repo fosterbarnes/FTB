@@ -41,22 +41,22 @@ This project is in active development.
     <th>Title Manager </th> 
   </tr>
   <tr>
-    <td align="center"><img src="./.res/scr/1.png" width="300" vspace="15"></td>
-    <td align="center"><img src="./.res/scr/2.png" width="300" vspace="15"></td>
+    <td align="center"><img src="./.res/scr/1.png" width="340" vspace="15"></td>
+    <td align="center"><img src="./.res/scr/2.png" width="340" vspace="15"></td>
   </tr>
   <tr>
     <th>FTP Server</th>
     <th>Progress Bar</th>
   </tr>
   <tr>
-    <td align="center"><img src="./.res/scr/3.png" width="300" vspace="15"></td>
-    <td align="center"><img src="./.res/scr/4.png" width="300" vspace="15"></td>
+    <td align="center"><img src="./.res/scr/3.png" width="340" vspace="15"></td>
+    <td align="center"><img src="./.res/scr/4.png" width="340" vspace="15"></td>
   </tr>
   <tr>
     <th colspan="2">SD Browser</th>
   </tr>
   <tr>
-    <td colspan="2" align="center"><img src="./.res/scr/5.png" width="300" vspace="15"></td>
+    <td colspan="2" align="center"><img src="./.res/scr/5.png" width="340" vspace="15"></td>
   </tr>
 </table>
 

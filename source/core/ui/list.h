@@ -20,7 +20,7 @@ typedef enum list_layout_e {
 } list_layout;
 
 // Grid zoom levels, smallest first; the default draws 48 px icons 1:1.
-#define LIST_GRID_SIZE_COUNT 4
+#define LIST_GRID_SIZE_COUNT 2
 #define LIST_GRID_SIZE_DEFAULT 1
 
 ui_view* list_display(const char* name, const char* info, void* data, void (*update)(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched),

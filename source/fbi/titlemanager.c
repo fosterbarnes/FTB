@@ -11,11 +11,11 @@
 #include "../core/core.h"
 
 // Title Manager: FTB's title list. Layout, zoom, sort, and filters live in settings (titleLayout
-// etc.) and change from Options or X (layout), Y (grid zoom), L (grouping). FBI's original screen
+// etc.) and change from Options or Y (layout), X (grid zoom), L (grouping). FBI's original screen
 // stays in titles.c as Titles (FBI Legacy).
 
-#define TITLEMANAGER_INFO "A: Select, B: Return, X: Layout, L: Group, Select: Options"
-#define TITLEMANAGER_INFO_GRID "A: Select, B: Return, X: Layout, Y: Zoom, L: Group, R: Page, Select: Options"
+#define TITLEMANAGER_INFO "A: Select, B: Return, Y: Layout, Select: Options"
+#define TITLEMANAGER_INFO_GRID "A: Select, B: Return, X: Zoom, Y: Layout, Select: Options"
 
 typedef struct {
     populate_titles_data populateData;
@@ -25,6 +25,7 @@ typedef struct {
     bool rebuild; // the next population rebuilds the title cache (Options > Rebuild list)
     bool sortDirty; // the sort changed: resort once population has finished
     u64 populateStart; // osGetTime() when the current population began
+    char name[64]; // view name: current sort and grouping
 } titlemanager_data;
 
 static const list_layout titlemanager_layouts[TITLE_LAYOUT_COUNT] = {LIST_LAYOUT_GRID, LIST_LAYOUT_TOP, LIST_LAYOUT_BOTTOM};
@@ -54,8 +55,17 @@ static void titlemanager_apply_layout(titlemanager_data* data) {
     u8 layout = settings_get()->titleLayout;
 
     data->view->info = layout == TITLE_LAYOUT_GRID ? TITLEMANAGER_INFO_GRID : TITLEMANAGER_INFO;
+    data->view->hintLeft = "L: Group";
+    data->view->hintRight = layout == TITLE_LAYOUT_GRID ? "R: Page" : NULL;
     list_set_layout(data->view, titlemanager_layouts[layout], titlemanager_item_icon);
     list_set_grid_size(data->view, settings_get()->titleGridSize);
+}
+
+// The view name (bottom screen's top bar) shows the active order, so L and Options changes are visible.
+static void titlemanager_update_name(titlemanager_data* data) {
+    const ftb_settings* settings = settings_get();
+    snprintf(data->name, sizeof(data->name), "%s, %s, %s", titlemanager_sort_names[settings->titleSort],
+             settings->titleSortDesc ? "Desc" : "Asc", settings->titleGroupLocation ? "Grouped" : "Ungrouped");
 }
 
 static void titlemanager_save(const ftb_settings* next) {
@@ -65,7 +75,7 @@ static void titlemanager_save(const ftb_settings* next) {
     }
 }
 
-// X in the Title Manager and the Layout row in Options: Grid -> List top -> List bottom.
+// Y in the Title Manager and the Layout row in Options: Grid -> List top -> List bottom.
 static void titlemanager_cycle_layout(titlemanager_data* data) {
     ftb_settings next = *settings_get();
     next.titleLayout = (u8) ((next.titleLayout + 1) % TITLE_LAYOUT_COUNT);
@@ -74,7 +84,7 @@ static void titlemanager_cycle_layout(titlemanager_data* data) {
     titlemanager_apply_layout(data);
 }
 
-// Y in the grid: zoom in one step, back to the smallest after the largest.
+// X in the grid: next zoom level, back to the smallest after the largest.
 static void titlemanager_cycle_grid_size(titlemanager_data* data) {
     ftb_settings next = *settings_get();
     next.titleGridSize = (u8) ((next.titleGridSize + 1) % LIST_GRID_SIZE_COUNT);
@@ -294,12 +304,12 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
         return;
     }
 
-    if(hidKeysDown() & KEY_X) {
+    if(hidKeysDown() & KEY_Y) {
         titlemanager_cycle_layout(tmData);
         return;
     }
 
-    if((hidKeysDown() & KEY_Y) && settings_get()->titleLayout == TITLE_LAYOUT_GRID) {
+    if((hidKeysDown() & KEY_X) && settings_get()->titleLayout == TITLE_LAYOUT_GRID) {
         titlemanager_cycle_grid_size(tmData);
         return;
     }
@@ -307,6 +317,8 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
     if(hidKeysDown() & KEY_L) {
         titlemanager_toggle_group(tmData);
     }
+
+    titlemanager_update_name(tmData);
 
     if(!tmData->populated) {
         titlemanager_wait_populate(tmData);
@@ -361,7 +373,8 @@ void titlemanager_open() {
 
     data->populateData.finished = true;
 
-    data->view = list_display("Title Manager", TITLEMANAGER_INFO, data, titlemanager_update, titlemanager_draw_info);
+    titlemanager_update_name(data);
+    data->view = list_display(data->name, TITLEMANAGER_INFO, data, titlemanager_update, titlemanager_draw_info);
     if(data->view == NULL) {
         free(data);
         return;

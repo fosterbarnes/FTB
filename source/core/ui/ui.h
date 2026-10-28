@@ -3,6 +3,9 @@
 typedef struct ui_view_s {
     const char* name;
     const char* info;
+    // Optional shoulder button hints in the left and right corners of the bottom screen's top bar.
+    const char* hintLeft;
+    const char* hintRight;
     void* data;
     void (*update)(struct ui_view_s* view, void* data, float bx1, float by1, float bx2, float by2);
     void (*drawTop)(struct ui_view_s* view, void* data, float x1, float y1, float x2, float y2);

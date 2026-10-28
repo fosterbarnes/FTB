@@ -30,8 +30,6 @@ static const struct {
 } list_grid_sizes[LIST_GRID_SIZE_COUNT] = {
         {32, 9, 44},
         {48, 7, 64},
-        {64, 5, 80},
-        {80, 4, 100},
 };
 
 enum {

@@ -332,6 +332,19 @@ static void ui_draw_bottom(ui_view* ui) {
         screen_draw_string(ui->name, (BOTTOM_SCREEN_WIDTH - nameWidth) / 2, (bottomScreenTopBarHeight - nameHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
     }
 
+    if(ui->hintLeft != NULL) {
+        float hintHeight;
+        screen_get_string_size(NULL, &hintHeight, ui->hintLeft, 0.5f, 0.5f);
+        screen_draw_string(ui->hintLeft, bottomScreenTopBarX + 2, (bottomScreenTopBarHeight - hintHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
+    }
+
+    if(ui->hintRight != NULL) {
+        float hintWidth;
+        float hintHeight;
+        screen_get_string_size(&hintWidth, &hintHeight, ui->hintRight, 0.5f, 0.5f);
+        screen_draw_string(ui->hintRight, bottomScreenTopBarX + bottomScreenTopBarWidth - 2 - hintWidth, (bottomScreenTopBarHeight - hintHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
+    }
+
     if(ui->info != NULL) {
         float baseInfoWidth;
         screen_get_string_size(&baseInfoWidth, NULL, ui->info, 0.5f, 0.5f);

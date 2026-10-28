@@ -33,7 +33,7 @@ Transfer files to and from the SD card over Wi-Fi (powered by ftpd).
 This project is in active development.
 
 
-## More Screenshots
+## Screenshots
 
 <table>
   <tr>

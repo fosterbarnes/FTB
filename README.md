@@ -3,7 +3,7 @@
 Dark-themed fork of [FBI](https://github.com/Steveice10/FBI), the 3DS title manager, with a built-in FTP server. Installs alongside FBI. Nintendo 3DS homebrew. C
 
 <!-- Quick Reference -->
-| [FTB.cia](https://github.com/fosterbarnes/FTB/releases/download/v0.0.10/FTB.cia) | [FTB.3dsx](https://github.com/fosterbarnes/FTB/releases/download/v0.0.10/FTB.3dsx) | [FTB.3ds](https://github.com/fosterbarnes/FTB/releases/download/v0.0.10/FTB.3ds) | [FTB.zip](https://github.com/fosterbarnes/FTB/releases/download/v0.0.10/FTB.zip) |
+| [FTB.cia](https://github.com/fosterbarnes/FTB/releases/download/v0.0.11/FTB.cia) | [FTB.3dsx](https://github.com/fosterbarnes/FTB/releases/download/v0.0.11/FTB.3dsx) | [FTB.3ds](https://github.com/fosterbarnes/FTB/releases/download/v0.0.11/FTB.3ds) | [FTB.zip](https://github.com/fosterbarnes/FTB/releases/download/v0.0.11/FTB.zip) |
 |:---:|:---:|:---:|:---:|
 <!-- End Quick Reference -->
 

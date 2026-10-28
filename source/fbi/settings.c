@@ -104,14 +104,14 @@ static void settings_clear_title_cache() {
 
 static settings_entry title_cache_entry = {
         settings_toggle_title_cache,
-        "Keeps the Titles list in sdmc:/ftb/cache/ so it opens faster.\n"
+        "Keeps the Title Manager list in sdmc:/ftb/cache/ so it opens faster.\n"
         "Off: every title loads from the system each time, like FBI."
 };
 
 static settings_entry clear_title_cache_entry = {
         settings_clear_title_cache,
-        "Deletes the saved Titles list in sdmc:/ftb/cache/.\n"
-        "Titles reloads everything the next time it opens."
+        "Deletes the saved Title Manager list in sdmc:/ftb/cache/.\n"
+        "Title Manager reloads everything the next time it opens."
 };
 
 static list_item title_cache_item = {"", COLOR_TEXT, &title_cache_entry};

@@ -446,6 +446,12 @@ static void screen_draw_quad(float x1, float y1, float x2, float y2, float left,
     C3D_ImmDrawEnd();
 }
 
+// Textures start on whole pixels: a fractional origin makes the GPU sample between texel rows,
+// which turns 1:1 art like the logo jagged (v0.0.10 regression). Casts truncate toward zero.
+static float screen_snap_pixel(float v) {
+    return (float) (s32) (v < 0 ? v - 0.5f : v + 0.5f);
+}
+
 void screen_draw_texture(u32 id, float x, float y, float width, float height) {
     if(id >= MAX_TEXTURES) {
         error_panic("Attempted to draw invalid texture ID \"%lu\".", id);
@@ -459,6 +465,9 @@ void screen_draw_texture(u32 id, float x, float y, float width, float height) {
     if(base_alpha != 0xFF) {
         screen_set_blend(base_alpha << 24, false, true);
     }
+
+    x = screen_snap_pixel(x);
+    y = screen_snap_pixel(y);
 
     C3D_TexBind(0, &textures[id].tex);
     screen_draw_quad(x, y, x + width, y + height, 0, (float) (textures[id].tex.height - textures[id].height) / (float) textures[id].tex.height, (float) textures[id].width / (float) textures[id].tex.width, 1.0f);
@@ -481,6 +490,9 @@ void screen_draw_texture_crop(u32 id, float x, float y, float width, float heigh
     if(base_alpha != 0xFF) {
         screen_set_blend(base_alpha << 24, false, true);
     }
+
+    x = screen_snap_pixel(x);
+    y = screen_snap_pixel(y);
 
     C3D_TexBind(0, &textures[id].tex);
     screen_draw_quad(x, y, x + width, y + height, 0, (float) (textures[id].tex.height - textures[id].height) / (float) textures[id].tex.height, width / (float) textures[id].tex.width, (textures[id].tex.height - textures[id].height + height) / (float) textures[id].tex.height);

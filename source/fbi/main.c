@@ -1,5 +1,7 @@
 #include <sys/iosupport.h>
 #include <malloc.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <3ds.h>
 
@@ -177,6 +179,60 @@ void cleanup() {
     gfxExit();
 }
 
+static bool restart_requested = false;
+
+// Point Luma Rosalina's hb:ldr at this 3dsx for the next launch of the host title, with the same
+// IPC hbmenu uses (3ds-hbmenu source/loaders/rosalina.c).
+static Result restart_set_hbldr_target(const char* path) {
+    Handle hbldr = 0;
+    Result res = svcConnectToPort(&hbldr, "hb:ldr");
+    if(R_FAILED(res)) {
+        return res;
+    }
+
+    // libctru argv blob: u32 argc, then NUL-terminated strings.
+    u32 args[0x400 / sizeof(u32)] = {1};
+    snprintf((char*) &args[1], sizeof(args) - sizeof(u32), "sdmc:%s", path);
+
+    u32* cmdbuf = getThreadCommandBuffer();
+    cmdbuf[0] = IPC_MakeHeader(2, 0, 2);
+    cmdbuf[1] = IPC_Desc_StaticBuffer(strlen(path) + 1, 0);
+    cmdbuf[2] = (u32) path;
+
+    if(R_SUCCEEDED(res = svcSendSyncRequest(hbldr)) && R_SUCCEEDED(res = (Result) cmdbuf[1])) {
+        cmdbuf[0] = IPC_MakeHeader(3, 0, 2);
+        cmdbuf[1] = IPC_Desc_StaticBuffer(sizeof(args), 1);
+        cmdbuf[2] = (u32) args;
+
+        if(R_SUCCEEDED(res = svcSendSyncRequest(hbldr))) {
+            res = (Result) cmdbuf[1];
+        }
+    }
+
+    svcCloseHandle(hbldr);
+    return res;
+}
+
+// Ends the main loop; libctru's aptExit then relaunches this title (CIA) or, through hb:ldr, this
+// 3dsx. Only SD 3dsx paths can be relaunched (fs_set_3dsx_path strips "sdmc:").
+Result app_restart() {
+    if(envIsHomebrew()) {
+        const char* path = fs_get_3dsx_path();
+        if(path == NULL || path[0] != '/') {
+            return R_APP_NOT_IMPLEMENTED;
+        }
+
+        Result res = restart_set_hbldr_target(path);
+        if(R_FAILED(res)) {
+            return res;
+        }
+    }
+
+    aptSetChainloaderToSelf();
+    restart_requested = true;
+    return 0;
+}
+
 int main(int argc, const char* argv[]) {
     if(argc > 0 && envIsHomebrew()) {
         fs_set_3dsx_path(argv[0]);
@@ -185,7 +241,7 @@ int main(int argc, const char* argv[]) {
     init();
 
     mainmenu_open();
-    while(aptMainLoop() && ui_update());
+    while(aptMainLoop() && !restart_requested && ui_update());
 
     cleanup();
 

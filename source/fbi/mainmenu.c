@@ -11,7 +11,7 @@
 static void mainmenu_legacy_open();
 
 static list_item sd = {"SD", COLOR_TEXT, files_open_sd};
-static list_item titles = {"Titles", COLOR_TEXT, titles_open};
+static list_item titles = {"Title Manager", COLOR_TEXT, titles_open};
 static list_item ftp_server = {"FTP Server", COLOR_TEXT, ftp_open};
 static list_item fbi_legacy = {"FBI Legacy", COLOR_TEXT, mainmenu_legacy_open};
 static list_item update = {"Update", COLOR_TEXT, update_open};

@@ -221,7 +221,7 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
         }
     }
 
-    if(R_SUCCEEDED(res) && installData->finishedURL != NULL) {
+    if(succeeded && R_SUCCEEDED(res) && installData->finishedURL != NULL) {
         installData->finishedURL(installData->userData, index);
     }
 

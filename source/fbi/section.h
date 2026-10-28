@@ -1,5 +1,7 @@
 #pragma once
 
+Result app_restart();
+
 void mainmenu_open();
 
 void dumpnand_open();

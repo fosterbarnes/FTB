@@ -11,6 +11,24 @@
 #include "task/uitask.h"
 #include "../core/core.h"
 
+static bool update_installed = false;
+
+static void update_finished_url(void* data, u32 index) {
+    update_installed = true;
+}
+
+static void update_finished_all(void* data) {
+    if(!update_installed) {
+        return;
+    }
+
+    update_installed = false;
+
+    if(R_FAILED(app_restart())) {
+        prompt_display_notify("Success", "Update installed.\nRestart FTB to finish.", COLOR_TEXT, NULL, NULL, NULL);
+    }
+}
+
 static void update_check_update(ui_view* view, void* data, float* progress, char* text) {
     bool hasUpdate = false;
     char updateURL[DOWNLOAD_URL_MAX];
@@ -72,7 +90,7 @@ static void update_check_update(ui_view* view, void* data, float* progress, char
     info_destroy(view);
 
     if(hasUpdate) {
-        action_install_url("Update FTB to the latest version?", updateURL, fs_get_3dsx_path(), NULL, NULL, NULL, NULL);
+        action_install_url("Update FTB to the latest version?", updateURL, fs_get_3dsx_path(), NULL, update_finished_url, update_finished_all, NULL);
     } else {
         if(R_FAILED(res)) {
             error_display_res(NULL, NULL, res, "Failed to check for update.");

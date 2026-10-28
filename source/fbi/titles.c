@@ -412,5 +412,5 @@ void titles_open() {
     data->sortByName = true;
     data->sortBySize = false;
 
-    list_display("Titles", "A: Select, B: Return, X: Refresh, Select: Options", data, titles_update, titles_draw_top);
+    list_display("Title Manager", "A: Select, B: Return, X: Refresh, Select: Options", data, titles_update, titles_draw_top);
 }

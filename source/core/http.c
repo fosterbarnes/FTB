@@ -419,8 +419,13 @@ Result http_download_json(const char* url, json_t** json, size_t maxSize) {
 
     char* text = (char*) calloc(sizeof(char), maxSize);
     if(text != NULL) {
+        // The last byte stays the terminator; a response that fills the rest was cut off.
         u32 textSize = 0;
-        if(R_SUCCEEDED(res = http_download_buffer(url, &textSize, text, maxSize))) {
+        if(R_SUCCEEDED(res = http_download_buffer(url, &textSize, text, maxSize - 1)) && textSize >= maxSize - 1) {
+            res = R_APP_BAD_DATA;
+        }
+
+        if(R_SUCCEEDED(res)) {
             json_error_t error;
             json_t* parsed = json_loads(text, 0, &error);
             if(parsed != NULL) {

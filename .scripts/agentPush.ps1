@@ -2,9 +2,9 @@
 # Non-interactive push for the agent-push skill, run only when the user asks an agent to push.
 # -Context prints what the agent needs to write buildNotes.txt; the default mode validates it, runs
 # prePush.ps1 and push.ps1 quietly, then reports. With $agentPushRelease in scriptHelper.ps1 (or
-# -Release) it then runs pushRelease.ps1 (builds the assets, tags v<version>, publishes the GitHub
-# release), unless that release already exists. -Tags prints 10 candidate version tags; -SetTag
-# writes the one the user picked.
+# -Release) it then runs pushRelease.ps1 (tags v<version>, publishes the GitHub release with the
+# assets prePush staged), unless that release already exists. -Tags prints 10 candidate version
+# tags; -SetTag writes the one the user picked.
 param([Alias('h')][switch]$Help, [switch]$Context, [switch]$Tags, [string]$SetTag, [switch]$Release)
 $ErrorActionPreference = 'Stop'
 if ($Help) { Write-Host 'agentPush.ps1 [-Context | -Tags | -SetTag <tag> | -Release]'; return }

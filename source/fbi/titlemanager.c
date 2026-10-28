@@ -12,13 +12,22 @@
 
 // Title Manager: FTB's title list. Layout, zoom, sort, and filters live in settings (titleLayout
 // etc.) and change from Options or Y (layout), X (grid zoom), L (sort). FBI's original screen
-// stays in titles.c as Titles (FBI Legacy).
+// stays in titles.c as FBI Legacy > Titles.
 
 #define TITLEMANAGER_INFO "A: Select, B: Return, Y: Layout, Select: Options"
 #define TITLEMANAGER_INFO_GRID "A: Select, B: Return, X: Zoom, Y: Layout, Select: Options"
 
+// Sort keys titlemanager_compare reads. The populate thread inserts with them, so they are copied
+// from settings only while no population runs; a mid-load change waits for the resort.
+typedef struct {
+    u8 sort;
+    bool desc;
+    bool group;
+} titlemanager_order;
+
 typedef struct {
     populate_titles_data populateData;
+    titlemanager_order order;
     ui_view* view;
 
     bool populated;
@@ -135,8 +144,13 @@ static const char* titlemanager_sort_text(const list_item* item, u8 sort) {
     return string_is_empty(info->meta.shortDescription) ? NULL : item->name;
 }
 
-static int titlemanager_compare(void* data, const void* p1, const void* p2) {
+static void titlemanager_load_order(titlemanager_data* data) {
     const ftb_settings* settings = settings_get();
+    data->order = (titlemanager_order) {settings->titleSort, settings->titleSortDesc, settings->titleGroupLocation};
+}
+
+static int titlemanager_compare(void* data, const void* p1, const void* p2) {
+    const titlemanager_order* order = &((titlemanager_data*) data)->order;
 
     const list_item* item1 = (const list_item*) p1;
     const list_item* item2 = (const list_item*) p2;
@@ -144,7 +158,7 @@ static int titlemanager_compare(void* data, const void* p1, const void* p2) {
     const title_info* title1 = (const title_info*) item1->data;
     const title_info* title2 = (const title_info*) item2->data;
 
-    if(settings->titleGroupLocation) {
+    if(order->group) {
         int location = titlemanager_location_rank(title1) - titlemanager_location_rank(title2);
         if(location != 0) {
             return location;
@@ -152,15 +166,15 @@ static int titlemanager_compare(void* data, const void* p1, const void* p2) {
     }
 
     int result = 0;
-    if(settings->titleSort == TITLE_SORT_ID) {
+    if(order->sort == TITLE_SORT_ID) {
         result = titlemanager_compare_u64(title1->titleId, title2->titleId);
-    } else if(settings->titleSort == TITLE_SORT_SIZE) {
+    } else if(order->sort == TITLE_SORT_SIZE) {
         result = titlemanager_compare_u64(title1->installedSize, title2->installedSize);
-    } else if(settings->titleSort == TITLE_SORT_TYPE) {
+    } else if(order->sort == TITLE_SORT_TYPE) {
         result = titlemanager_compare_u64(title1->titleId >> 32, title2->titleId >> 32);
-    } else if(settings->titleSort == TITLE_SORT_GAME) {
+    } else if(order->sort == TITLE_SORT_GAME) {
         result = titlemanager_compare_u64((u32) title1->titleId, (u32) title2->titleId);
-    } else if(settings->titleSort == TITLE_SORT_REGION) {
+    } else if(order->sort == TITLE_SORT_REGION) {
         // Titles without an SMDH sort last in either order.
         if(title1->hasMeta != title2->hasMeta) {
             return title1->hasMeta ? -1 : 1;
@@ -169,8 +183,8 @@ static int titlemanager_compare(void* data, const void* p1, const void* p2) {
         result = title1->hasMeta ? titlemanager_compare_u64(title1->meta.region, title2->meta.region) : 0;
     } else {
         // Titles without the text sort last in either order.
-        const char* text1 = titlemanager_sort_text(item1, settings->titleSort);
-        const char* text2 = titlemanager_sort_text(item2, settings->titleSort);
+        const char* text1 = titlemanager_sort_text(item1, order->sort);
+        const char* text2 = titlemanager_sort_text(item2, order->sort);
         if((text1 == NULL) != (text2 == NULL)) {
             return text1 == NULL ? 1 : -1;
         }
@@ -178,7 +192,7 @@ static int titlemanager_compare(void* data, const void* p1, const void* p2) {
         result = text1 != NULL ? strcasecmp(text1, text2) : 0;
     }
 
-    if(settings->titleSortDesc) {
+    if(order->desc) {
         result = -result;
     }
 
@@ -358,6 +372,7 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
         // costs a walk of the list per title. A shown list inserts in the current order.
         tmData->populateData.compare = tmData->loading ? NULL : titlemanager_compare;
         tmData->sortDirty = tmData->loading;
+        titlemanager_load_order(tmData);
         list_set_loading(view, tmData->loading);
         Result res = task_populate_titles(&tmData->populateData);
         if(R_FAILED(res)) {
@@ -369,7 +384,8 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
 
     // The populate thread inserts while it runs, so only sort once it is done.
     if(tmData->populateData.finished && tmData->sortDirty) {
-        linked_list_sort(items, NULL, titlemanager_compare);
+        titlemanager_load_order(tmData);
+        linked_list_sort(items, tmData, titlemanager_compare);
         tmData->sortDirty = false;
     }
 

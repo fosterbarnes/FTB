@@ -7,7 +7,7 @@ $projectName = 'FTB'
 $outputFolder = "$repoRoot\output"
 $targetOutput = "$outputFolder\3ds-arm"
 $publishFolder = "$repoRoot\publish"
-# .version/version holds one X.Y.Z; the Makefile reads it for the in-app "Ver." text, the updater
+# .version/version holds one X.Y.Z; the Makefile reads it for the About screen, the updater
 # compare and the CIA title version. versionTag is only the commit codename (AGENTS.md Revision).
 $versionFolder = "$repoRoot\.version"
 $version = "$versionFolder\version"

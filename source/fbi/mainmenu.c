@@ -18,7 +18,7 @@ static list_item update = {"Update", COLOR_TEXT, update_open};
 static list_item settings = {"Settings", COLOR_TEXT, settings_open};
 
 // FBI Legacy submenu.
-static list_item titles_legacy = {"Titles (FBI Legacy)", COLOR_TEXT, titles_legacy_open};
+static list_item titles_legacy = {"Titles", COLOR_TEXT, titles_legacy_open};
 static list_item ctr_nand = {"CTR NAND", COLOR_TEXT, files_open_ctr_nand};
 static list_item twl_nand = {"TWL NAND", COLOR_TEXT, files_open_twl_nand};
 static list_item twl_photo = {"TWL Photo", COLOR_TEXT, files_open_twl_photo};

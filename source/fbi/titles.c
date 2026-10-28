@@ -322,7 +322,7 @@ static int titles_compare(void* data, const void* p1, const void* p2) {
     }
 }
 
-// FBI's title list, kept as it was: FBI Legacy > Titles (FBI Legacy). New features go in titlemanager.c.
+// FBI's title list, kept as it was: FBI Legacy > Titles. New features go in titlemanager.c.
 void titles_legacy_open() {
     titles_data* data = (titles_data*) calloc(1, sizeof(titles_data));
     if(data == NULL) {
@@ -344,5 +344,5 @@ void titles_legacy_open() {
     data->sortByName = true;
     data->sortBySize = false;
 
-    list_display("Titles (FBI Legacy)", "A: Select, B: Return, X: Refresh, Select: Options", data, titles_update, titles_draw_top);
+    list_display("Titles", "A: Select, B: Return, X: Refresh, Select: Options", data, titles_update, titles_draw_top);
 }

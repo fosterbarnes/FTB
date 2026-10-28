@@ -16,6 +16,7 @@ static list_item ftp_server = {"FTP Server", COLOR_TEXT, ftp_open};
 static list_item fbi_legacy = {"FBI Legacy", COLOR_TEXT, mainmenu_legacy_open};
 static list_item update = {"Update", COLOR_TEXT, update_open};
 static list_item settings = {"Settings", COLOR_TEXT, settings_open};
+static list_item about = {"About", COLOR_TEXT, about_open};
 
 // FBI Legacy submenu.
 static list_item ctr_nand = {"CTR NAND", COLOR_TEXT, files_open_ctr_nand};
@@ -34,19 +35,7 @@ static void mainmenu_draw_top(ui_view* view, void* data, float x1, float y1, flo
     u32 logoHeight;
     screen_get_texture_size(&logoWidth, &logoHeight, TEXTURE_LOGO);
 
-    char versionText[64];
-    snprintf(versionText, sizeof(versionText), "v%d.%d.%d %s", VERSION_MAJOR, VERSION_MINOR, VERSION_MICRO, VERSION_TAG);
-
-    float versionWidth;
-    float versionHeight;
-    screen_get_string_size(&versionWidth, &versionHeight, versionText, 0.5f, 0.5f);
-
-    // Logo and version line are centered together.
-    float logoX = x1 + (x2 - x1 - logoWidth) / 2;
-    float logoY = y1 + (y2 - y1 - logoHeight - 4 - versionHeight) / 2;
-    screen_draw_texture(TEXTURE_LOGO, logoX, logoY, logoWidth, logoHeight);
-
-    screen_draw_string(versionText, x1 + (x2 - x1 - versionWidth) / 2, logoY + logoHeight + 4, 0.5f, 0.5f, COLOR_TEXT, false);
+    screen_draw_texture(TEXTURE_LOGO, x1 + (x2 - x1 - logoWidth) / 2, y1 + (y2 - y1 - logoHeight) / 2, logoWidth, logoHeight);
 }
 
 static void mainmenu_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
@@ -69,6 +58,7 @@ static void mainmenu_update(ui_view* view, void* data, linked_list* items, list_
         linked_list_add(items, &fbi_legacy);
         linked_list_add(items, &update);
         linked_list_add(items, &settings);
+        linked_list_add(items, &about);
     }
 }
 

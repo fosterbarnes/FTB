@@ -21,6 +21,8 @@ static const struct {
     bool* value;
 } settings_bools[] = {
         {"titleCache", &settings.titleCache},
+        {"clock24h", &settings.clock24h},
+        {"dateDayFirst", &settings.dateDayFirst},
 };
 
 #define SETTINGS_BOOL_COUNT (sizeof(settings_bools) / sizeof(settings_bools[0]))
@@ -77,13 +79,25 @@ typedef struct settings_entry_s {
     const char* description; // top screen text while the item is selected
 } settings_entry;
 
-static void settings_toggle_title_cache() {
-    settings.titleCache = !settings.titleCache;
+static void settings_toggle(bool* value) {
+    *value = !*value;
 
     // The new value still applies for this session.
     if(!settings_save()) {
         prompt_display_notify("Failure", "Saving " SETTINGS_PATH " failed.", COLOR_TEXT, NULL, NULL, NULL);
     }
+}
+
+static void settings_toggle_title_cache() {
+    settings_toggle(&settings.titleCache);
+}
+
+static void settings_toggle_clock24h() {
+    settings_toggle(&settings.clock24h);
+}
+
+static void settings_toggle_date_day_first() {
+    settings_toggle(&settings.dateDayFirst);
 }
 
 static void settings_clear_title_cache_onresponse(ui_view* view, void* data, u32 response) {
@@ -114,8 +128,20 @@ static settings_entry clear_title_cache_entry = {
         "Title Manager reloads everything the next time it opens."
 };
 
+static settings_entry clock24h_entry = {
+        settings_toggle_clock24h,
+        "Clock in the top bar: 12-hour (11:16 PM) or 24-hour (23:16)."
+};
+
+static settings_entry date_day_first_entry = {
+        settings_toggle_date_day_first,
+        "Date in the top bar: month first (10/27/26) or day first (27/10/26)."
+};
+
 static list_item title_cache_item = {"", COLOR_TEXT, &title_cache_entry};
 static list_item clear_title_cache_item = {"Clear title cache", COLOR_TEXT, &clear_title_cache_entry};
+static list_item clock24h_item = {"", COLOR_TEXT, &clock24h_entry};
+static list_item date_day_first_item = {"", COLOR_TEXT, &date_day_first_entry};
 
 static void settings_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
     if(selected == NULL || selected->data == NULL) {
@@ -150,10 +176,14 @@ static void settings_update(ui_view* view, void* data, linked_list* items, list_
     if(linked_list_size(items) == 0) {
         linked_list_add(items, &title_cache_item);
         linked_list_add(items, &clear_title_cache_item);
+        linked_list_add(items, &clock24h_item);
+        linked_list_add(items, &date_day_first_item);
     }
 
     snprintf(title_cache_item.name, LIST_ITEM_NAME_MAX, "Title cache: %s", settings.titleCache ? "On" : "Off");
     title_cache_item.color = settings.titleCache ? COLOR_ENABLED : COLOR_DISABLED;
+    snprintf(clock24h_item.name, LIST_ITEM_NAME_MAX, "Time format: %s", settings.clock24h ? "24-hour" : "12-hour");
+    snprintf(date_day_first_item.name, LIST_ITEM_NAME_MAX, "Date format: %s", settings.dateDayFirst ? "DD/MM/YY" : "MM/DD/YY");
 }
 
 void settings_open() {

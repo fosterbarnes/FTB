@@ -10,6 +10,7 @@
 #include "../screen.h"
 #include "../data/smdh.h"
 #include "../../fbi/resources.h"
+#include "../../fbi/settings.h"
 
 #define MAX_UI_VIEWS 16
 
@@ -150,21 +151,37 @@ static void ui_draw_top(ui_view* ui) {
     screen_set_base_alpha(ui_fade_alpha);
 
     char verText[64];
-    snprintf(verText, 64, "Ver. %d.%d.%d", VERSION_MAJOR, VERSION_MINOR, VERSION_MICRO);
+    snprintf(verText, 64, "v%d.%d.%d %s", VERSION_MAJOR, VERSION_MINOR, VERSION_MICRO, VERSION_TAG);
 
     float verWidth;
     float verHeight;
     screen_get_string_size(&verWidth, &verHeight, verText, 0.5f, 0.5f);
     screen_draw_string(verText, topScreenTopBarX + 2, topScreenTopBarY + (topScreenTopBarHeight - verHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
 
+    // Date and time order follow the Settings formats (default 10/27/26 11:16 PM).
+    const ftb_settings* settings = settings_get();
     time_t t = time(NULL);
-    char* timeText = ctime(&t);
-    timeText[strlen(timeText) - 1] = '\0';
+    struct tm* now = localtime(&t);
+
+    int dateFirst = settings->dateDayFirst ? now->tm_mday : now->tm_mon + 1;
+    int dateSecond = settings->dateDayFirst ? now->tm_mon + 1 : now->tm_mday;
+
+    char timeText[32];
+    if(settings->clock24h) {
+        snprintf(timeText, sizeof(timeText), "%02d/%02d/%02d %02d:%02d", dateFirst, dateSecond, now->tm_year % 100, now->tm_hour, now->tm_min);
+    } else {
+        int hour = now->tm_hour % 12 == 0 ? 12 : now->tm_hour % 12;
+        snprintf(timeText, sizeof(timeText), "%02d/%02d/%02d %d:%02d %s", dateFirst, dateSecond, now->tm_year % 100, hour, now->tm_min, now->tm_hour < 12 ? "AM" : "PM");
+    }
 
     float timeTextWidth;
     float timeTextHeight;
     screen_get_string_size(&timeTextWidth, &timeTextHeight, timeText, 0.5f, 0.5f);
-    screen_draw_string(timeText, topScreenTopBarX + (topScreenTopBarWidth - timeTextWidth) / 2, topScreenTopBarY + (topScreenTopBarHeight - timeTextHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
+
+    // Centered, but never over the version text (tags vary in length).
+    float timeTextX = topScreenTopBarX + (topScreenTopBarWidth - timeTextWidth) / 2;
+    float timeTextMinX = topScreenTopBarX + 2 + verWidth + 8;
+    screen_draw_string(timeText, timeTextX > timeTextMinX ? timeTextX : timeTextMinX, topScreenTopBarY + (topScreenTopBarHeight - timeTextHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
 
     u32 batteryIcon = 0;
     u8 batteryChargeState = 0;

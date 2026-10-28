@@ -15,6 +15,9 @@ EXTRA_OUTPUT_FILES := servefiles
 
 BUILD_FLAGS := -Wno-format-truncation
 
+# C++ is only the ftpd port (source/ftpd). Upstream builds it as C++20 release with IPv4 only.
+BUILD_FLAGS_CXX := -std=gnu++20 -DNDEBUG -DNO_IPV6
+
 # .version/version (bump with .scripts/bumpVersion.ps1).
 VERSION_PARTS := $(subst ., ,$(firstword $(file < .version/version)))
 
@@ -49,3 +52,4 @@ COMMON_MAKEROM_FLAGS := $(subst -major $(VERSION_MAJOR) -minor $(VERSION_MINOR) 
 
 # make_base still defines the pre-2.0 libctru macros, which makes 3ds.h warn in every file.
 CC_FLAGS := $(subst -DARM11 -D_3DS,-D__3DS__,$(CC_FLAGS))
+CXX_FLAGS := $(subst -DARM11 -D_3DS,-D__3DS__,$(CXX_FLAGS))

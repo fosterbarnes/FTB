@@ -41,5 +41,8 @@
 #define COLOR_DISABLED 8
 #define COLOR_TICKET_IN_USE 9
 #define COLOR_TICKET_NOT_IN_USE 10
+#define COLOR_FTP_ERROR 11
+#define COLOR_FTP_COMMAND 12
+#define COLOR_FTP_RESPONSE 13
 
 void resources_load();

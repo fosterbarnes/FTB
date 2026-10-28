@@ -41,6 +41,10 @@ void resources_load() {
         return;
     }
 
+    // Themes made before the FTP screen have no ftp* keys; those log lines use the text color.
+    u32 textColor = 0xFFFFFFFF;
+    bool ftpColorSet[3] = {false, false, false};
+
     char line[128];
     while(fgets(line, sizeof(line), fd) != NULL) {
         char key[64];
@@ -50,6 +54,7 @@ void resources_load() {
 
         if(strcasecmp(key, "text") == 0) {
             screen_set_color(COLOR_TEXT, color);
+            textColor = color;
         } else if(strcasecmp(key, "nand") == 0) {
             screen_set_color(COLOR_NAND, color);
         } else if(strcasecmp(key, "sd") == 0) {
@@ -70,10 +75,25 @@ void resources_load() {
             screen_set_color(COLOR_TICKET_IN_USE, color);
         } else if(strcasecmp(key, "ticketnotinuse") == 0) {
             screen_set_color(COLOR_TICKET_NOT_IN_USE, color);
+        } else if(strcasecmp(key, "ftperror") == 0) {
+            screen_set_color(COLOR_FTP_ERROR, color);
+            ftpColorSet[0] = true;
+        } else if(strcasecmp(key, "ftpcommand") == 0) {
+            screen_set_color(COLOR_FTP_COMMAND, color);
+            ftpColorSet[1] = true;
+        } else if(strcasecmp(key, "ftpresponse") == 0) {
+            screen_set_color(COLOR_FTP_RESPONSE, color);
+            ftpColorSet[2] = true;
         }
     }
 
     fclose(fd);
+
+    for(u32 i = 0; i < 3; i++) {
+        if(!ftpColorSet[i]) {
+            screen_set_color(COLOR_FTP_ERROR + i, textColor);
+        }
+    }
 
     resources_load_texture(TEXTURE_BOTTOM_SCREEN_BG, "bottom_screen_bg.png");
     resources_load_texture(TEXTURE_BOTTOM_SCREEN_TOP_BAR, "bottom_screen_top_bar.png");

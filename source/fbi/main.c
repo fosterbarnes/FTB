@@ -9,6 +9,7 @@
 #include "../core/screen.h"
 #include "../core/task/task.h"
 #include "../core/ui/ui.h"
+#include "../ftpd/ftpd.h"
 #include "section.h"
 #include "task/uitask.h"
 
@@ -154,6 +155,9 @@ void init() {
 }
 
 void cleanup() {
+    // Exiting from the HOME Menu skips the FTP screen's B handler; join the server before soc:u goes.
+    ftpd_stop();
+
     clipboard_clear();
 
     task_exit();

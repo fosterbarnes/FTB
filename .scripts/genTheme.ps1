@@ -24,6 +24,8 @@ $TEXT_COLORS = [ordered]@{
     # Deeper HighlightRamp step: the palest yellow washes out to near-white on the 3DS LCD.
     file = '#FFFFFF'; directory = '#EED076'; enabled = '#4CAF50'; disabled = '#F44336'
     ticketinuse = '#4CAF50'; ticketnotinuse = '#F44336'
+    # FTP log levels, after ftpd's red, green, and cyan.
+    ftperror = '#F44336'; ftpcommand = '#4CAF50'; ftpresponse = '#26C6DA'
 }
 
 function invokeMagick { runNativeCommand magick $args 'magick' }

@@ -28,6 +28,7 @@ VERSION_MICRO := $(word 3, $(VERSION_PARTS))
 
 # makerom's -major/-minor/-micro pack 6/6/4 bits, capping patch at 15. The CIA gets the raw u16
 # X*10000 + Y*100 + Z instead (1.3.5 = 10305); bumpVersion.ps1 keeps minor and patch under 100.
+# Needs makerom 0.18.4: 0.19.0 zeroes bits 4-9 (AGENTS.md); build.ps1 checks the built CIA.
 TITLE_VERSION := $(shell echo $$(( $(VERSION_MAJOR) * 10000 + $(VERSION_MINOR) * 100 + $(VERSION_MICRO) )))
 
 DESCRIPTION := Open source title manager.

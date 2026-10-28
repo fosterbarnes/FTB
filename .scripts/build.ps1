@@ -22,4 +22,5 @@ foreach ($asset in $publishAssets) {
     if (-not (Test-Path -LiteralPath $asset)) { throw "Missing build output: $asset" }
     Write-Host $asset
 }
+assertCiaTitleVersion "$targetOutput\$projectName.cia"
 closeOut 0

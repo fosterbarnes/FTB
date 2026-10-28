@@ -63,6 +63,33 @@ function assertTitleVersion {
     }
 }
 
+# Throws unless the CIA's ticket and TMD title versions equal the packed .version/version. makerom
+# 0.19.0 drops the minor bits of -ver (Project_CTR #169): v0.0.16 shipped as title version 0 and
+# the 3DS refused it as a downgrade.
+function assertCiaTitleVersion {
+    param([Parameter(Mandatory)][string]$LiteralPath)
+    [int[]]$parts = (requireVersion).Split('.')
+    $expected = $parts[0] * 10000 + $parts[1] * 100 + $parts[2]
+    $bytes = [IO.File]::ReadAllBytes($LiteralPath)
+    # Header u32s at 0/8/12: header, cert chain and ticket sizes; sections follow 64-byte aligned.
+    $sizes = 0, 8, 12 | ForEach-Object { [long][Math]::Ceiling([BitConverter]::ToUInt32($bytes, $_) / 64) * 64 }
+    $ticket = $sizes[0] + $sizes[1]
+    $tmd = $ticket + $sizes[2]
+    # Signed blobs start with a big-endian type 0x1000X (RSA-4096, RSA-2048, ECDSA), then the
+    # signature and padding; the version field is a big-endian u16 in the body after that.
+    $readVersion = {
+        param([long]$Blob, [int]$Field)
+        $at = $Blob + 4 + @{ 3 = 0x23C; 4 = 0x13C; 5 = 0x7C }[[int]$bytes[$Blob + 3]] + $Field
+        ($bytes[$at] -shl 8) -bor $bytes[$at + 1]
+    }
+    $ticketVersion = & $readVersion $ticket 0xA6
+    $tmdVersion = & $readVersion $tmd 0x9C
+    if ($ticketVersion -ne $expected -or $tmdVersion -ne $expected) {
+        throw "$LiteralPath has title version ticket $ticketVersion / TMD $tmdVersion, expected $expected " +
+            "for $($parts -join '.'). Use makerom 0.18.4; 0.19.0 drops the minor bits (Project_CTR #169)."
+    }
+}
+
 # Bumps one part of X.Y.Z, zeroes the lower parts and rolls a new version tag. Patch 99 rolls into
 # the next minor (and minor 99 into the next major) to stay inside the title version encoding.
 function bumpVersion {

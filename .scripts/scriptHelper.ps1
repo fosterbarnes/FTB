@@ -18,6 +18,7 @@ $readme = "$repoRoot\README.md"
 $appPublisher = 'fosterbarnes'
 $appURL = "https://github.com/$appPublisher/$projectName"
 $ghRepo = "$appPublisher/$projectName"
+$buttonURL = 'https://raw.githubusercontent.com/fosterbarnes/res/main/btn'
 # agentPush.ps1 publishes the GitHub release after every push (user decision 2026-10-27).
 $agentPushRelease = $true
 # Private word list for version tags (copied from oc, gitignored).

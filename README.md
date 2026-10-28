@@ -1,12 +1,81 @@
-# FTB
+# ftb
 
-Dark-themed fork of [FBI](https://github.com/Steveice10/FBI), the 3DS title manager, with a built-in FTP server. Installs alongside FBI. Nintendo 3DS homebrew. C
+Fork of [FBI](https://github.com/Steveice10/FBI) with added features.
 
+## Download
 <!-- Quick Reference -->
-| [FTB.cia](https://github.com/fosterbarnes/FTB/releases/download/v0.0.19/FTB.cia) | [FTB.3dsx](https://github.com/fosterbarnes/FTB/releases/download/v0.0.19/FTB.3dsx) | [FTB.3ds](https://github.com/fosterbarnes/FTB/releases/download/v0.0.19/FTB.3ds) | [FTB.zip](https://github.com/fosterbarnes/FTB/releases/download/v0.0.19/FTB.zip) |
-|:---:|:---:|:---:|:---:|
+<table border="0">
+<tbody>
+<tr>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.20/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.20/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.20/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.20/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
+</tr>
+</tbody>
+</table>
 <!-- End Quick Reference -->
+
+## Features
+
+### Built-in FTP server
+Transfer files to and from the SD card over Wi-Fi (powered by ftpd).
+
+### New Title Manager
+- Loads faster by keeping a cached title list on the SD card.
+- Three layouts: Grid, List (top), and List (bottom). The grid has adjustable zoom.
+- Seven sort options: Name, Title ID, Size, Publisher, Type, Region, and Game. You can also choose the sort order and group titles by location.
+- Show or hide game card, SD, and NAND titles.
+- Remembers your layout, sort, and filter choices between launches.
+
+### Redesigned install and download progress
+Smooth progress bars with speed and time remaining.
+
+### Dark theme
+New icon, banner, and launch screen.
+
+### More coming soon!
+This project is in active development.
+
+
+## Screenshots
+
+| <h3> Home </h3> |
+|:---:|
+| <img src="./.res/scr/1.png" width="400" style="margin: 20px; padding: 20px;"> |
+
+| <h3> Title Manager </h3> |
+|:---:|
+| <img src="./.res/scr/2.png" width="400" style="margin: 20px; padding: 20px;"> |
+
+| <h3> FTP Server </h3> |
+|:---:|
+| <img src="./.res/scr/3.png" width="400" style="margin: 20px; padding: 20px;"> |
+
+| <h3> Installation & Downloading </h3> |
+|:---:|
+| <img src="./.res/scr/4.png" width="400" style="margin: 20px; padding: 20px;"> |
+
+| <h3> SD Browser </h3> |
+|:---:|
+| <img src="./.res/scr/5.png" width="400" style="margin: 20px; padding: 20px;"> |
 
 ## Credit
 
-FBI: [Steveice10](https://github.com/Steveice10/FBI). Original banner: [OctopusRift](http://gbatemp.net/members/octopusrift.356526/), [Apache Thunder](https://gbatemp.net/members/apache-thunder.105648/), [PabloMK7](http://gbatemp.net/members/pablomk7.345712/). Original logo: [PabloMK7](http://gbatemp.net/members/pablomk7.345712/). SPI protocol: [TuxSH](https://github.com/TuxSH/TWLSaveTool). FTP server: [ftpd](https://github.com/mtheall/ftpd) by Michael Theall, Dave Murphy, TuxSH (GPL v3; FTB binaries are GPL v3, see `LICENSE.txt`).
+### FBI
+[Steveice10](https://github.com/Steveice10/FBI)
+
+### Original banner
+[OctopusRift](http://gbatemp.net/members/octopusrift.356526/), [Apache Thunder](https://gbatemp.net/members/apache-thunder.105648/), and [PabloMK7](http://gbatemp.net/members/pablomk7.345712/)
+
+### Original logo
+[PabloMK7](http://gbatemp.net/members/pablomk7.345712/)
+
+### SPI protocol
+[TuxSH](https://github.com/TuxSH/TWLSaveTool)
+
+### FTP server
+[ftpd](https://github.com/mtheall/ftpd) by Michael Theall, Dave Murphy, and TuxSH (GPL v3)
+
+### License
+FTB binaries are GPL v3. See `LICENSE.txt`.

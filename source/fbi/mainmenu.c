@@ -8,9 +8,16 @@
 #include "settings.h"
 #include "../core/core.h"
 
+static void mainmenu_legacy_open();
+
 static list_item sd = {"SD", COLOR_TEXT, files_open_sd};
 static list_item titles = {"Titles", COLOR_TEXT, titles_open};
 static list_item ftp_server = {"FTP Server", COLOR_TEXT, ftp_open};
+static list_item fbi_legacy = {"FBI Legacy", COLOR_TEXT, mainmenu_legacy_open};
+static list_item update = {"Update", COLOR_TEXT, update_open};
+static list_item settings = {"Settings", COLOR_TEXT, settings_open};
+
+// FBI Legacy submenu.
 static list_item ctr_nand = {"CTR NAND", COLOR_TEXT, files_open_ctr_nand};
 static list_item twl_nand = {"TWL NAND", COLOR_TEXT, files_open_twl_nand};
 static list_item twl_photo = {"TWL Photo", COLOR_TEXT, files_open_twl_photo};
@@ -20,18 +27,26 @@ static list_item pending_titles = {"Pending Titles", COLOR_TEXT, pendingtitles_o
 static list_item tickets = {"Tickets", COLOR_TEXT, tickets_open};
 static list_item ext_save_data = {"Ext Save Data", COLOR_TEXT, extsavedata_open};
 static list_item system_save_data = {"System Save Data", COLOR_TEXT, systemsavedata_open};
-static list_item remote_install = {"Legacy Remote Install", COLOR_TEXT, remoteinstall_open};
-static list_item update = {"Update", COLOR_TEXT, update_open};
-static list_item settings = {"Settings", COLOR_TEXT, settings_open};
+static list_item remote_install = {"Remote Install (FBI Legacy)", COLOR_TEXT, remoteinstall_open};
 
 static void mainmenu_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
     u32 logoWidth;
     u32 logoHeight;
     screen_get_texture_size(&logoWidth, &logoHeight, TEXTURE_LOGO);
 
+    char versionText[64];
+    snprintf(versionText, sizeof(versionText), "v%d.%d.%d %s", VERSION_MAJOR, VERSION_MINOR, VERSION_MICRO, VERSION_TAG);
+
+    float versionWidth;
+    float versionHeight;
+    screen_get_string_size(&versionWidth, &versionHeight, versionText, 0.5f, 0.5f);
+
+    // Logo and version line are centered together.
     float logoX = x1 + (x2 - x1 - logoWidth) / 2;
-    float logoY = y1 + (y2 - y1 - logoHeight) / 2;
+    float logoY = y1 + (y2 - y1 - logoHeight - 4 - versionHeight) / 2;
     screen_draw_texture(TEXTURE_LOGO, logoX, logoY, logoWidth, logoHeight);
+
+    screen_draw_string(versionText, x1 + (x2 - x1 - versionWidth) / 2, logoY + logoHeight + 4, 0.5f, 0.5f, COLOR_TEXT, false);
 }
 
 static void mainmenu_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
@@ -51,6 +66,26 @@ static void mainmenu_update(ui_view* view, void* data, linked_list* items, list_
         linked_list_add(items, &sd);
         linked_list_add(items, &titles);
         linked_list_add(items, &ftp_server);
+        linked_list_add(items, &fbi_legacy);
+        linked_list_add(items, &update);
+        linked_list_add(items, &settings);
+    }
+}
+
+static void mainmenu_legacy_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
+    if(hidKeysDown() & KEY_B) {
+        ui_pop();
+        list_destroy(view);
+
+        return;
+    }
+
+    if(selected != NULL && (selectedTouched || hidKeysDown() & KEY_A) && selected->data != NULL) {
+        ((void(*)()) selected->data)();
+        return;
+    }
+
+    if(linked_list_size(items) == 0) {
         linked_list_add(items, &ctr_nand);
         linked_list_add(items, &twl_nand);
         linked_list_add(items, &twl_photo);
@@ -61,9 +96,11 @@ static void mainmenu_update(ui_view* view, void* data, linked_list* items, list_
         linked_list_add(items, &ext_save_data);
         linked_list_add(items, &system_save_data);
         linked_list_add(items, &remote_install);
-        linked_list_add(items, &update);
-        linked_list_add(items, &settings);
     }
+}
+
+static void mainmenu_legacy_open() {
+    list_display("FBI Legacy", "A: Select, B: Return", NULL, mainmenu_legacy_update, mainmenu_draw_top);
 }
 
 void mainmenu_open() {

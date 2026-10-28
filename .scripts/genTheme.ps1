@@ -52,7 +52,8 @@ newFill 'meta_info_box' '320x64' $CONTROL_ALT
 newFill 'meta_info_box_shadow' '352x96' 'none'
 newFill 'button' '300x60' $CONTROL_ALT
 newFill 'progress_bar_bg' '300x50' $CONTROL_ALT
-newFill 'progress_bar_content' '280x30' $ACCENT
+# info.c centers both: 292x42 in 300x50 leaves a 4 px frame (FBI's 280x30 left 10 px).
+newFill 'progress_bar_content' '292x42' $ACCENT
 # Translucent so long names stay readable where the bar overlaps them.
 newFill 'scroll_bar' '10x200' '#FFFFFF40'
 # Neutral row fill with a purple bar: row text can be yellow, and yellow never sits on purple.

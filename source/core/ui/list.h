@@ -27,6 +27,8 @@ ui_view* list_display(const char* name, const char* info, void* data, void (*upd
                                                                       void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected));
 // itemIcon returns an item's texture id, or 0 for none; only GRID uses it.
 void list_set_layout(ui_view* view, list_layout layout, u32 (*itemIcon)(list_item* item));
+// L and R page back and forward by a screen of rows, in every layout. Off by default (FBI's lists).
+void list_set_paging(ui_view* view, bool paging);
 // size: 0 .. LIST_GRID_SIZE_COUNT - 1.
 void list_set_grid_size(ui_view* view, u32 size);
 // Section headers: label writes an item's section name, and a header starts wherever it differs from

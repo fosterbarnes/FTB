@@ -70,6 +70,7 @@ typedef struct {
     u64 lastScrollTime;
     u64 nextActionTime;
     list_layout layout;
+    bool paging; // L and R page back and forward
     u32 gridSize;
     u32 (*itemIcon)(list_item* item);
     bool loading;
@@ -630,10 +631,24 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
 
         u32 lastSelectedIndex = listData->selectedIndex;
 
-        // Grid: up, down, and R move by rows (sections can end in a short row); left and right by items.
-        if(listData->layout == LIST_LAYOUT_GRID) {
+        // Paging moves by the rows that fit on screen, in the same column (sections can end in a short row).
+        if(listData->paging) {
             int pageRows = (int) ((by2 - by1) / list_row_height(listData));
+            if(pageRows < 1) {
+                pageRows = 1;
+            }
 
+            if(list_key_fires(listData, KEY_R)) {
+                list_step_rows(listData, pageRows, size);
+            }
+
+            if(list_key_fires(listData, KEY_L)) {
+                list_step_rows(listData, -pageRows, size);
+            }
+        }
+
+        // Grid: up and down move by rows; left and right by items.
+        if(listData->layout == LIST_LAYOUT_GRID) {
             if(list_key_fires(listData, KEY_DOWN)) {
                 list_step_rows(listData, 1, size);
             }
@@ -648,10 +663,6 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
 
             if(list_key_fires(listData, KEY_LEFT)) {
                 list_step_items(listData, -1, size);
-            }
-
-            if(list_key_fires(listData, KEY_R)) {
-                list_step_rows(listData, pageRows > 0 ? pageRows : 1, size);
             }
         } else {
             if(list_key_fires(listData, KEY_DOWN)) {
@@ -671,7 +682,10 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
             }
         }
 
-        list_update_touch(listData, bx2, by1, by2, &selectedTouched);
+        // A touch that started on one of the view's buttons belongs to the button.
+        if(!view->buttonTouch) {
+            list_update_touch(listData, bx2, by1, by2, &selectedTouched);
+        }
 
         if(listData->selectedIndex != lastSelectedIndex) {
             listData->selectedItem = linked_list_get(&listData->items, listData->selectedIndex);
@@ -939,6 +953,10 @@ void list_set_layout(ui_view* view, list_layout layout, u32 (*itemIcon)(list_ite
     listData->layout = layout;
     listData->itemIcon = itemIcon;
     list_reset_scroll(listData);
+}
+
+void list_set_paging(ui_view* view, bool paging) {
+    ((list_data*) view->data)->paging = paging;
 }
 
 void list_set_grid_size(ui_view* view, u32 size) {

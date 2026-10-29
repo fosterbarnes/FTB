@@ -61,6 +61,9 @@ ui_view* ui_create() {
         return NULL;
     }
 
+    view->buttonActivated = -1;
+    view->buttonHeld = -1;
+
     return view;
 }
 
@@ -309,6 +312,16 @@ static void ui_draw_bottom(ui_view* ui) {
         ui->drawBottom(ui, ui->data, 0, bottomScreenTopBarHeight, BOTTOM_SCREEN_WIDTH, BOTTOM_SCREEN_HEIGHT - bottomScreenBottomBarHeight);
     }
 
+    for(u32 i = 0; i < ui->buttonCount; i++) {
+        const ui_button* button = &ui->buttons[i];
+        screen_draw_texture(ui->buttonHeld == (int) i ? TEXTURE_TOUCH_BUTTON_HELD : TEXTURE_TOUCH_BUTTON, button->x, button->y, UI_BUTTON_SIZE, UI_BUTTON_SIZE);
+
+        u32 iconWidth = 0;
+        u32 iconHeight = 0;
+        screen_get_texture_size(&iconWidth, &iconHeight, button->icon);
+        screen_draw_texture(button->icon, button->x + (UI_BUTTON_SIZE - iconWidth) / 2, button->y + (UI_BUTTON_SIZE - iconHeight) / 2, iconWidth, iconHeight);
+    }
+
     screen_set_base_alpha(0xFF);
 
     float bottomScreenTopBarX = (BOTTOM_SCREEN_WIDTH - bottomScreenTopBarWidth) / 2;
@@ -330,19 +343,6 @@ static void ui_draw_bottom(ui_view* ui) {
         screen_draw_string(ui->name, (BOTTOM_SCREEN_WIDTH - nameWidth) / 2, (bottomScreenTopBarHeight - nameHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
     }
 
-    if(ui->hintLeft != NULL) {
-        float hintHeight;
-        screen_get_string_size(NULL, &hintHeight, ui->hintLeft, 0.5f, 0.5f);
-        screen_draw_string(ui->hintLeft, bottomScreenTopBarX + 2, (bottomScreenTopBarHeight - hintHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
-    }
-
-    if(ui->hintRight != NULL) {
-        float hintWidth;
-        float hintHeight;
-        screen_get_string_size(&hintWidth, &hintHeight, ui->hintRight, 0.5f, 0.5f);
-        screen_draw_string(ui->hintRight, bottomScreenTopBarX + bottomScreenTopBarWidth - 2 - hintWidth, (bottomScreenTopBarHeight - hintHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
-    }
-
     if(ui->info != NULL) {
         float baseInfoWidth;
         screen_get_string_size(&baseInfoWidth, NULL, ui->info, 0.5f, 0.5f);
@@ -362,12 +362,54 @@ static void ui_draw_bottom(ui_view* ui) {
     screen_set_base_alpha(0xFF);
 }
 
+static bool ui_button_contains(const ui_button* button, const touchPosition* pos) {
+    return pos->px >= button->x && pos->px < button->x + UI_BUTTON_SIZE && pos->py >= button->y && pos->py < button->y + UI_BUTTON_SIZE;
+}
+
+// Release activates, like the HOME Menu: the touch must start on a button and lift without leaving it.
+// The touch position reads 0 on the release frame, so leaving is tracked while held.
+static void ui_update_buttons(ui_view* ui) {
+    ui->buttonActivated = -1;
+
+    if(hidKeysDown() & KEY_TOUCH) {
+        touchPosition pos;
+        hidTouchRead(&pos);
+
+        ui->buttonHeld = -1;
+        for(u32 i = 0; i < ui->buttonCount; i++) {
+            if(ui_button_contains(&ui->buttons[i], &pos)) {
+                ui->buttonHeld = (int) i;
+                break;
+            }
+        }
+
+        ui->buttonTouch = ui->buttonHeld >= 0;
+    } else if(hidKeysHeld() & KEY_TOUCH) {
+        touchPosition pos;
+        hidTouchRead(&pos);
+
+        if(ui->buttonHeld >= (int) ui->buttonCount || (ui->buttonHeld >= 0 && !ui_button_contains(&ui->buttons[ui->buttonHeld], &pos))) {
+            ui->buttonHeld = -1;
+        }
+    } else {
+        // Only a release this view saw: a touch lifted while another view was on top is stale.
+        bool released = (hidKeysUp() & KEY_TOUCH) != 0;
+        ui->buttonActivated = released && ui->buttonHeld < (int) ui->buttonCount ? ui->buttonHeld : -1;
+        ui->buttonHeld = -1;
+        ui->buttonTouch = false;
+    }
+}
+
 bool ui_update() {
     ui_view* ui = NULL;
 
     hidScanInput();
 
     ui = ui_top();
+    if(ui != NULL) {
+        ui_update_buttons(ui);
+    }
+
     if(ui != NULL && ui->update != NULL) {
         u32 bottomScreenTopBarHeight = 0;
         screen_get_texture_size(NULL, &bottomScreenTopBarHeight, TEXTURE_BOTTOM_SCREEN_TOP_BAR);

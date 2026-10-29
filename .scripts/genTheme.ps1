@@ -65,6 +65,41 @@ newFill 'scroll_bar' '10x200' '#545454'
 invokeMagick -size 320x20 "xc:$PRESSED" -fill $ACCENT -draw 'rectangle 0,0 2,19' `
     "PNG32:$romfs\selection_overlay.png"
 
+# Touch buttons (UI_BUTTON_SIZE in ui.h): the border keeps a button visible over the selection row,
+# which has the same fill.
+foreach ($button in @{ touch_button = @($PRESSED, '#545454'); touch_button_held = @($ACCENT, $ACCENT) }.GetEnumerator()) {
+    invokeMagick -size 22x22 xc:none -fill $button.Value[0] -stroke $button.Value[1] -strokewidth 1 `
+        -draw 'roundrectangle 0.5,0.5 21.5,21.5 3,3' "PNG32:$romfs\$($button.Key).png"
+}
+
+# 16x16 white pixel-art button icons. Each rect is x,y,width,height in pixels; edges sit between pixel
+# centers, since a 1 px rect drawn center to center has no area and draws nothing.
+function newIcon([string] $name, [int[][]] $rects) {
+    $draws = foreach ($r in $rects) { '-draw'; "rectangle $($r[0] - 0.5),$($r[1] - 0.5) $($r[0] + $r[2] - 0.5),$($r[1] + $r[3] - 0.5)" }
+    invokeMagick -size 16x16 xc:none +antialias -fill '#FFFFFF' @draws "PNG32:$romfs\$name.png"
+}
+
+function outlineRects([int] $x, [int] $y, [int] $w, [int] $h) {
+    @(@($x, $y, $w, 1), @($x, ($y + $h - 1), $w, 1), @($x, $y, 1, $h), @(($x + $w - 1), $y, 1, $h))
+}
+
+# Magnifier: 1 px ring of radius 5 around (6,6), handle down-right; zoom in adds the vertical bar.
+$magnifier = @(@(4, 1, 5, 1), @(4, 11, 5, 1), @(3, 2, 1, 1), @(9, 2, 1, 1), @(2, 3, 1, 1), @(10, 3, 1, 1),
+    @(1, 4, 1, 5), @(11, 4, 1, 5), @(2, 9, 1, 1), @(10, 9, 1, 1), @(3, 10, 1, 1), @(9, 10, 1, 1),
+    @(10, 10, 2, 1), @(10, 11, 3, 1), @(11, 12, 3, 1), @(12, 13, 3, 1), @(13, 14, 3, 1), @(14, 15, 2, 1),
+    @(4, 6, 5, 1))
+# Layout: the two 3DS screens, titles drawn on the one that holds the list.
+$screens = (outlineRects 0 0 16 9) + (outlineRects 3 10 10 6)
+
+newIcon 'icon_sort' @(@(1, 2, 8, 2), @(1, 7, 6, 2), @(1, 12, 3, 2), @(12, 1, 2, 10), @(10, 10, 6, 1),
+    @(11, 11, 4, 1), @(12, 12, 2, 2))
+newIcon 'icon_zoom_in' ($magnifier + , @(6, 4, 1, 5))
+newIcon 'icon_zoom_out' $magnifier
+newIcon 'icon_layout_grid' ($screens + @(@(2, 2, 2, 2), @(5, 2, 2, 2), @(9, 2, 2, 2), @(12, 2, 2, 2),
+    @(2, 5, 2, 2), @(5, 5, 2, 2), @(9, 5, 2, 2), @(12, 5, 2, 2)))
+newIcon 'icon_layout_top' ($screens + @(@(2, 2, 10, 1), @(2, 4, 12, 1), @(2, 6, 8, 1)))
+newIcon 'icon_layout_bottom' ($screens + @(@(5, 12, 6, 1), @(5, 14, 4, 1)))
+
 # Wifi bars ship black and vanish on dark bars; recolor near-black to white.
 foreach ($name in 'wifi0', 'wifi1', 'wifi2', 'wifi3', 'wifi_disconnected') {
     $path = "$romfs\$name.png"

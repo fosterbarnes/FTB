@@ -12,11 +12,25 @@
 #include "../core/core.h"
 
 // Title Manager: FTB's title list. Layout, zoom, sort, grouping, headers, and category filters live
-// in settings (titleLayout etc.) and change from Options or Y (layout), X (grid zoom), L (sort).
-// FBI's original screen stays in titles.c as FBI Legacy > Titles.
+// in settings (titleLayout etc.) and change from Options, X (sort), or the bottom-right touch buttons
+// (sort, layout, grid zoom). L and R page. FBI's original screen stays in titles.c as FBI Legacy > Titles.
 
-#define TITLEMANAGER_INFO "A: Select, B: Return, Y: Layout, Select: Options"
-#define TITLEMANAGER_INFO_GRID "A: Select, B: Return, X: Zoom, Y: Layout, Select: Options"
+#define TITLEMANAGER_INFO "A: Select, B: Return, X: Sort, L/R: Page, Select: Options"
+
+// Touch buttons, bottom-right of the bottom screen in every layout:
+//         [Zoom]
+//   [Sort][Layout]
+// Zoom shows in the grid only. The right margin clears List bottom's scroll bar.
+#define TITLEMANAGER_BUTTON_GAP 3
+#define TITLEMANAGER_BUTTON_RIGHT 14
+#define TITLEMANAGER_BUTTON_BOTTOM 4
+
+enum {
+    BUTTON_SORT,
+    BUTTON_LAYOUT,
+    BUTTON_ZOOM,
+    BUTTON_COUNT
+};
 
 // Sort keys titlemanager_compare reads. The populate thread inserts with them, so they are copied
 // from settings only while no population runs; a mid-load change waits for the resort.
@@ -30,6 +44,7 @@ typedef struct {
     populate_titles_data populateData;
     titlemanager_order order;
     ui_view* view;
+    ui_button buttons[BUTTON_COUNT];
 
     bool populated;
     bool rebuild; // the next population rebuilds the title cache (Options > Rebuild list)
@@ -41,6 +56,8 @@ typedef struct {
 
 static const list_layout titlemanager_layouts[TITLE_LAYOUT_COUNT] = {LIST_LAYOUT_GRID, LIST_LAYOUT_TOP, LIST_LAYOUT_BOTTOM};
 static const char* const titlemanager_layout_names[TITLE_LAYOUT_COUNT] = {"Grid", "List top", "List bottom"};
+// The Layout button shows the current layout.
+static const u32 titlemanager_layout_icons[TITLE_LAYOUT_COUNT] = {TEXTURE_ICON_LAYOUT_GRID, TEXTURE_ICON_LAYOUT_TOP, TEXTURE_ICON_LAYOUT_BOTTOM};
 static const char* const titlemanager_sort_names[TITLE_SORT_COUNT] = {"Name", "Title ID", "Size", "Publisher", "Category", "Region", "Game"};
 static const char* const titlemanager_group_names[TITLE_GROUP_COUNT] = {"Off", "Location", "Category"};
 static const char* const titlemanager_category_names[TITLE_CATEGORY_COUNT] = {"3DS", "DS", "VC/Emulator", "Homebrew", "System", "Other"};
@@ -86,17 +103,33 @@ static u32 titlemanager_item_icon(list_item* item) {
     return info != NULL && info->hasMeta ? info->meta.texture : 0;
 }
 
-static void titlemanager_apply_layout(titlemanager_data* data) {
-    u8 layout = settings_get()->titleLayout;
+// Icons follow the settings: the Layout icon shows the current layout, Zoom what a tap does.
+static void titlemanager_update_buttons(titlemanager_data* data) {
+    const ftb_settings* settings = settings_get();
 
-    data->view->info = layout == TITLE_LAYOUT_GRID ? TITLEMANAGER_INFO_GRID : TITLEMANAGER_INFO;
-    data->view->hintLeft = "L: Sort";
-    data->view->hintRight = layout == TITLE_LAYOUT_GRID ? "R: Page" : NULL;
-    list_set_layout(data->view, titlemanager_layouts[layout], titlemanager_item_icon);
-    list_set_grid_size(data->view, settings_get()->titleGridSize);
+    u32 barHeight = 0;
+    screen_get_texture_size(NULL, &barHeight, TEXTURE_BOTTOM_SCREEN_BOTTOM_BAR);
+
+    float right = BOTTOM_SCREEN_WIDTH - TITLEMANAGER_BUTTON_RIGHT - UI_BUTTON_SIZE;
+    float bottom = BOTTOM_SCREEN_HEIGHT - barHeight - TITLEMANAGER_BUTTON_BOTTOM - UI_BUTTON_SIZE;
+    float step = UI_BUTTON_SIZE + TITLEMANAGER_BUTTON_GAP;
+    u32 zoomIcon = settings->titleGridSize == 0 ? TEXTURE_ICON_ZOOM_IN : TEXTURE_ICON_ZOOM_OUT;
+
+    data->buttons[BUTTON_SORT] = (ui_button) {TEXTURE_ICON_SORT, right - step, bottom};
+    data->buttons[BUTTON_LAYOUT] = (ui_button) {titlemanager_layout_icons[settings->titleLayout], right, bottom};
+    data->buttons[BUTTON_ZOOM] = (ui_button) {zoomIcon, right, bottom - step};
+
+    data->view->buttons = data->buttons;
+    data->view->buttonCount = settings->titleLayout == TITLE_LAYOUT_GRID ? BUTTON_COUNT : BUTTON_ZOOM;
 }
 
-// The view name (bottom screen's top bar) shows the active order, so L and Options changes are visible.
+static void titlemanager_apply_layout(titlemanager_data* data) {
+    list_set_layout(data->view, titlemanager_layouts[settings_get()->titleLayout], titlemanager_item_icon);
+    list_set_grid_size(data->view, settings_get()->titleGridSize);
+    titlemanager_update_buttons(data);
+}
+
+// The view name (bottom screen's top bar) shows the active order, so X, Sort, and Options changes are visible.
 static void titlemanager_update_name(titlemanager_data* data) {
     const ftb_settings* settings = settings_get();
     static const char* const groups[TITLE_GROUP_COUNT] = {"Ungrouped", "By location", "By category"};
@@ -112,7 +145,7 @@ static void titlemanager_save(const ftb_settings* next) {
     }
 }
 
-// Y in the Title Manager and the Layout row in Options: Grid -> List top -> List bottom.
+// The Layout button and the Layout row in Options: Grid -> List top -> List bottom.
 static void titlemanager_cycle_layout(titlemanager_data* data) {
     ftb_settings next = *settings_get();
     next.titleLayout = (u8) ((next.titleLayout + 1) % TITLE_LAYOUT_COUNT);
@@ -121,16 +154,17 @@ static void titlemanager_cycle_layout(titlemanager_data* data) {
     titlemanager_apply_layout(data);
 }
 
-// X in the grid: next zoom level, back to the smallest after the largest.
+// The Zoom button (grid only): next zoom level, back to the smallest after the largest.
 static void titlemanager_cycle_grid_size(titlemanager_data* data) {
     ftb_settings next = *settings_get();
     next.titleGridSize = (u8) ((next.titleGridSize + 1) % LIST_GRID_SIZE_COUNT);
 
     titlemanager_save(&next);
     list_set_grid_size(data->view, next.titleGridSize);
+    titlemanager_update_buttons(data);
 }
 
-// L and the Sort row: next sort key. Sorting and grouping only reorder, so no reload.
+// X, the Sort button, and the Sort row: next sort key. Sorting and grouping only reorder, so no reload.
 static void titlemanager_cycle_sort(titlemanager_data* data) {
     ftb_settings next = *settings_get();
     next.titleSort = (u8) ((next.titleSort + 1) % TITLE_SORT_COUNT);
@@ -418,7 +452,13 @@ static void titlemanager_draw_info(ui_view* view, void* data, float x1, float y1
         task_draw_title_info(view, selected->data, x1, y1, x2, y2);
     }
 
-    task_draw_title_progress(&tmData->populateData, tmData->populateStart, x1, x2, y2);
+    // On the bottom screen (Grid, List top) the progress bar ends left of the touch buttons.
+    float progressX2 = x2;
+    if(settings_get()->titleLayout != TITLE_LAYOUT_LIST_BOTTOM) {
+        progressX2 = tmData->buttons[BUTTON_SORT].x - TITLEMANAGER_BUTTON_GAP;
+    }
+
+    task_draw_title_progress(&tmData->populateData, tmData->populateStart, x1, progressX2, y2);
 }
 
 static void titlemanager_wait_populate(titlemanager_data* tmData) {
@@ -450,17 +490,17 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
         return;
     }
 
-    if(hidKeysDown() & KEY_Y) {
+    if(view->buttonActivated == BUTTON_LAYOUT) {
         titlemanager_cycle_layout(tmData);
         return;
     }
 
-    if((hidKeysDown() & KEY_X) && settings_get()->titleLayout == TITLE_LAYOUT_GRID) {
+    if(view->buttonActivated == BUTTON_ZOOM) {
         titlemanager_cycle_grid_size(tmData);
         return;
     }
 
-    if(hidKeysDown() & KEY_L) {
+    if((hidKeysDown() & KEY_X) || view->buttonActivated == BUTTON_SORT) {
         titlemanager_cycle_sort(tmData);
     }
 
@@ -549,5 +589,6 @@ void titlemanager_open() {
         return;
     }
 
+    list_set_paging(data->view, true);
     titlemanager_apply_layout(data);
 }

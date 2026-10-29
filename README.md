@@ -16,10 +16,10 @@
 <table border="0">
 <tbody>
 <tr>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.24/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.24/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.24/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.24/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.25/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.25/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.25/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.25/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
 </tr>
 </tbody>
 </table>
@@ -36,6 +36,7 @@ Transfer files to and from the SD card over Wi-Fi (powered by ftpd).
 - Seven sort options: Name, Title ID, Size, Publisher, Category, Region, and Game. You can also choose the sort order and group titles by location or category.
 - Categories: 3DS, DS, VC/Emulator, Homebrew, System, and Other. Show or hide each one. Homebrew detection is best effort.
 - Optional section headers split the list by letter, publisher, size, region, or group.
+- Touch buttons for sort, layout, and grid zoom; X sorts and L/R page through the list.
 - Remembers your layout, sort, and filter choices between launches.
 
 ### More coming soon!

@@ -125,4 +125,12 @@ void resources_load() {
     resources_load_texture(TEXTURE_WIFI_1, "wifi1.png");
     resources_load_texture(TEXTURE_WIFI_2, "wifi2.png");
     resources_load_texture(TEXTURE_WIFI_3, "wifi3.png");
+    resources_load_texture(TEXTURE_TOUCH_BUTTON, "touch_button.png");
+    resources_load_texture(TEXTURE_TOUCH_BUTTON_HELD, "touch_button_held.png");
+    resources_load_texture(TEXTURE_ICON_SORT, "icon_sort.png");
+    resources_load_texture(TEXTURE_ICON_ZOOM_IN, "icon_zoom_in.png");
+    resources_load_texture(TEXTURE_ICON_ZOOM_OUT, "icon_zoom_out.png");
+    resources_load_texture(TEXTURE_ICON_LAYOUT_GRID, "icon_layout_grid.png");
+    resources_load_texture(TEXTURE_ICON_LAYOUT_TOP, "icon_layout_top.png");
+    resources_load_texture(TEXTURE_ICON_LAYOUT_BOTTOM, "icon_layout_bottom.png");
 }

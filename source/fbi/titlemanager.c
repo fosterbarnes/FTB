@@ -12,16 +12,16 @@
 #include "../core/core.h"
 
 // Title Manager: FTB's title list. Layout, zoom, sort, and headers live in settings (titleLayout
-// etc.) and change from Options, X (sort), or the bottom-right touch buttons (sort, layout, grid zoom). L and R page. FBI's original screen stays in titles.c as FBI Legacy > Titles.
+// etc.) and change from Options, X (sort), or the bottom-left touch buttons (sort, layout, grid zoom). L and R page. FBI's original screen stays in titles.c as FBI Legacy > Titles.
 
 #define TITLEMANAGER_INFO "A: Select, B: Return, X: Sort, L/R: Page, Select: Options"
 
-// Touch buttons, bottom-right of the bottom screen in every layout:
-//         [Zoom]
-//   [Sort][Layout]
-// Zoom shows in the grid only. The right margin clears List bottom's scroll bar.
+// Touch buttons, bottom-left of the bottom screen in every layout (clear of List bottom's scroll bar):
+//   [Zoom]
+//   [Layout][Sort]
+// Zoom shows in the grid only.
 #define TITLEMANAGER_BUTTON_GAP 3
-#define TITLEMANAGER_BUTTON_RIGHT 14
+#define TITLEMANAGER_BUTTON_LEFT 4
 #define TITLEMANAGER_BUTTON_BOTTOM 4
 
 enum {
@@ -103,14 +103,14 @@ static void titlemanager_update_buttons(titlemanager_data* data) {
     u32 barHeight = 0;
     screen_get_texture_size(NULL, &barHeight, TEXTURE_BOTTOM_SCREEN_BOTTOM_BAR);
 
-    float right = BOTTOM_SCREEN_WIDTH - TITLEMANAGER_BUTTON_RIGHT - UI_BUTTON_SIZE;
+    float left = TITLEMANAGER_BUTTON_LEFT;
     float bottom = BOTTOM_SCREEN_HEIGHT - barHeight - TITLEMANAGER_BUTTON_BOTTOM - UI_BUTTON_SIZE;
     float step = UI_BUTTON_SIZE + TITLEMANAGER_BUTTON_GAP;
     u32 zoomIcon = settings->titleGridSize == 0 ? TEXTURE_ICON_ZOOM_IN : TEXTURE_ICON_ZOOM_OUT;
 
-    data->buttons[BUTTON_SORT] = (ui_button) {TEXTURE_ICON_SORT, right - step, bottom};
-    data->buttons[BUTTON_LAYOUT] = (ui_button) {titlemanager_layout_icons[settings->titleLayout], right, bottom};
-    data->buttons[BUTTON_ZOOM] = (ui_button) {zoomIcon, right, bottom - step};
+    data->buttons[BUTTON_SORT] = (ui_button) {TEXTURE_ICON_SORT, left + step, bottom};
+    data->buttons[BUTTON_LAYOUT] = (ui_button) {titlemanager_layout_icons[settings->titleLayout], left, bottom};
+    data->buttons[BUTTON_ZOOM] = (ui_button) {zoomIcon, left, bottom - step};
 
     data->view->buttons = data->buttons;
     data->view->buttonCount = settings->titleLayout == TITLE_LAYOUT_GRID ? BUTTON_COUNT : BUTTON_ZOOM;
@@ -321,13 +321,13 @@ static void titlemanager_draw_info(ui_view* view, void* data, float x1, float y1
         task_draw_title_info(view, selected->data, x1, y1, x2, y2);
     }
 
-    // On the bottom screen (Grid, List top) the progress bar ends left of the touch buttons.
-    float progressX2 = x2;
+    // On the bottom screen (Grid, List top) the progress bar starts right of the touch buttons.
+    float progressX1 = x1;
     if(settings_get()->titleLayout != TITLE_LAYOUT_LIST_BOTTOM) {
-        progressX2 = tmData->buttons[BUTTON_SORT].x - TITLEMANAGER_BUTTON_GAP;
+        progressX1 = tmData->buttons[BUTTON_SORT].x + UI_BUTTON_SIZE + TITLEMANAGER_BUTTON_GAP;
     }
 
-    task_draw_title_progress(&tmData->populateData, tmData->populateStart, x1, progressX2, y2);
+    task_draw_title_progress(&tmData->populateData, tmData->populateStart, progressX1, x2, y2);
 }
 
 static void titlemanager_wait_populate(titlemanager_data* tmData) {

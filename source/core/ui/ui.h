@@ -2,7 +2,7 @@
 
 // Square icon button on the bottom screen, drawn over the view's bottom content. The icon texture is
 // centered on the button.
-#define UI_BUTTON_SIZE 22
+#define UI_BUTTON_SIZE 26
 
 typedef struct {
     u32 icon;

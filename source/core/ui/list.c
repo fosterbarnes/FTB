@@ -274,6 +274,25 @@ static bool list_row_at_y(list_data* listData, float y, u32* row) {
     return true;
 }
 
+// Moves the selection off a spacer: toward direction (1 down, -1 up) first, then the other way.
+static void list_skip_spacer(list_data* listData, int direction) {
+    if(listData->selectedItem == NULL || !listData->selectedItem->spacer) {
+        return;
+    }
+
+    int size = (int) linked_list_size(&listData->items);
+    for(int pass = 0; pass < 2; pass++, direction = -direction) {
+        for(int index = (int) listData->selectedIndex + direction; index >= 0 && index < size; index += direction) {
+            list_item* item = (list_item*) linked_list_get(&listData->items, (u32) index);
+            if(item != NULL && !item->spacer) {
+                listData->selectedIndex = (u32) index;
+                listData->selectedItem = item;
+                return;
+            }
+        }
+    }
+}
+
 // Every content rect is 200 px tall, so validating against the top or bottom rect is the same.
 static void list_validate(list_data* listData, float by1, float by2) {
     list_update_sections(listData);
@@ -314,6 +333,7 @@ static void list_validate(list_data* listData, float by1, float by2) {
 
         if(!found) {
             listData->selectedItem = linked_list_get(&listData->items, listData->selectedIndex);
+            list_skip_spacer(listData, 1);
 
             listData->selectionScroll = 0;
             listData->nextSelectionScrollResetTime = 0;
@@ -463,7 +483,8 @@ static void list_update_touch(list_data* listData, float bx2, float by1, float b
                 index = list_row_item(listData, row, 0);
             }
 
-            if(index < linked_list_size(&listData->items)) {
+            list_item* touched = index < linked_list_size(&listData->items) ? linked_list_get(&listData->items, index) : NULL;
+            if(touched != NULL && !touched->spacer) {
                 if(listData->selectedIndex == index) {
                     // Activation usually opens another view; this touch must not drag the list later.
                     listData->touchMode = LIST_TOUCH_NONE;
@@ -689,6 +710,8 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
 
         if(listData->selectedIndex != lastSelectedIndex) {
             listData->selectedItem = linked_list_get(&listData->items, listData->selectedIndex);
+            // The way the selection moved, so a step lands past the spacer and a scroll stays in view.
+            list_skip_spacer(listData, listData->selectedIndex > lastSelectedIndex ? 1 : -1);
 
             listData->selectionScroll = 0;
             listData->nextSelectionScrollResetTime = 0;

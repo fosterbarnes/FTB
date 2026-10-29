@@ -14,8 +14,10 @@ static void mainmenu_legacy_open();
 static list_item cia_installer = {"CIA Installer", COLOR_TEXT, ciainstaller_open};
 static list_item titles = {"Title Manager", COLOR_TEXT, titlemanager_open};
 static list_item ftp_server = {"FTP Server", COLOR_TEXT, ftp_open};
-// Same screen as FBI Legacy > SD until the File Browser gets its own features.
-static list_item file_browser = {"File Browser", COLOR_TEXT, files_open_sd};
+// Same screen as FBI Legacy > SD until the SD File Browser gets its own features.
+static list_item file_browser = {"SD File Browser", COLOR_TEXT, files_open_sd};
+// Sets FBI Legacy, Update, and Settings apart from the main tools.
+static list_item spacer = {"", COLOR_TEXT, NULL, true};
 static list_item fbi_legacy = {"FBI Legacy", COLOR_TEXT, mainmenu_legacy_open};
 static list_item update = {"Update", COLOR_TEXT, update_open};
 static list_item settings = {"Settings", COLOR_TEXT, settings_open};
@@ -60,6 +62,7 @@ static void mainmenu_update(ui_view* view, void* data, linked_list* items, list_
         linked_list_add(items, &titles);
         linked_list_add(items, &ftp_server);
         linked_list_add(items, &file_browser);
+        linked_list_add(items, &spacer);
         linked_list_add(items, &fbi_legacy);
         linked_list_add(items, &update);
         linked_list_add(items, &settings);

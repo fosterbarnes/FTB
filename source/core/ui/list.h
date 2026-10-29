@@ -9,6 +9,8 @@ typedef struct list_item_s {
     char name[LIST_ITEM_NAME_MAX];
     u32 color;
     void* data;
+    // A blank row that is never selected: keys and scrolling step past it, taps ignore it. Row layouts only.
+    bool spacer;
 } list_item;
 
 // Where the rows go. BOTTOM is the default; TOP and GRID put the rows on the top screen and the

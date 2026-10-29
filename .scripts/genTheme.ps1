@@ -65,11 +65,13 @@ newFill 'scroll_bar' '10x200' '#545454'
 invokeMagick -size 320x20 "xc:$PRESSED" -fill $ACCENT -draw 'rectangle 0,0 2,19' `
     "PNG32:$romfs\selection_overlay.png"
 
-# Touch buttons (UI_BUTTON_SIZE in ui.h): the border keeps a button visible over the selection row,
-# which has the same fill.
+# Touch buttons: the border keeps a button visible over the selection row, which has the same fill.
+# Must match UI_BUTTON_SIZE in ui.h; keep it even so the 16 px icons center on whole pixels.
+$TOUCH_BUTTON = 26
 foreach ($button in @{ touch_button = @($PRESSED, '#545454'); touch_button_held = @($ACCENT, $ACCENT) }.GetEnumerator()) {
-    invokeMagick -size 22x22 xc:none -fill $button.Value[0] -stroke $button.Value[1] -strokewidth 1 `
-        -draw 'roundrectangle 0.5,0.5 21.5,21.5 3,3' "PNG32:$romfs\$($button.Key).png"
+    $edge = $TOUCH_BUTTON - 0.5
+    invokeMagick -size "${TOUCH_BUTTON}x$TOUCH_BUTTON" xc:none -fill $button.Value[0] -stroke $button.Value[1] `
+        -strokewidth 1 -draw "roundrectangle 0.5,0.5 $edge,$edge 3,3" "PNG32:$romfs\$($button.Key).png"
 }
 
 # 16x16 white pixel-art button icons. Each rect is x,y,width,height in pixels; edges sit between pixel

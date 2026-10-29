@@ -5,6 +5,7 @@
 
 #include <3ds.h>
 
+#include "../paths.h"
 #include "../resources.h"
 #include "../screens.h"
 #include "../task/uitask.h"
@@ -35,19 +36,30 @@ static Result dumpnand_read_src(void* data, u32 handle, u32* bytesRead, void* bu
     return FSFILE_Read(handle, bytesRead, offset, buffer, size);
 }
 
+// The dump being written, so a failed or cancelled one can be deleted. One dump runs at a time.
+static char dumpnand_path[FILE_PATH_MAX];
+
 static Result dumpnand_open_dst(void* data, u32 index, void* initialReadBlock, u64 size, u32* handle) {
-    Result res = 0;
+    // A full SD card would leave a cut-off image behind after a long dump.
+    FS_ArchiveResource resource = {0};
+    Result res = FSUSER_GetArchiveResource(&resource, SYSTEM_MEDIATYPE_SD);
+    if(R_FAILED(res)) {
+        return res;
+    }
+
+    if((u64) resource.freeClusters * resource.clusterSize < size) {
+        return R_APP_NOT_ENOUGH_SPACE;
+    }
 
     FS_Archive sdmcArchive = 0;
     if(R_SUCCEEDED(res = FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
-        if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/ftb/")) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/ftb/nand/"))) {
+        if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, PATHS_FS_DATA_DIR)) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, PATHS_FS_NAND_DIR))) {
             time_t t = time(NULL);
             struct tm* timeInfo = localtime(&t);
 
-            char path[FILE_PATH_MAX];
-            strftime(path, sizeof(path), "/ftb/nand/NAND_%m-%d-%y_%H-%M-%S.bin", timeInfo);
+            strftime(dumpnand_path, sizeof(dumpnand_path), PATHS_FS_NAND_DIR "NAND_%m-%d-%Y_%H-%M-%S.bin", timeInfo);
 
-            FS_Path* fsPath = fs_make_path_utf8(path);
+            FS_Path* fsPath = fs_make_path_utf8(dumpnand_path);
             if(fsPath != NULL) {
                 res = FSUSER_OpenFileDirectly(handle, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), *fsPath, FS_OPEN_WRITE | FS_OPEN_CREATE, 0);
 
@@ -64,7 +76,20 @@ static Result dumpnand_open_dst(void* data, u32 index, void* initialReadBlock, u
 }
 
 static Result dumpnand_close_dst(void* data, u32 index, bool succeeded, u32 handle) {
-    return FSFILE_Close(handle);
+    Result res = FSFILE_Close(handle);
+
+    FS_Archive sdmcArchive = 0;
+    if(!succeeded && R_SUCCEEDED(FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
+        FS_Path* fsPath = fs_make_path_utf8(dumpnand_path);
+        if(fsPath != NULL) {
+            FSUSER_DeleteFile(sdmcArchive, *fsPath);
+            fs_free_path_utf8(fsPath);
+        }
+
+        FSUSER_CloseArchive(sdmcArchive);
+    }
+
+    return res;
 }
 
 static Result dumpnand_write_dst(void* data, u32 handle, u32* bytesWritten, void* buffer, u64 offset, u32 size) {

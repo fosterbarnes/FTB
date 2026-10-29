@@ -1,9 +1,10 @@
 #include <stdio.h>
+#include <string.h>
 
 #include <3ds.h>
 
+#include "language.h"
 #include "smdh.h"
-#include "../stringutil.h"
 
 #define SMDH_NUM_REGIONS 7
 #define SMDH_ALL_REGIONS 0x7F
@@ -42,32 +43,10 @@ void smdh_region_to_string(char* out, u32 region, size_t size) {
     }
 }
 
-static CFG_Language region_default_language[] = {
-        CFG_LANGUAGE_JP,
-        CFG_LANGUAGE_EN,
-        CFG_LANGUAGE_EN,
-        CFG_LANGUAGE_EN,
-        CFG_LANGUAGE_ZH,
-        CFG_LANGUAGE_KO,
-        CFG_LANGUAGE_ZH
-};
+bool smdh_is_valid(const SMDH* smdh) {
+    return memcmp(smdh->magic, "SMDH", sizeof(smdh->magic)) == 0;
+}
 
 SMDH_title* smdh_select_title(SMDH* smdh) {
-    char shortDescription[0x100] = {'\0'};
-
-    CFG_Language systemLanguage;
-    if(R_SUCCEEDED(CFGU_GetSystemLanguage((u8*) &systemLanguage))) {
-        utf16_to_utf8((uint8_t*) shortDescription, smdh->titles[systemLanguage].shortDescription, sizeof(shortDescription) - 1);
-    }
-
-    if(string_is_empty(shortDescription)) {
-        CFG_Region systemRegion;
-        if(R_SUCCEEDED(CFGU_SecureInfoGetRegion((u8*) &systemRegion))) {
-            systemLanguage = region_default_language[systemRegion];
-        } else {
-            systemLanguage = CFG_LANGUAGE_JP;
-        }
-    }
-
-    return &smdh->titles[systemLanguage];
+    return &smdh->titles[language_pick(smdh->titles[language_system()].shortDescription)];
 }

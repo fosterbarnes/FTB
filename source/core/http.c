@@ -470,8 +470,11 @@ Result http_download_seed(u64 titleId) {
 
         Handle fileHandle = 0;
         if(R_SUCCEEDED(res = FSUSER_OpenFileDirectly(&fileHandle, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), *fsPath, FS_OPEN_READ, 0))) {
+            // A short file is not a seed: download it instead.
             u32 bytesRead = 0;
-            res = FSFILE_Read(fileHandle, &bytesRead, 0, seed, sizeof(seed));
+            if(R_SUCCEEDED(res = FSFILE_Read(fileHandle, &bytesRead, 0, seed, sizeof(seed))) && bytesRead != sizeof(seed)) {
+                res = R_APP_BAD_DATA;
+            }
 
             FSFILE_Close(fileHandle);
         }

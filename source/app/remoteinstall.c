@@ -8,6 +8,7 @@
 
 #include <3ds.h>
 
+#include "paths.h"
 #include "resources.h"
 #include "screens.h"
 #include "action/action.h"
@@ -21,7 +22,7 @@ static bool remoteinstall_get_last_urls(char* out, size_t size) {
     }
 
     Handle file = 0;
-    if(R_FAILED(FSUSER_OpenFileDirectly(&file, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), fsMakePath(PATH_ASCII, "/ftb/lasturls"), FS_OPEN_READ, 0))) {
+    if(R_FAILED(FSUSER_OpenFileDirectly(&file, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), fsMakePath(PATH_ASCII, PATHS_FS_LAST_URLS), FS_OPEN_READ, 0))) {
         return false;
     }
 
@@ -39,7 +40,7 @@ static Result remoteinstall_set_last_urls(const char* urls) {
 
     FS_Archive sdmcArchive = 0;
     if(R_SUCCEEDED(res = FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
-        FS_Path path = fsMakePath(PATH_ASCII, "/ftb/lasturls");
+        FS_Path path = fsMakePath(PATH_ASCII, PATHS_FS_LAST_URLS);
 
         Handle file = 0;
         if(R_SUCCEEDED(FSUSER_OpenFile(&file, sdmcArchive, path, FS_OPEN_READ, 0))) {
@@ -50,7 +51,7 @@ static Result remoteinstall_set_last_urls(const char* urls) {
 
         if(urls != NULL && strlen(urls) != 0
            && R_SUCCEEDED(res)
-           && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/ftb/"))
+           && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, PATHS_FS_DATA_DIR))
            && R_SUCCEEDED(res = FSUSER_OpenFile(&file, sdmcArchive, path, FS_OPEN_WRITE | FS_OPEN_CREATE, 0))) {
             u32 bytesWritten = 0;
             res = FSFILE_Write(file, &bytesWritten, 0, urls, strlen(urls), FS_WRITE_FLUSH | FS_WRITE_UPDATE_TIME);

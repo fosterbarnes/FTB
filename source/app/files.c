@@ -40,6 +40,7 @@ typedef struct {
     populate_files_data populateData;
 
     bool populated;
+    unsigned int checkedVersion; // items->version when the current directory was last checked
 
     FS_ArchiveID archiveId;
     FS_Path archivePath;
@@ -344,11 +345,19 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
         }
     }
 
-    while(!fs_is_dir(listData->archive, listData->currDir)) {
-        char parentDir[FILE_PATH_MAX] = {'\0'};
-        string_get_parent_path(parentDir, listData->currDir, FILE_PATH_MAX);
+    // The current directory can only vanish through an action, and actions change the rows; so the
+    // FS probe runs before a listing and after the rows change, not every frame. The root stops the
+    // walk (a removed SD card fails every path).
+    bool rowsChanged = task_is_finished(&listData->populateData.state) && items->version != listData->checkedVersion;
+    if(!listData->populated || rowsChanged) {
+        while(strcmp(listData->currDir, "/") != 0 && !fs_is_dir(listData->archive, listData->currDir)) {
+            char parentDir[FILE_PATH_MAX] = {'\0'};
+            string_get_parent_path(parentDir, listData->currDir, FILE_PATH_MAX);
 
-        files_navigate(listData, items, parentDir);
+            files_navigate(listData, items, parentDir);
+        }
+
+        listData->checkedVersion = items->version;
     }
 
     if(hidKeysDown() & KEY_B) {

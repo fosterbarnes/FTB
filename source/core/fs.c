@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +9,9 @@
 #include "fs.h"
 #include "linkedlist.h"
 #include "stringutil.h"
+
+// Entries per FSDIR_Read call in fs_read_dir.
+#define FS_DIR_CHUNK 64
 
 bool fs_is_dir(FS_Archive archive, const char* path) {
     Result res = 0;
@@ -32,11 +36,11 @@ Result fs_ensure_dir(FS_Archive archive, const char* path) {
 
     FS_Path* fsPath = fs_make_path_utf8(path);
     if(fsPath != NULL) {
+        // A file in the way fails the create; it is the user's data, so it stays.
         Handle dirHandle = 0;
         if(R_SUCCEEDED(FSUSER_OpenDirectory(&dirHandle, archive, *fsPath))) {
             FSDIR_Close(dirHandle);
         } else {
-            FSUSER_DeleteFile(archive, *fsPath);
             res = FSUSER_CreateDirectory(archive, *fsPath, 0);
         }
 
@@ -46,6 +50,81 @@ Result fs_ensure_dir(FS_Archive archive, const char* path) {
     }
 
     return res;
+}
+
+Result fs_read_dir(FS_Archive archive, const char* path, FS_DirectoryEntry** entries, u32* count) {
+    *entries = NULL;
+    *count = 0;
+
+    FS_Path* fsPath = fs_make_path_utf8(path);
+    if(fsPath == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    Handle dirHandle = 0;
+    Result res = FSUSER_OpenDirectory(&dirHandle, archive, *fsPath);
+    fs_free_path_utf8(fsPath);
+    if(R_FAILED(res)) {
+        return res;
+    }
+
+    FS_DirectoryEntry* list = NULL;
+    u32 total = 0;
+    u32 capacity = 0;
+    while(true) {
+        if(total + FS_DIR_CHUNK > capacity) {
+            u32 grownCapacity = capacity == 0 ? FS_DIR_CHUNK : capacity * 2;
+            FS_DirectoryEntry* grown = (FS_DirectoryEntry*) realloc(list, grownCapacity * sizeof(FS_DirectoryEntry));
+            if(grown == NULL) {
+                res = R_APP_OUT_OF_MEMORY;
+                break;
+            }
+
+            list = grown;
+            capacity = grownCapacity;
+        }
+
+        u32 read = 0;
+        if(R_FAILED(res = FSDIR_Read(dirHandle, &read, FS_DIR_CHUNK, &list[total])) || read == 0) {
+            break;
+        }
+
+        total += read;
+    }
+
+    FSDIR_Close(dirHandle);
+
+    if(R_FAILED(res) || total == 0) {
+        free(list);
+        return res;
+    }
+
+    *entries = list;
+    *count = total;
+    return 0;
+}
+
+bool fs_write_file_safe(const char* path, bool (*write)(FILE* fd, void* data), void* data) {
+    char tempPath[FILE_PATH_MAX];
+    if(snprintf(tempPath, sizeof(tempPath), "%s.tmp", path) >= (int) sizeof(tempPath)) {
+        return false;
+    }
+
+    FILE* fd = fopen(tempPath, "wb");
+    if(fd == NULL) {
+        return false;
+    }
+
+    bool written = write(fd, data);
+    written = fclose(fd) == 0 && written;
+
+    // FS rename fails when the target exists, so the old file goes just before it.
+    if(!written || (remove(path) != 0 && errno != ENOENT) || rename(tempPath, path) != 0) {
+        remove(tempPath);
+        return false;
+    }
+
+    return true;
 }
 
 FS_Path fs_make_path_binary(const void* data, u32 size) {

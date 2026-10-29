@@ -17,7 +17,6 @@
 // matches each name.
 static const char* const ciainstaller_detect_names[] = {"cia", ".cia", "cias"};
 #define CIA_DETECT_MAX (sizeof(ciainstaller_detect_names) / sizeof(ciainstaller_detect_names[0]))
-#define CIA_DETECT_CHUNK 64
 
 typedef struct {
     populate_cias_data populateData;
@@ -361,31 +360,24 @@ static Result ciainstaller_detect() {
         return res;
     }
 
-    FS_DirectoryEntry* entries = (FS_DirectoryEntry*) calloc(CIA_DETECT_CHUNK, sizeof(FS_DirectoryEntry));
-    Handle dirHandle = 0;
-    if(entries == NULL) {
-        res = R_APP_OUT_OF_MEMORY;
-    } else if(R_SUCCEEDED(res = FSUSER_OpenDirectory(&dirHandle, archive, fsMakePath(PATH_ASCII, "/")))) {
-        u32 count = 0;
-        while(R_SUCCEEDED(res = FSDIR_Read(dirHandle, &count, CIA_DETECT_CHUNK, entries)) && count > 0) {
-            for(u32 i = 0; i < count && detectedCount < CIA_DETECT_MAX; i++) {
-                if(!(entries[i].attributes & FS_ATTRIBUTE_DIRECTORY)) {
-                    continue;
-                }
+    FS_DirectoryEntry* entries = NULL;
+    u32 count = 0;
+    res = fs_read_dir(archive, "/", &entries, &count);
 
-                char name[FILE_NAME_MAX] = {'\0'};
-                utf16_to_utf8((uint8_t*) name, entries[i].name, FILE_NAME_MAX - 1);
-
-                for(u32 n = 0; n < CIA_DETECT_MAX; n++) {
-                    if(strcasecmp(name, ciainstaller_detect_names[n]) == 0) {
-                        snprintf(detected[detectedCount++], FILE_PATH_MAX, "/%s/", name);
-                        break;
-                    }
-                }
-            }
+    for(u32 i = 0; i < count && detectedCount < CIA_DETECT_MAX; i++) {
+        if(!(entries[i].attributes & FS_ATTRIBUTE_DIRECTORY)) {
+            continue;
         }
 
-        FSDIR_Close(dirHandle);
+        char name[FILE_NAME_MAX] = {'\0'};
+        utf16_to_utf8((uint8_t*) name, entries[i].name, FILE_NAME_MAX - 1);
+
+        for(u32 n = 0; n < CIA_DETECT_MAX; n++) {
+            if(strcasecmp(name, ciainstaller_detect_names[n]) == 0) {
+                snprintf(detected[detectedCount++], FILE_PATH_MAX, "/%s/", name);
+                break;
+            }
+        }
     }
 
     free(entries);

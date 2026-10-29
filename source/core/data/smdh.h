@@ -26,4 +26,6 @@ typedef struct SMDH_s {
 } SMDH;
 
 void smdh_region_to_string(char* out, u32 region, size_t size);
+// The "SMDH" magic is present.
+bool smdh_is_valid(const SMDH* smdh);
 SMDH_title* smdh_select_title(SMDH* smdh);

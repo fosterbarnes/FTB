@@ -46,6 +46,10 @@
 #define SPI_STAT_WIP 1
 #define SPI_STAT_WEL 2
 
+// A pulled cart reads 0xFF, which keeps every status bit set, so status polls give up after this.
+// A page write takes milliseconds.
+#define SPI_POLL_TIMEOUT_MS 1000
+
 typedef enum {
     CHIP_NONE = 0,
     CHIP_EEPROM_512B = 1,
@@ -165,14 +169,24 @@ static Result spi_execute_command(SaveChip chip, void* cmd, u32 cmdSize, void* a
     return PXIDEV_SPIMultiWriteRead(&header, &writeBuffer1, &readBuffer1, &writeBuffer2, &readBuffer2, &footer);
 }
 
-static Result spi_wait_write_finish(SaveChip chip) {
-    Result res = 0;
+// Reads the status register until none of the busy bits are set.
+static Result spi_wait_status(SaveChip chip, u8 busyBits) {
+    u64 deadline = osGetTime() + SPI_POLL_TIMEOUT_MS;
 
+    Result res = 0;
     u8 cmd = SPI_CMD_RDSR;
     u8 status = 0;
-    while(R_SUCCEEDED(res = spi_execute_command(chip, &cmd, sizeof(cmd), &status, sizeof(status), NULL, 0)) && (status & SPI_STAT_WIP));
+    while(R_SUCCEEDED(res = spi_execute_command(chip, &cmd, sizeof(cmd), &status, sizeof(status), NULL, 0)) && (status & busyBits)) {
+        if(osGetTime() >= deadline) {
+            return R_APP_TIMED_OUT;
+        }
+    }
 
     return res;
+}
+
+static Result spi_wait_write_finish(SaveChip chip) {
+    return spi_wait_status(chip, SPI_STAT_WIP);
 }
 
 static Result spi_read_jedec_id_status(SaveChip chip, u32* jecedId, u8* status) {
@@ -359,9 +373,7 @@ static Result spi_write_data(SaveChip chip, u32* bytesWritten, void* data, u32 o
                 u8 ewCmd = SPI_CMD_WREN;
                 if(R_SUCCEEDED(res = spi_execute_command(chip, &ewCmd, sizeof(ewCmd), NULL, 0, NULL, 0))) {
                     if(chip != CHIP_EEPROM_512B) {
-                        ewCmd = SPI_CMD_RDSR;
-                        u8 status = 0;
-                        while(R_SUCCEEDED(res = spi_execute_command(chip, &ewCmd, sizeof(ewCmd), &status, sizeof(status), NULL, 0)) && (status & ~SPI_STAT_WEL));
+                        res = spi_wait_status(chip, (u8) ~SPI_STAT_WEL);
                     }
 
                     if(R_SUCCEEDED(res) && R_SUCCEEDED(res = spi_execute_command(chip, cmd, cmdSize, NULL, 0, (u8*) data + (pos - offset), currSize))) {

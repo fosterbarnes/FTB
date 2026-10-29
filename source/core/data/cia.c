@@ -82,10 +82,16 @@ Result cia_file_get_smdh(SMDH* smdh, Handle handle) {
             u64 contentSize = ((header[6] | ((u64) header[7] << 32)) + 0x3F) & ~0x3F;
 
             if(metaSize >= 0x3AC0) {
-                res = FSFILE_Read(handle, &bytesRead, headerSize + certSize + ticketSize + tmdSize + contentSize + 0x400, smdh, sizeof(SMDH));
+                // u64 offset: header sizes in a damaged file can wrap a u32 sum.
+                u64 offset = (u64) headerSize + certSize + ticketSize + tmdSize + contentSize + 0x400;
+                if(R_SUCCEEDED(res = FSFILE_Read(handle, &bytesRead, offset, smdh, sizeof(SMDH))) && bytesRead != sizeof(SMDH)) {
+                    res = R_APP_BAD_DATA;
+                }
             } else {
                 res = R_APP_BAD_DATA;
             }
+        } else if(R_SUCCEEDED(res)) {
+            res = R_APP_BAD_DATA;
         }
     } else {
         res = R_APP_INVALID_ARGUMENT;

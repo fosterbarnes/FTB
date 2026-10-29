@@ -505,6 +505,10 @@ static const char* description_to_string(Result res) {
                     return "Too many redirects";
                 case R_APP_SYSTEM_LOCKED:
                     return "Locked by Settings > System changes";
+                case R_APP_TIMED_OUT:
+                    return "Timed out";
+                case R_APP_NOT_ENOUGH_SPACE:
+                    return "Not enough free space";
                 default:
                     if(res >= R_APP_HTTP_ERROR_BASE && res < R_APP_HTTP_ERROR_END) {
                         switch(res - R_APP_HTTP_ERROR_BASE) {

@@ -9,9 +9,6 @@
 #include "../resources.h"
 #include "../../core/core.h"
 
-// Directory entries read per FSDIR_Read call; folders of any size are read in full.
-#define CIA_SCAN_CHUNK 64
-
 // A folder inside another configured folder is already covered by that folder's walk.
 static bool task_populate_cias_nested(populate_cias_data* data, u32 index) {
     const char* path = data->folders[index];
@@ -36,72 +33,56 @@ static int task_populate_cias_compare(void* userData, const void* p1, const void
 }
 
 // Adds dir's CIAs to found and its subfolders to dirs (heap path strings ending in '/').
-static Result task_populate_cias_read_dir(populate_cias_data* data, const char* dir, linked_list* dirs, linked_list* found, FS_DirectoryEntry* entries, bool* quit) {
-    FS_Path* fsPath = fs_make_path_utf8(dir);
-    if(fsPath == NULL) {
-        return R_APP_OUT_OF_MEMORY;
-    }
-
-    Handle dirHandle = 0;
-    Result res = FSUSER_OpenDirectory(&dirHandle, data->archive, *fsPath);
-    fs_free_path_utf8(fsPath);
-    if(R_FAILED(res)) {
-        return res;
-    }
-
+static Result task_populate_cias_read_dir(populate_cias_data* data, const char* dir, linked_list* dirs, linked_list* found, bool* quit) {
+    FS_DirectoryEntry* entries = NULL;
     u32 count = 0;
-    while(!*quit && R_SUCCEEDED(res) && R_SUCCEEDED(res = FSDIR_Read(dirHandle, &count, CIA_SCAN_CHUNK, entries)) && count > 0) {
-        for(u32 i = 0; i < count && R_SUCCEEDED(res); i++) {
-            if(task_is_cancelled(&data->state)) {
-                *quit = true;
-                break;
+    Result res = fs_read_dir(data->archive, dir, &entries, &count);
+
+    for(u32 i = 0; i < count && R_SUCCEEDED(res); i++) {
+        if(task_is_cancelled(&data->state)) {
+            *quit = true;
+            break;
+        }
+
+        u32 attributes = entries[i].attributes;
+        bool isDir = (attributes & FS_ATTRIBUTE_DIRECTORY) != 0;
+
+        char name[FILE_NAME_MAX] = {'\0'};
+        utf16_to_utf8((uint8_t*) name, entries[i].name, FILE_NAME_MAX - 1);
+
+        if((attributes & FS_ATTRIBUTE_HIDDEN) || (!isDir && !fs_filter_cias(NULL, name, attributes))) {
+            continue;
+        }
+
+        char path[FILE_PATH_MAX];
+        if(snprintf(path, sizeof(path), "%s%s%s", dir, name, isDir ? "/" : "") >= (int) sizeof(path)) {
+            continue;
+        }
+
+        if(isDir) {
+            char* sub = strdup(path);
+            if(sub == NULL || !linked_list_add(dirs, sub)) {
+                free(sub);
+                res = R_APP_OUT_OF_MEMORY;
             }
+        } else {
+            list_item* item = NULL;
+            if(R_SUCCEEDED(res = task_create_entry_item(&item, data->archive, path, attributes))) {
+                ((file_info*) item->data)->size = entries[i].fileSize;
 
-            u32 attributes = entries[i].attributes;
-            bool isDir = (attributes & FS_ATTRIBUTE_DIRECTORY) != 0;
-
-            char name[FILE_NAME_MAX] = {'\0'};
-            utf16_to_utf8((uint8_t*) name, entries[i].name, FILE_NAME_MAX - 1);
-
-            if((attributes & FS_ATTRIBUTE_HIDDEN) || (!isDir && !fs_filter_cias(NULL, name, attributes))) {
-                continue;
-            }
-
-            char path[FILE_PATH_MAX];
-            if(snprintf(path, sizeof(path), "%s%s%s", dir, name, isDir ? "/" : "") >= (int) sizeof(path)) {
-                continue;
-            }
-
-            if(isDir) {
-                char* sub = strdup(path);
-                if(sub == NULL || !linked_list_add(dirs, sub)) {
-                    free(sub);
+                if(!linked_list_add(found, item)) {
+                    task_free_file(item);
                     res = R_APP_OUT_OF_MEMORY;
-                }
-            } else {
-                list_item* item = NULL;
-                if(R_SUCCEEDED(res = task_create_file_item(&item, data->archive, path, attributes, false))) {
-                    ((file_info*) item->data)->size = entries[i].fileSize;
-
-                    if(!linked_list_add(found, item)) {
-                        task_free_file(item);
-                        res = R_APP_OUT_OF_MEMORY;
-                    }
                 }
             }
         }
     }
 
-    FSDIR_Close(dirHandle);
+    free(entries);
     return res;
 }
 
 static Result task_populate_cias_walk(populate_cias_data* data, const char* root, linked_list* found, bool* quit) {
-    FS_DirectoryEntry* entries = (FS_DirectoryEntry*) calloc(CIA_SCAN_CHUNK, sizeof(FS_DirectoryEntry));
-    if(entries == NULL) {
-        return R_APP_OUT_OF_MEMORY;
-    }
-
     linked_list dirs;
     linked_list_init(&dirs);
 
@@ -118,7 +99,7 @@ static Result task_populate_cias_walk(populate_cias_data* data, const char* root
         char* dir = (char*) linked_list_get(&dirs, tail);
         linked_list_remove_at(&dirs, tail);
 
-        res = task_populate_cias_read_dir(data, dir, &dirs, found, entries, quit);
+        res = task_populate_cias_read_dir(data, dir, &dirs, found, quit);
         free(dir);
     }
 
@@ -130,7 +111,6 @@ static Result task_populate_cias_walk(populate_cias_data* data, const char* root
     }
 
     linked_list_destroy(&dirs);
-    free(entries);
 
     return res;
 }

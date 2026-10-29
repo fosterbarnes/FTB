@@ -65,7 +65,8 @@ static void folderpicker_close(ui_view* view, folderpicker_data* pickerData, lin
 static void folderpicker_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     folderpicker_data* pickerData = (folderpicker_data*) data;
 
-    while(strcmp(pickerData->currDir, "/") != 0 && !fs_is_dir(pickerData->archive, pickerData->currDir)) {
+    // The picker has no actions, so a folder can only be missing when it is about to be listed.
+    while(!pickerData->populated && strcmp(pickerData->currDir, "/") != 0 && !fs_is_dir(pickerData->archive, pickerData->currDir)) {
         folderpicker_navigate_up(pickerData);
     }
 

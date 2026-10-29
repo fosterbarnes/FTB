@@ -41,27 +41,18 @@ void string_get_file_name(char* out, const char* file, u32 size) {
 }
 
 void string_escape_file_name(char* out, const char* file, size_t size) {
-    static const char reservedChars[] = {'<', '>', ':', '"', '/', '\\', '|', '?', '*'};
-
-    for(u32 i = 0; i < size; i++) {
-        bool reserved = false;
-        for(u32 j = 0; j < sizeof(reservedChars); j++) {
-            if(file[i] == reservedChars[j]) {
-                reserved = true;
-                break;
-            }
-        }
-
-        if(reserved) {
-            out[i] = '_';
-        } else {
-            out[i] = file[i];
-        }
-
-        if(file[i] == '\0') {
-            break;
-        }
+    if(size == 0) {
+        return;
     }
+
+    // Characters FAT file names cannot hold become '_'; the result is always terminated.
+    size_t i = 0;
+    for(; i < size - 1 && file[i] != '\0'; i++) {
+        unsigned char c = (unsigned char) file[i];
+        out[i] = c < 0x20 || c == 0x7F || strchr("<>:\"/\\|?*", c) != NULL ? '_' : (char) c;
+    }
+
+    out[i] = '\0';
 }
 
 void string_get_path_file(char* out, const char* path, u32 size) {

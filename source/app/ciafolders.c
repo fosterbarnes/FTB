@@ -2,17 +2,17 @@
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
-#include <sys/stat.h>
 
 #include <3ds.h>
 
 #include "ciafolders.h"
 #include "folderpicker.h"
+#include "paths.h"
 #include "resources.h"
 #include "screens.h"
 #include "../core/core.h"
 
-#define CIA_FOLDERS_PATH "sdmc:/ftb/ciaFolders.cfg"
+#define CIA_FOLDERS_PATH PATHS_CIA_FOLDERS
 #define CIA_FOLDERS_TEXT_MARGIN 10
 
 static char folders[CIA_FOLDERS_MAX][FILE_PATH_MAX];
@@ -91,20 +91,18 @@ void ciafolders_load() {
     fclose(fd);
 }
 
-static bool ciafolders_save() {
-    mkdir("sdmc:/ftb", 0777);
-
-    FILE* fd = fopen(CIA_FOLDERS_PATH, "w");
-    if(fd == NULL) {
-        return false;
-    }
-
+static bool ciafolders_write(FILE* fd, void* data) {
     bool written = true;
     for(u32 i = 0; i < folderCount && written; i++) {
         written = fprintf(fd, "%s\n", folders[i]) > 0;
     }
 
-    return fclose(fd) == 0 && written;
+    return written;
+}
+
+static bool ciafolders_save() {
+    paths_ensure_data_dir();
+    return fs_write_file_safe(CIA_FOLDERS_PATH, ciafolders_write, NULL);
 }
 
 const char* ciafolders_add(const char* path) {

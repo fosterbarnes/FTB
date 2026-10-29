@@ -1,16 +1,16 @@
 #include <stdio.h>
 #include <string.h>
-#include <sys/stat.h>
 
 #include <3ds.h>
 
+#include "paths.h"
 #include "resources.h"
 #include "screens.h"
 #include "settings.h"
 #include "task/uitask.h"
 #include "../core/core.h"
 
-#define SETTINGS_PATH "sdmc:/ftb/settings.cfg"
+#define SETTINGS_PATH PATHS_SETTINGS
 #define SETTINGS_TEXT_MARGIN 10
 
 static ftb_settings settings = {
@@ -89,14 +89,7 @@ void settings_load() {
     fclose(fd);
 }
 
-static bool settings_save() {
-    mkdir("sdmc:/ftb", 0777);
-
-    FILE* fd = fopen(SETTINGS_PATH, "w");
-    if(fd == NULL) {
-        return false;
-    }
-
+static bool settings_write(FILE* fd, void* data) {
     bool written = true;
     for(u32 i = 0; i < SETTINGS_BOOL_COUNT && written; i++) {
         written = fprintf(fd, "%s=%d\n", settings_bools[i].key, *settings_bools[i].value ? 1 : 0) > 0;
@@ -106,7 +99,12 @@ static bool settings_save() {
         written = fprintf(fd, "%s=%d\n", settings_choices[i].key, *settings_choices[i].value) > 0;
     }
 
-    return fclose(fd) == 0 && written;
+    return written;
+}
+
+static bool settings_save() {
+    paths_ensure_data_dir();
+    return fs_write_file_safe(SETTINGS_PATH, settings_write, NULL);
 }
 
 bool settings_set(const ftb_settings* next) {

@@ -10,7 +10,8 @@
 #include "../resources.h"
 #include "../../core/core.h"
 
-#define MAX_FILES 1024
+// Covers the title ID of every ticket signature type (ticket_get_title_id).
+#define TICKET_HEADER_READ 0x2E4
 
 int task_compare_files(void* userData, const void* p1, const void* p2) {
     list_item* info1 = (list_item*) p1;
@@ -63,7 +64,7 @@ void task_load_file_meta(file_info* fileInfo) {
                     SMDH* smdh = (SMDH*) calloc(1, sizeof(SMDH));
                     if(smdh != NULL) {
                         if(R_SUCCEEDED(cia_file_get_smdh(smdh, fileHandle))) {
-                            if(smdh->magic[0] == 'S' && smdh->magic[1] == 'M' && smdh->magic[2] == 'D' && smdh->magic[3] == 'H') {
+                            if(smdh_is_valid(smdh)) {
                                 SMDH_title* smdhTitle = smdh_select_title(smdh);
 
                                 fileInfo->ciaInfo.hasMeta = true;
@@ -84,21 +85,15 @@ void task_load_file_meta(file_info* fileInfo) {
                     fileInfo->isCia = false;
                 }
             } else if(fileInfo->isTicket) {
+                u8 header[TICKET_HEADER_READ];
                 u32 bytesRead = 0;
 
-                u8 sigType = 0;
-                if(R_SUCCEEDED(FSFILE_Read(fileHandle, &bytesRead, 3, &sigType, sizeof(sigType))) && bytesRead == sizeof(sigType) && sigType <= 5) {
-                    static u32 dataOffsets[6] = {0x240, 0x140, 0x80, 0x240, 0x140, 0x80};
-                    static u32 titleIdOffset = 0x9C;
-
-                    u64 titleId = 0;
-                    if(R_SUCCEEDED(FSFILE_Read(fileHandle, &bytesRead, dataOffsets[sigType] + titleIdOffset, &titleId, sizeof(titleId))) && bytesRead == sizeof(titleId)) {
-                        fileInfo->ticketInfo.loaded = true;
-                        fileInfo->ticketInfo.titleId = __builtin_bswap64(titleId);
-                        fileInfo->ticketInfo.inUse = false;
-                    } else {
-                        fileInfo->isTicket = false;
-                    }
+                u64 titleId = 0;
+                if(R_SUCCEEDED(FSFILE_Read(fileHandle, &bytesRead, 0, header, sizeof(header)))
+                   && R_SUCCEEDED(ticket_get_title_id(&titleId, header, bytesRead))) {
+                    fileInfo->ticketInfo.loaded = true;
+                    fileInfo->ticketInfo.titleId = titleId;
+                    fileInfo->ticketInfo.inUse = false;
                 } else {
                     fileInfo->isTicket = false;
                 }
@@ -111,7 +106,9 @@ void task_load_file_meta(file_info* fileInfo) {
     }
 }
 
-Result task_create_file_item(list_item** out, FS_Archive archive, const char* path, u32 attributes, bool meta) {
+// attributesKnown: attributes came from FSDIR_Read, so a missing directory bit means a file and the
+// FS probe is skipped (one IPC per entry in large folders).
+static Result task_make_file_item(list_item** out, FS_Archive archive, const char* path, u32 attributes, bool meta, bool attributesKnown) {
     Result res = 0;
 
     list_item* item = (list_item*) calloc(1, sizeof(list_item));
@@ -126,7 +123,7 @@ Result task_create_file_item(list_item** out, FS_Archive archive, const char* pa
             fileInfo->isCia = false;
             fileInfo->isTicket = false;
 
-            if((attributes & FS_ATTRIBUTE_DIRECTORY) || fs_is_dir(archive, path)) {
+            if((attributes & FS_ATTRIBUTE_DIRECTORY) || (!attributesKnown && fs_is_dir(archive, path))) {
                 item->color = COLOR_DIRECTORY;
 
                 size_t len = strlen(path);
@@ -169,6 +166,14 @@ Result task_create_file_item(list_item** out, FS_Archive archive, const char* pa
     }
 
     return res;
+}
+
+Result task_create_file_item(list_item** out, FS_Archive archive, const char* path, u32 attributes, bool meta) {
+    return task_make_file_item(out, archive, path, attributes, meta, false);
+}
+
+Result task_create_entry_item(list_item** out, FS_Archive archive, const char* path, u32 attributes) {
+    return task_make_file_item(out, archive, path, attributes, false, true);
 }
 
 Result task_copy_file_item(list_item** out, const list_item* src) {
@@ -241,53 +246,37 @@ static Result task_populate_files_thread(void* arg) {
             }
 
             if(curr->attributes & FS_ATTRIBUTE_DIRECTORY) {
-                FS_Path* fsPath = fs_make_path_utf8(curr->path);
-                if(fsPath != NULL) {
-                    Handle dirHandle = 0;
-                    if(R_SUCCEEDED(res = FSUSER_OpenDirectory(&dirHandle, curr->archive, *fsPath))) {
-                        u32 entryCount = 0;
-                        FS_DirectoryEntry* entries = (FS_DirectoryEntry*) calloc(MAX_FILES, sizeof(FS_DirectoryEntry));
-                        if(entries != NULL) {
-                            if(R_SUCCEEDED(res = FSDIR_Read(dirHandle, &entryCount, MAX_FILES, entries)) && entryCount > 0) {
-                                qsort(entries, entryCount, sizeof(FS_DirectoryEntry), task_populate_files_compare_directory_entries);
+                FS_DirectoryEntry* entries = NULL;
+                u32 entryCount = 0;
+                if(R_SUCCEEDED(res = fs_read_dir(curr->archive, curr->path, &entries, &entryCount)) && entryCount > 0) {
+                    qsort(entries, entryCount, sizeof(FS_DirectoryEntry), task_populate_files_compare_directory_entries);
 
-                                for(u32 i = 0; i < entryCount && R_SUCCEEDED(res); i++) {
-                                    if(task_is_cancelled(&data->state)) {
-                                        quit = true;
-                                        break;
-                                    }
-
-                                    char name[FILE_NAME_MAX] = {'\0'};
-                                    utf16_to_utf8((uint8_t*) name, entries[i].name, FILE_NAME_MAX - 1);
-
-                                    if(data->filter == NULL || data->filter(data->filterData, name, entries[i].attributes)) {
-                                        char path[FILE_PATH_MAX] = {'\0'};
-                                        snprintf(path, FILE_PATH_MAX, "%s%s", curr->path, name);
-
-                                        list_item* item = NULL;
-                                        if(R_SUCCEEDED(res = task_create_file_item(&item, curr->archive, path, entries[i].attributes, false))) {
-                                            if(data->recursive && (((file_info*) item->data)->attributes & FS_ATTRIBUTE_DIRECTORY)) {
-                                                linked_list_add(&queue, item);
-                                            } else {
-                                                linked_list_add(data->items, item);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            free(entries);
-                        } else {
-                            res = R_APP_OUT_OF_MEMORY;
+                    for(u32 i = 0; i < entryCount && R_SUCCEEDED(res); i++) {
+                        if(task_is_cancelled(&data->state)) {
+                            quit = true;
+                            break;
                         }
 
-                        FSDIR_Close(dirHandle);
-                    }
+                        char name[FILE_NAME_MAX] = {'\0'};
+                        utf16_to_utf8((uint8_t*) name, entries[i].name, FILE_NAME_MAX - 1);
 
-                    fs_free_path_utf8(fsPath);
-                } else {
-                    res = R_APP_OUT_OF_MEMORY;
+                        if(data->filter == NULL || data->filter(data->filterData, name, entries[i].attributes)) {
+                            char path[FILE_PATH_MAX] = {'\0'};
+                            snprintf(path, FILE_PATH_MAX, "%s%s", curr->path, name);
+
+                            list_item* item = NULL;
+                            if(R_SUCCEEDED(res = task_create_entry_item(&item, curr->archive, path, entries[i].attributes))) {
+                                if(data->recursive && (((file_info*) item->data)->attributes & FS_ATTRIBUTE_DIRECTORY)) {
+                                    linked_list_add(&queue, item);
+                                } else {
+                                    linked_list_add(data->items, item);
+                                }
+                            }
+                        }
+                    }
                 }
+
+                free(entries);
             }
         }
 

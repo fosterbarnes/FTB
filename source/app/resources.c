@@ -4,12 +4,13 @@
 
 #include <3ds.h>
 
+#include "paths.h"
 #include "resources.h"
 #include "../core/core.h"
 
 static FILE* resources_open_file(const char* path) {
     char realPath[FILE_PATH_MAX];
-    snprintf(realPath, sizeof(realPath), "sdmc:/ftb/theme/%s", path);
+    snprintf(realPath, sizeof(realPath), PATHS_THEME_DIR "%s", path);
 
     FILE* fd = fopen(realPath, "rb");
 
@@ -54,7 +55,10 @@ void resources_load() {
         char key[64];
         u32 color = 0;
 
-        sscanf(line, "%63[^=]=%lx", key, &color);
+        // Lines without "key=hex" (blank lines, comments) are skipped.
+        if(sscanf(line, "%63[^=]=%lx", key, &color) != 2) {
+            continue;
+        }
 
         if(strcasecmp(key, "text") == 0) {
             screen_set_color(COLOR_TEXT, color);

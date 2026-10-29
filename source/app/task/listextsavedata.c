@@ -48,7 +48,7 @@ static Result task_populate_ext_save_data_from(populate_ext_save_data_data* data
                         if(smdh != NULL) {
                             u32 smdhBytesRead = 0;
                             if(R_SUCCEEDED(FSUSER_ReadExtSaveDataIcon(&smdhBytesRead, info, sizeof(SMDH), (u8*) smdh)) && smdhBytesRead == sizeof(SMDH)) {
-                                if(smdh->magic[0] == 'S' && smdh->magic[1] == 'M' && smdh->magic[2] == 'D' && smdh->magic[3] == 'H') {
+                                if(smdh_is_valid(smdh)) {
                                     SMDH_title* smdhTitle = smdh_select_title(smdh);
 
                                     utf16_to_utf8((uint8_t*) item->name, smdhTitle->shortDescription, LIST_ITEM_NAME_MAX - 1);

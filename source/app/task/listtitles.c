@@ -9,13 +9,14 @@
 
 #include "uitask.h"
 #include "listtitles.h"
+#include "../paths.h"
 #include "../resources.h"
 #include "../../core/core.h"
 
 // Title list cache: one file per pass under TITLE_CACHE_DIR, records sorted by title ID. The live AM
 // title list decides which titles exist; a cached record is reused only while its title ID, version,
 // and installed size still match, so installs, deletes, and updates never show stale entries.
-#define TITLE_CACHE_DIR "sdmc:/ftb/cache"
+#define TITLE_CACHE_DIR PATHS_TITLE_CACHE_DIR
 #define TITLE_CACHE_SD_PATH TITLE_CACHE_DIR "/sdTitles.bin"
 #define TITLE_CACHE_NAND_PATH TITLE_CACHE_DIR "/nandTitles.bin"
 #define TITLE_CACHE_TWL_PATH TITLE_CACHE_DIR "/twlTitles.bin"
@@ -158,7 +159,7 @@ static Result task_populate_titles_load_ctr(FS_MediaType mediaType, u64 titleId,
         if(smdh != NULL) {
             u32 bytesRead = 0;
             if(R_SUCCEEDED(FSFILE_Read(fileHandle, &bytesRead, 0, smdh, sizeof(SMDH))) && bytesRead == sizeof(SMDH)) {
-                if(smdh->magic[0] == 'S' && smdh->magic[1] == 'M' && smdh->magic[2] == 'D' && smdh->magic[3] == 'H') {
+                if(smdh_is_valid(smdh)) {
                     record->hasMeta = true;
 
                     SMDH_title* smdhTitle = smdh_select_title(smdh);
@@ -521,21 +522,16 @@ static Result task_populate_titles_add_missing(populate_titles_data* data, title
     return res;
 }
 
-// Writes the pass's cacheable records through a temp file. A failed write only costs speed: the
-// list is already shown and the next open tries again, so it is not reported.
-static void task_populate_titles_write_cache(const title_pass* pass, u8 language) {
-    mkdir("sdmc:/ftb", 0777);
-    mkdir(TITLE_CACHE_DIR, 0777);
+typedef struct {
+    const title_pass* pass;
+    u8 language;
+} title_cache_write_data;
 
-    char tempPath[64];
-    snprintf(tempPath, sizeof(tempPath), "%s.tmp", pass->path);
+static bool task_populate_titles_write_records(FILE* fd, void* arg) {
+    const title_cache_write_data* data = (const title_cache_write_data*) arg;
+    const title_pass* pass = data->pass;
 
-    FILE* fd = fopen(tempPath, "wb");
-    if(fd == NULL) {
-        return;
-    }
-
-    title_cache_header header = {TITLE_CACHE_MAGIC, TITLE_CACHE_FORMAT, sizeof(title_record), language, {0}};
+    title_cache_header header = {TITLE_CACHE_MAGIC, TITLE_CACHE_FORMAT, sizeof(title_record), data->language, {0}};
     bool written = setvbuf(fd, NULL, _IOFBF, TITLE_CACHE_BUFFER_SIZE) == 0 && fwrite(&header, sizeof(header), 1, fd) == 1;
     for(u32 i = 0; i < pass->count && written; i++) {
         if((pass->states[i] & (TITLE_STATE_INFO | TITLE_STATE_LOADED)) == (TITLE_STATE_INFO | TITLE_STATE_LOADED)) {
@@ -543,13 +539,17 @@ static void task_populate_titles_write_cache(const title_pass* pass, u8 language
         }
     }
 
-    written = fclose(fd) == 0 && written;
+    return written;
+}
 
-    // FS rename fails when the target exists, so drop the old file first. Losing both only costs
-    // one full load on the next open.
-    if(!written || (remove(pass->path) != 0 && errno != ENOENT) || rename(tempPath, pass->path) != 0) {
-        remove(tempPath);
-    }
+// Writes the pass's cacheable records. A failed write only costs speed: the list is already shown
+// and the next open tries again, so it is not reported.
+static void task_populate_titles_write_cache(const title_pass* pass, u8 language) {
+    paths_ensure_data_dir();
+    mkdir(TITLE_CACHE_DIR, 0777);
+
+    title_cache_write_data data = {pass, language};
+    fs_write_file_safe(pass->path, task_populate_titles_write_records, &data);
 }
 
 static Result task_populate_titles_thread(void* arg) {
@@ -564,8 +564,7 @@ static Result task_populate_titles_thread(void* arg) {
     const u32 passCount = sizeof(passes) / sizeof(passes[0]);
 
     // Names come from the SMDH/banner entry for the system language, so it keys the cache.
-    u8 language = 0xFF;
-    CFGU_GetSystemLanguage(&language);
+    u8 language = language_system();
 
     // List every pass first so the progress total is known before any title shows. A failing pass
     // stops the passes after it, but the ones before it still finish.

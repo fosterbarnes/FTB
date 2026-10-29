@@ -26,12 +26,13 @@
 // keeps CTR and TWL icons in proportion.
 #define NATIVE_ICON 48
 
-// Grid layout: icon cells on the top screen. Per zoom level: icon edge, columns across the 390 px
-// left of the scroll bar, row height. Each cell leaves room for the selection ring.
+// Grid: icon cells. Per zoom level: icon edge, columns across the space left of the scroll bar on the
+// top (400 px) and bottom (320 px) screen, row height. Bottom counts keep cells at least as wide as on
+// top. Each cell leaves room for the selection ring.
 #define GRID_SELECTION_BORDER 4
 
-// Icon list layout: per zoom level the icon edge, the row height (rows divide the 200 px content rect
-// evenly: 5 and 4 rows), and the detail lines under the name.
+// Icon list: per zoom level the icon edge, the row height (rows divide the 200 px content rect evenly:
+// 8, 5, and 4 rows), and the detail lines under the name.
 #define ICON_LIST_PAD 4
 #define ICON_LIST_TEXT_GAP 6
 #define ICON_LIST_DETAIL_MAX 256
@@ -42,18 +43,20 @@
 
 static const struct {
     u32 icon;
-    u32 columns;
+    u32 topColumns;
+    u32 bottomColumns;
     u32 rowHeight;
-} list_grid_sizes[LIST_ZOOM_COUNT] = {
-        {32, 9, 44},
-        {48, 7, 64},
+} list_grid_sizes[LIST_GRID_ZOOM_COUNT] = {
+        {32, 9, 7, 44},
+        {48, 7, 5, 64},
 };
 
 static const struct {
     u32 icon;
     u32 rowHeight;
     u32 detailLines;
-} list_icon_list_sizes[LIST_ZOOM_COUNT] = {
+} list_icon_list_sizes[LIST_ICON_LIST_ZOOM_COUNT] = {
+        {24, 25, 0}, // half the 48 px CTR icon, name only
         {32, 40, 1},
         {48, 50, 2},
 };
@@ -86,18 +89,23 @@ typedef struct {
     float scrollVelocity;
     u64 lastScrollTime;
     u64 nextActionTime;
-    list_layout layout;
-    bool paging; // L and R page back and forward
+    list_style style;
+    bool rowsOnTop; // rows on the top screen, info (drawTop) on the bottom
+    bool sectionKeys; // L and R jump between sections
     u32 zoom;
     u32 (*itemIcon)(list_item* item);
     void (*itemDetail)(list_item* item, char* out, size_t size);
     bool loading;
     u64 loadingStart;
-    // Sections. Without headers the list is one section with header height 0, which is the plain
-    // layout, so every position goes through the same section math.
+    // Sections. Without headers the layout is one section with header height 0, which is the plain
+    // layout, so every position goes through the same section math. jumps are the label's sections
+    // either way (the section keys use them); with headers they are the layout sections too.
     void (*sectionLabel)(void* data, list_item* item, char* out, size_t size);
+    bool sectionHeaders;
     list_section* sections; // &single or sectionBuffer
     u32 sectionCount;
+    list_section* jumps; // &single or sectionBuffer
+    u32 jumpCount;
     list_section single;
     list_section* sectionBuffer;
     u32 sectionCapacity;
@@ -113,18 +121,55 @@ typedef struct {
 
 // A row layout is a grid with one column, so scroll math works in rows.
 static u32 list_columns(list_data* listData) {
-    return listData->layout == LIST_LAYOUT_GRID ? list_grid_sizes[listData->zoom].columns : 1;
+    if(listData->style != LIST_STYLE_GRID) {
+        return 1;
+    }
+
+    return listData->rowsOnTop ? list_grid_sizes[listData->zoom].topColumns : list_grid_sizes[listData->zoom].bottomColumns;
 }
 
 static float list_row_height(list_data* listData) {
-    switch(listData->layout) {
-        case LIST_LAYOUT_GRID:
+    switch(listData->style) {
+        case LIST_STYLE_GRID:
             return list_grid_sizes[listData->zoom].rowHeight;
-        case LIST_LAYOUT_ICON_LIST:
+        case LIST_STYLE_ICON_LIST:
             return list_icon_list_sizes[listData->zoom].rowHeight;
         default:
             return screen_get_font_height(0.5f);
     }
+}
+
+u32 list_zoom_count(list_style style) {
+    switch(style) {
+        case LIST_STYLE_GRID:
+            return LIST_GRID_ZOOM_COUNT;
+        case LIST_STYLE_ICON_LIST:
+            return LIST_ICON_LIST_ZOOM_COUNT;
+        default:
+            return 1;
+    }
+}
+
+static u32 list_zoom_default(list_style style) {
+    switch(style) {
+        case LIST_STYLE_GRID:
+            return LIST_GRID_ZOOM_DEFAULT;
+        case LIST_STYLE_ICON_LIST:
+            return LIST_ICON_LIST_ZOOM_DEFAULT;
+        default:
+            return 0;
+    }
+}
+
+// Whole-pixel grid cells, centered in the space left of the scroll bar; drawing and touch share it.
+static void list_grid_cells(list_data* listData, float x1, float x2, float* gridX, float* cellWidth) {
+    u32 scrollBarWidth = 0;
+    screen_get_texture_size(&scrollBarWidth, NULL, TEXTURE_SCROLL_BAR);
+
+    u32 columns = list_columns(listData);
+    float gridWidth = x2 - x1 - scrollBarWidth;
+    *cellWidth = (float) (u32) (gridWidth / columns);
+    *gridX = x1 + (float) (u32) ((gridWidth - *cellWidth * columns) / 2);
 }
 
 // Rebuilds the sections when the items, the column count, or the label callback changed. Runs at the
@@ -143,6 +188,8 @@ static void list_update_sections(list_data* listData) {
     listData->sectionColumns = columns;
     listData->sections = &listData->single;
     listData->sectionCount = 1;
+    listData->jumps = &listData->single;
+    listData->jumpCount = 1;
     listData->headerHeight = 0;
 
     // A loading list is hidden and its order is not final yet.
@@ -187,18 +234,23 @@ static void list_update_sections(list_data* listData) {
         index++;
     }
 
-    listData->sections = sections;
-    listData->sectionCount = count;
-    listData->headerHeight = screen_get_font_height(0.5f) + SECTION_HEADER_PAD;
+    listData->jumps = sections;
+    listData->jumpCount = count;
+
+    if(listData->sectionHeaders) {
+        listData->sections = sections;
+        listData->sectionCount = count;
+        listData->headerHeight = screen_get_font_height(0.5f) + SECTION_HEADER_PAD;
+    }
 }
 
-// The last section starting at or before index.
-static u32 list_section_of_item(list_data* listData, u32 index) {
+// The last of count sections starting at or before index.
+static u32 list_find_section(const list_section* sections, u32 count, u32 index) {
     u32 low = 0;
-    u32 high = listData->sectionCount - 1;
+    u32 high = count - 1;
     while(low < high) {
         u32 mid = (low + high + 1) / 2;
-        if(listData->sections[mid].start <= index) {
+        if(sections[mid].start <= index) {
             low = mid;
         } else {
             high = mid - 1;
@@ -206,6 +258,10 @@ static u32 list_section_of_item(list_data* listData, u32 index) {
     }
 
     return low;
+}
+
+static u32 list_section_of_item(list_data* listData, u32 index) {
+    return list_find_section(listData->sections, listData->sectionCount, index);
 }
 
 // The section holding item row row. Every section has at least one row, so rowsBefore only increases.
@@ -470,7 +526,32 @@ static void list_drag_scroll_bar(list_data* listData, float touchY, float y1, fl
     }
 }
 
-static void list_update_touch(list_data* listData, float bx2, float by1, float by2, bool* selectedTouched) {
+// The item under touch x in row: its grid cell, or the row's item in a one-column layout. False on a
+// grid's margins and on the empty cells of a section's short last row.
+static bool list_item_at_x(list_data* listData, u32 row, float x, float x1, float x2, u32* index) {
+    u32 column = 0;
+    if(listData->style == LIST_STYLE_GRID) {
+        float gridX = 0;
+        float cellWidth = 0;
+        list_grid_cells(listData, x1, x2, &gridX, &cellWidth);
+        if(x < gridX || x >= gridX + cellWidth * list_columns(listData)) {
+            return false;
+        }
+
+        column = (u32) ((x - gridX) / cellWidth);
+    }
+
+    u32 section = list_section_of_row(listData, row);
+    u32 item = listData->sections[section].start + (row - listData->sections[section].rowsBefore) * list_columns(listData) + column;
+    if(item >= list_section_end(listData, section)) {
+        return false;
+    }
+
+    *index = item;
+    return true;
+}
+
+static void list_update_touch(list_data* listData, float bx1, float bx2, float by1, float by2, bool* selectedTouched) {
     float viewSize = by2 - by1;
     u64 now = osGetTime();
 
@@ -486,8 +567,8 @@ static void list_update_touch(list_data* listData, float bx2, float by1, float b
         u32 scrollBarWidth = 0;
         screen_get_texture_size(&scrollBarWidth, NULL, TEXTURE_SCROLL_BAR);
 
-        // Top-screen layouts: the rows are not under the stylus, so the bottom screen only scrolls.
-        bool rowsUnderTouch = listData->layout == LIST_LAYOUT_BOTTOM;
+        // Rows on the top screen are not under the stylus, so the bottom screen only scrolls.
+        bool rowsUnderTouch = !listData->rowsOnTop;
 
         float barY = 0;
         float barHeight = 0;
@@ -505,7 +586,7 @@ static void list_update_touch(list_data* listData, float bx2, float by1, float b
             u32 row = 0;
             if(rowsUnderTouch && !catching && pos.py >= by1 && pos.py < by2
                && list_row_at_y(listData, listData->scrollPos + (pos.py - by1), &row)) {
-                index = list_row_item(listData, row, 0);
+                list_item_at_x(listData, row, pos.px, bx1, bx2, &index);
             }
 
             list_item* touched = index < linked_list_size(&listData->items) ? linked_list_get(&listData->items, index) : NULL;
@@ -626,6 +707,26 @@ static void list_step_rows(list_data* listData, int step, u32 size) {
     }
 }
 
+// Section keys (list_set_section_keys) over the label's sections, whether headers show or not.
+static void list_jump_section(list_data* listData, int direction, u32 size) {
+    u32 index = listData->selectedIndex;
+    if(listData->jumpCount == 1) {
+        listData->selectedIndex = direction > 0 ? size - 1 : 0;
+        return;
+    }
+
+    u32 section = list_find_section(listData->jumps, listData->jumpCount, index);
+    if(direction > 0) {
+        if(section + 1 < listData->jumpCount) {
+            listData->selectedIndex = listData->jumps[section + 1].start;
+        }
+    } else if(index > listData->jumps[section].start) {
+        listData->selectedIndex = listData->jumps[section].start;
+    } else if(section > 0) {
+        listData->selectedIndex = listData->jumps[section - 1].start;
+    }
+}
+
 static void list_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     list_data* listData = (list_data*) data;
 
@@ -650,8 +751,8 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
     if(size > 0) {
         // Text rows only: an icon list name would scroll over its icon, and the info screen shows it whole.
         bool scrolls = false;
-        if(listData->selectedItem != NULL && (listData->layout == LIST_LAYOUT_BOTTOM || listData->layout == LIST_LAYOUT_TOP)) {
-            float rowWidth = listData->layout == LIST_LAYOUT_TOP ? TOP_SCREEN_WIDTH : bx2 - bx1;
+        if(listData->selectedItem != NULL && listData->style == LIST_STYLE_TEXT) {
+            float rowWidth = listData->rowsOnTop ? TOP_SCREEN_WIDTH : bx2 - bx1;
 
             float itemWidth;
             screen_get_string_size(&itemWidth, NULL, listData->selectedItem->name, 0.5f, 0.5f);
@@ -678,25 +779,24 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
 
         u32 lastSelectedIndex = listData->selectedIndex;
 
-        // A page is the rows that fit on screen: 13 text rows, 5 or 4 icon list rows.
+        // A page is the rows that fit on screen: 13 text rows, 8, 5, or 4 icon list rows.
         int pageRows = (int) ((by2 - by1) / list_row_height(listData));
         if(pageRows < 1) {
             pageRows = 1;
         }
 
-        // Paging moves by a page in the same column (sections can end in a short row).
-        if(listData->paging) {
+        if(listData->sectionKeys) {
             if(list_key_fires(listData, KEY_R)) {
-                list_step_rows(listData, pageRows, size);
+                list_jump_section(listData, 1, size);
             }
 
             if(list_key_fires(listData, KEY_L)) {
-                list_step_rows(listData, -pageRows, size);
+                list_jump_section(listData, -1, size);
             }
         }
 
         // Grid: up and down move by rows; left and right by items.
-        if(listData->layout == LIST_LAYOUT_GRID) {
+        if(listData->style == LIST_STYLE_GRID) {
             if(list_key_fires(listData, KEY_DOWN)) {
                 list_step_rows(listData, 1, size);
             }
@@ -732,7 +832,7 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
 
         // A touch that started on one of the view's buttons belongs to the button.
         if(!view->buttonTouch) {
-            list_update_touch(listData, bx2, by1, by2, &selectedTouched);
+            list_update_touch(listData, bx1, bx2, by1, by2, &selectedTouched);
         }
 
         if(listData->selectedIndex != lastSelectedIndex) {
@@ -793,17 +893,13 @@ static u32 list_item_icon(list_data* listData, list_item* item, u32 iconSize, u3
 }
 
 static void list_draw_grid(list_data* listData, float x1, float y1, float x2, float y2) {
-    u32 scrollBarWidth = 0;
-    screen_get_texture_size(&scrollBarWidth, NULL, TEXTURE_SCROLL_BAR);
-
     u32 iconSize = list_grid_sizes[listData->zoom].icon;
-    u32 columns = list_grid_sizes[listData->zoom].columns;
+    u32 columns = list_columns(listData);
     u32 rowHeight = list_grid_sizes[listData->zoom].rowHeight;
 
-    // Whole-pixel cells, centered in the space left of the scroll bar.
-    float gridWidth = x2 - x1 - scrollBarWidth;
-    float cellWidth = (float) (u32) (gridWidth / columns);
-    float gridX = x1 + (float) (u32) ((gridWidth - cellWidth * columns) / 2);
+    float gridX = 0;
+    float cellWidth = 0;
+    list_grid_cells(listData, x1, x2, &gridX, &cellWidth);
 
     linked_list_iter iter;
     linked_list_iterate(&listData->items, &iter);
@@ -871,7 +967,7 @@ static void list_draw_icon_row(list_data* listData, list_item* item, float x, fl
     // Keeps the first maxLines lines of the detail text.
     char detail[ICON_LIST_DETAIL_MAX] = "";
     u32 lines = 0;
-    if(listData->itemDetail != NULL) {
+    if(listData->itemDetail != NULL && maxLines > 0) {
         listData->itemDetail(item, detail, sizeof(detail));
 
         char* line = detail;
@@ -909,7 +1005,7 @@ static void list_draw_rows(list_data* listData, float x1, float y1, float x2, fl
         return;
     }
 
-    if(listData->layout == LIST_LAYOUT_GRID) {
+    if(listData->style == LIST_STYLE_GRID) {
         list_draw_grid(listData, x1, y1, x2, y2);
         return;
     }
@@ -950,7 +1046,7 @@ static void list_draw_rows(list_data* listData, float x1, float y1, float x2, fl
                 screen_draw_texture(TEXTURE_SELECTION_OVERLAY, x1, y, x2 - x1, rowHeight);
             }
 
-            if(listData->layout == LIST_LAYOUT_ICON_LIST) {
+            if(listData->style == LIST_STYLE_ICON_LIST) {
                 list_draw_icon_row(listData, item, x1, y);
             } else {
                 float x = x1 + 2;
@@ -980,22 +1076,22 @@ static void list_draw_info(ui_view* view, list_data* listData, float x1, float y
 static void list_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     list_data* listData = (list_data*) data;
 
-    if(listData->layout == LIST_LAYOUT_BOTTOM) {
-        list_draw_info(view, listData, x1, y1, x2, y2);
-    } else {
+    if(listData->rowsOnTop) {
         list_validate(listData, y1, y2);
         list_draw_rows(listData, x1, y1, x2, y2);
+    } else {
+        list_draw_info(view, listData, x1, y1, x2, y2);
     }
 }
 
 static void list_draw_bottom(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     list_data* listData = (list_data*) data;
 
-    if(listData->layout == LIST_LAYOUT_BOTTOM) {
+    if(listData->rowsOnTop) {
+        list_draw_info(view, listData, x1, y1, x2, y2);
+    } else {
         list_validate(listData, y1, y2);
         list_draw_rows(listData, x1, y1, x2, y2);
-    } else {
-        list_draw_info(view, listData, x1, y1, x2, y2);
     }
 }
 
@@ -1031,12 +1127,15 @@ ui_view* list_display(const char* name, const char* info, void* data, void (*upd
     listData->dragVelocity = 0;
     listData->scrollVelocity = 0;
     listData->lastScrollTime = 0;
-    listData->layout = LIST_LAYOUT_BOTTOM;
-    listData->zoom = LIST_ZOOM_DEFAULT;
+    listData->style = LIST_STYLE_TEXT;
+    listData->rowsOnTop = false;
+    listData->zoom = 0;
     listData->itemIcon = NULL;
     listData->itemDetail = NULL;
     listData->sections = &listData->single;
     listData->sectionCount = 1;
+    listData->jumps = &listData->single;
+    listData->jumpCount = 1;
     listData->sectionsDirty = true;
     listData->update = update;
     listData->drawTop = drawTop;
@@ -1053,24 +1152,30 @@ ui_view* list_display(const char* name, const char* info, void* data, void (*upd
     return view;
 }
 
-void list_set_layout(ui_view* view, list_layout layout, u32 (*itemIcon)(list_item* item),
+void list_set_layout(ui_view* view, list_style style, bool rowsOnTop, u32 (*itemIcon)(list_item* item),
                      void (*itemDetail)(list_item* item, char* out, size_t size)) {
     list_data* listData = (list_data*) view->data;
 
-    listData->layout = layout;
+    // Zoom levels belong to a style; the caller sets the new style's level next.
+    if(listData->style != style) {
+        listData->zoom = list_zoom_default(style);
+    }
+
+    listData->style = style;
+    listData->rowsOnTop = rowsOnTop;
     listData->itemIcon = itemIcon;
     listData->itemDetail = itemDetail;
     list_reset_scroll(listData);
 }
 
-void list_set_paging(ui_view* view, bool paging) {
-    ((list_data*) view->data)->paging = paging;
+void list_set_section_keys(ui_view* view, bool sectionKeys) {
+    ((list_data*) view->data)->sectionKeys = sectionKeys;
 }
 
 void list_set_zoom(ui_view* view, u32 zoom) {
     list_data* listData = (list_data*) view->data;
 
-    listData->zoom = zoom < LIST_ZOOM_COUNT ? zoom : LIST_ZOOM_DEFAULT;
+    listData->zoom = zoom < list_zoom_count(listData->style) ? zoom : list_zoom_default(listData->style);
     list_reset_scroll(listData);
 }
 
@@ -1086,11 +1191,12 @@ void list_set_loading(ui_view* view, bool loading) {
     list_reset_scroll(listData);
 }
 
-void list_set_sections(ui_view* view, void (*label)(void* data, list_item* item, char* out, size_t size)) {
+void list_set_sections(ui_view* view, void (*label)(void* data, list_item* item, char* out, size_t size), bool headers) {
     list_data* listData = (list_data*) view->data;
 
-    if(listData->sectionLabel != label) {
+    if(listData->sectionLabel != label || listData->sectionHeaders != headers) {
         listData->sectionLabel = label;
+        listData->sectionHeaders = headers;
         listData->sectionsDirty = true;
     }
 }

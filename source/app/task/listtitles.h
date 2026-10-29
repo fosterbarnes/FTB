@@ -34,6 +34,9 @@ typedef struct populate_titles_data_s {
 
     void* userData;
     bool (*filter)(void* data, u64 titleId, FS_MediaType mediaType);
+    // True leaves a loaded title out of items (NULL shows all). Unlike filter, the title still counts
+    // as loaded and still goes into the cache, so hiding never stops cache writes.
+    bool (*hide)(void* data, u64 titleId);
     int (*compare)(void* data, const void* p1, const void* p2);
     title_cache_mode cacheMode;
 

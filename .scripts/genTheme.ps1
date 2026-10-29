@@ -106,6 +106,8 @@ newIcon 'icon_layout_grid' ($screens + @(@(2, 2, 2, 2), @(5, 2, 2, 2), @(9, 2, 2
 newIcon 'icon_layout_top' ($screens + @(@(2, 2, 10, 1), @(2, 4, 12, 1), @(2, 6, 8, 1)))
 newIcon 'icon_layout_bottom' ($screens + @(@(5, 12, 6, 1), @(5, 14, 4, 1)))
 newIcon 'icon_layout_icon_list' ($screens + @(@(2, 2, 2, 2), @(5, 2, 8, 1), @(2, 5, 2, 2), @(5, 5, 6, 1)))
+newIcon 'icon_layout_grid_bottom' ($screens + @(@(5, 12, 2, 2), @(9, 12, 2, 2)))
+newIcon 'icon_layout_icon_list_bottom' ($screens + @(@(5, 12, 1, 1), @(7, 12, 4, 1), @(5, 14, 1, 1), @(7, 14, 3, 1)))
 
 # Wifi bars ship black and vanish on dark bars; recolor near-black to white.
 foreach ($name in 'wifi0', 'wifi1', 'wifi2', 'wifi3', 'wifi_disconnected') {

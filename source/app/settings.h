@@ -8,21 +8,23 @@ typedef struct ftb_settings_s {
     bool systemChanges; // safety.h: system title, ticket, save, and NAND changes allowed
 
     // Title Manager view, changed from its Options menu and touch buttons.
-    u8 titleLayout; // title_layout
-    u8 titleGridSize; // grid zoom, 0 .. LIST_ZOOM_COUNT - 1
-    u8 titleIconListSize; // icon list zoom, 0 .. LIST_ZOOM_COUNT - 1
+    u8 titleStyle; // title_style
+    bool titleBottom; // rows on the bottom screen instead of the top
+    u8 titleGridSize; // grid zoom, 0 .. LIST_GRID_ZOOM_COUNT - 1
+    u8 titleIconListZoom; // icon list zoom, 0 .. LIST_ICON_LIST_ZOOM_COUNT - 1
     u8 titleSort; // title_sort
     bool titleSortDesc;
     bool titleHeaders; // section headers over the list
+    bool titleHideSystem; // safety_is_system_title titles left out of the list
 } ftb_settings;
 
-typedef enum title_layout_e {
-    TITLE_LAYOUT_GRID,
-    TITLE_LAYOUT_LIST_TOP,
-    TITLE_LAYOUT_LIST_BOTTOM,
-    TITLE_LAYOUT_ICON_LIST, // last: settings.cfg stores the value
-    TITLE_LAYOUT_COUNT
-} title_layout;
+// settings.cfg stores the value: append new styles only.
+typedef enum title_style_e {
+    TITLE_STYLE_GRID,
+    TITLE_STYLE_LIST,
+    TITLE_STYLE_ICON_LIST,
+    TITLE_STYLE_COUNT
+} title_style;
 
 typedef enum title_sort_e {
     TITLE_SORT_NAME,

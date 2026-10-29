@@ -102,6 +102,8 @@ static const struct {
     {TEXTURE_ICON_LAYOUT_TOP, "icon_layout_top.png"},
     {TEXTURE_ICON_LAYOUT_BOTTOM, "icon_layout_bottom.png"},
     {TEXTURE_ICON_LAYOUT_ICON_LIST, "icon_layout_icon_list.png"},
+    {TEXTURE_ICON_LAYOUT_GRID_BOTTOM, "icon_layout_grid_bottom.png"},
+    {TEXTURE_ICON_LAYOUT_ICON_LIST_BOTTOM, "icon_layout_icon_list_bottom.png"},
 };
 
 #define RESOURCES_COUNT(table) (sizeof(table) / sizeof(table[0]))

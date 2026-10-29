@@ -14,9 +14,9 @@
 
 static ftb_settings settings = {
         .titleCache = true,
-        .titleLayout = TITLE_LAYOUT_GRID,
-        .titleGridSize = LIST_ZOOM_DEFAULT,
-        .titleIconListSize = LIST_ZOOM_DEFAULT,
+        .titleStyle = TITLE_STYLE_GRID,
+        .titleGridSize = LIST_GRID_ZOOM_DEFAULT,
+        .titleIconListZoom = LIST_ICON_LIST_ZOOM_DEFAULT,
         .titleSort = TITLE_SORT_NAME,
         .titleHeaders = true,
 };
@@ -32,6 +32,8 @@ static const struct {
         {"titleSortDesc", &settings.titleSortDesc},
         {"titleHeaders", &settings.titleHeaders},
         {"systemChanges", &settings.systemChanges},
+        {"titleBottom", &settings.titleBottom},
+        {"titleHideSystem", &settings.titleHideSystem},
 };
 
 // Choice settings stored as key=N, N below count; anything else keeps the default.
@@ -40,9 +42,11 @@ static const struct {
     u8* value;
     u8 count;
 } settings_choices[] = {
-        {"titleLayout", &settings.titleLayout, TITLE_LAYOUT_COUNT},
-        {"titleGridSize", &settings.titleGridSize, LIST_ZOOM_COUNT},
-        {"titleIconListSize", &settings.titleIconListSize, LIST_ZOOM_COUNT},
+        // New keys, not new meanings: old titleLayout (4 layouts) and titleIconListSize (2 levels)
+        // values would read as the wrong style and zoom, so they are dropped on the next save.
+        {"titleStyle", &settings.titleStyle, TITLE_STYLE_COUNT},
+        {"titleGridSize", &settings.titleGridSize, LIST_GRID_ZOOM_COUNT},
+        {"titleIconListZoom", &settings.titleIconListZoom, LIST_ICON_LIST_ZOOM_COUNT},
         {"titleSort", &settings.titleSort, TITLE_SORT_COUNT},
 };
 

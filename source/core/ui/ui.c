@@ -198,6 +198,13 @@ static void ui_draw_top(ui_view* ui) {
     float wifiY = topScreenTopBarY + (topScreenTopBarHeight - wifiHeight) / 2;
     screen_draw_texture(ui_wifi_icon, wifiX, wifiY, wifiWidth, wifiHeight);
 
+    // Same 2 px margin as the battery on the right.
+    if(ui->topBarText != NULL) {
+        float topBarTextHeight;
+        screen_get_string_size(NULL, &topBarTextHeight, ui->topBarText, 0.5f, 0.5f);
+        screen_draw_string(ui->topBarText, topScreenTopBarX + 2, topScreenTopBarY + (topScreenTopBarHeight - topBarTextHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
+    }
+
     // Date and time order follow the Settings formats (default 10/27/26 11:16 PM).
     const ftb_settings* settings = settings_get();
     time_t t = time(NULL);
@@ -318,7 +325,8 @@ static void ui_draw_bottom(ui_view* ui) {
         float nameWidth;
         float nameHeight;
         screen_get_string_size(&nameWidth, &nameHeight, ui->name, 0.5f, 0.5f);
-        screen_draw_string(ui->name, (BOTTOM_SCREEN_WIDTH - nameWidth) / 2, (bottomScreenTopBarHeight - nameHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
+        float nameX = ui->nameLeft ? 2 : (BOTTOM_SCREEN_WIDTH - nameWidth) / 2;
+        screen_draw_string(ui->name, nameX, (bottomScreenTopBarHeight - nameHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
     }
 
     if(ui->info != NULL) {

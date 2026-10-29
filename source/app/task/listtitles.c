@@ -67,6 +67,11 @@ typedef struct title_pass_s {
 } title_pass;
 
 static Result task_populate_titles_add_record(populate_titles_data* data, FS_MediaType mediaType, const title_record* record) {
+    if(data->hide != NULL && data->hide(data->userData, record->titleId)) {
+        data->loaded++;
+        return 0;
+    }
+
     list_item* item = (list_item*) calloc(1, sizeof(list_item));
     if(item == NULL) {
         return R_APP_OUT_OF_MEMORY;

@@ -31,6 +31,8 @@ $TEXT_COLORS = [ordered]@{
     ticketinuse = '#4CAF50'; ticketnotinuse = '#F44336'
     # FTP log levels, after ftpd's red, green, and cyan.
     ftperror = '#F44336'; ftpcommand = '#4CAF50'; ftpresponse = '#26C6DA'
+    # Secondary text: Title Manager icon list detail lines.
+    textdim = '#9E9E9E'
 }
 
 function invokeMagick { runNativeCommand magick $args 'magick' }
@@ -101,6 +103,7 @@ newIcon 'icon_layout_grid' ($screens + @(@(2, 2, 2, 2), @(5, 2, 2, 2), @(9, 2, 2
     @(2, 5, 2, 2), @(5, 5, 2, 2), @(9, 5, 2, 2), @(12, 5, 2, 2)))
 newIcon 'icon_layout_top' ($screens + @(@(2, 2, 10, 1), @(2, 4, 12, 1), @(2, 6, 8, 1)))
 newIcon 'icon_layout_bottom' ($screens + @(@(5, 12, 6, 1), @(5, 14, 4, 1)))
+newIcon 'icon_layout_icon_list' ($screens + @(@(2, 2, 2, 2), @(5, 2, 8, 1), @(2, 5, 2, 2), @(5, 5, 6, 1)))
 
 # Wifi bars ship black and vanish on dark bars; recolor near-black to white.
 foreach ($name in 'wifi0', 'wifi1', 'wifi2', 'wifi3', 'wifi_disconnected') {

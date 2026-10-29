@@ -12,17 +12,20 @@
 #include "../core/core.h"
 
 // Title Manager: FTB's title list. Layout, zoom, sort, and headers live in settings (titleLayout
-// etc.) and change from Options, X (sort), or the bottom-left touch buttons (sort, layout, grid zoom). L and R page. FBI's original screen stays in titles.c as FBI Legacy > Titles.
+// etc.) and change from Options, X (sort), or the bottom-left touch buttons (sort, layout, zoom in Grid
+// and Icon list). L and R page. FBI's original screen stays in titles.c as FBI Legacy > Titles.
 
 #define TITLEMANAGER_INFO "A: Select, B: Return, X: Sort, L/R: Page, Select: Options"
 
 // Touch buttons, bottom-left of the bottom screen in every layout (clear of List bottom's scroll bar):
 //   [Zoom]
 //   [Layout][Sort]
-// Zoom shows in the grid only.
+// Zoom shows in Grid and Icon list only.
 #define TITLEMANAGER_BUTTON_GAP 3
 #define TITLEMANAGER_BUTTON_LEFT 4
 #define TITLEMANAGER_BUTTON_BOTTOM 4
+// List bottom draws the buttons over the rows, so the names under them show through.
+#define TITLEMANAGER_BUTTON_LIST_ALPHA 0xC0
 
 enum {
     BUTTON_SORT,
@@ -52,10 +55,11 @@ typedef struct {
     char name[64]; // view name: current sort and order
 } titlemanager_data;
 
-static const list_layout titlemanager_layouts[TITLE_LAYOUT_COUNT] = {LIST_LAYOUT_GRID, LIST_LAYOUT_TOP, LIST_LAYOUT_BOTTOM};
-static const char* const titlemanager_layout_names[TITLE_LAYOUT_COUNT] = {"Grid", "List top", "List bottom"};
+static const list_layout titlemanager_layouts[TITLE_LAYOUT_COUNT] = {LIST_LAYOUT_GRID, LIST_LAYOUT_TOP, LIST_LAYOUT_BOTTOM, LIST_LAYOUT_ICON_LIST};
+static const char* const titlemanager_layout_names[TITLE_LAYOUT_COUNT] = {"Grid", "List top", "List bottom", "Icon list"};
 // The Layout button shows the current layout.
-static const u32 titlemanager_layout_icons[TITLE_LAYOUT_COUNT] = {TEXTURE_ICON_LAYOUT_GRID, TEXTURE_ICON_LAYOUT_TOP, TEXTURE_ICON_LAYOUT_BOTTOM};
+static const u32 titlemanager_layout_icons[TITLE_LAYOUT_COUNT] = {TEXTURE_ICON_LAYOUT_GRID, TEXTURE_ICON_LAYOUT_TOP, TEXTURE_ICON_LAYOUT_BOTTOM,
+                                                                  TEXTURE_ICON_LAYOUT_ICON_LIST};
 static const char* const titlemanager_sort_names[TITLE_SORT_COUNT] = {"Name", "Title ID"};
 
 // Section headers for Title ID sort: the title ID high word, with its usual name.
@@ -96,6 +100,36 @@ static u32 titlemanager_item_icon(list_item* item) {
     return info != NULL && info->hasMeta ? info->meta.texture : 0;
 }
 
+// Icon list detail lines: publisher, then media, size, and version.
+static void titlemanager_item_detail(list_item* item, char* out, size_t size) {
+    const title_info* info = (const title_info*) item->data;
+    if(info == NULL) {
+        out[0] = '\0';
+        return;
+    }
+
+    if(!info->hasMeta) {
+        snprintf(out, size, "Title ID %016llX", info->titleId);
+        return;
+    }
+
+    snprintf(out, size, "%s\n%s, %.2f %s, v%d.%d.%d",
+             string_is_empty(info->meta.publisher) ? "Unknown publisher" : info->meta.publisher,
+             info->mediaType == MEDIATYPE_NAND ? "NAND" : info->mediaType == MEDIATYPE_SD ? "SD" : "Game Card",
+             ui_get_display_size(info->installedSize), ui_get_display_size_units(info->installedSize),
+             (info->version >> 10) & 0x3F, (info->version >> 4) & 0x3F, info->version & 0xF);
+}
+
+// Grid and Icon list zoom separately; the other layouts have no zoom and use the grid's.
+static u8* titlemanager_zoom(ftb_settings* settings) {
+    return settings->titleLayout == TITLE_LAYOUT_ICON_LIST ? &settings->titleIconListSize : &settings->titleGridSize;
+}
+
+static u8 titlemanager_current_zoom() {
+    ftb_settings settings = *settings_get();
+    return *titlemanager_zoom(&settings);
+}
+
 // Icons follow the settings: the Layout icon shows the current layout, Zoom what a tap does.
 static void titlemanager_update_buttons(titlemanager_data* data) {
     const ftb_settings* settings = settings_get();
@@ -106,19 +140,21 @@ static void titlemanager_update_buttons(titlemanager_data* data) {
     float left = TITLEMANAGER_BUTTON_LEFT;
     float bottom = BOTTOM_SCREEN_HEIGHT - barHeight - TITLEMANAGER_BUTTON_BOTTOM - UI_BUTTON_SIZE;
     float step = UI_BUTTON_SIZE + TITLEMANAGER_BUTTON_GAP;
-    u32 zoomIcon = settings->titleGridSize == 0 ? TEXTURE_ICON_ZOOM_IN : TEXTURE_ICON_ZOOM_OUT;
+    u32 zoomIcon = titlemanager_current_zoom() == 0 ? TEXTURE_ICON_ZOOM_IN : TEXTURE_ICON_ZOOM_OUT;
+    bool zooms = settings->titleLayout == TITLE_LAYOUT_GRID || settings->titleLayout == TITLE_LAYOUT_ICON_LIST;
 
     data->buttons[BUTTON_SORT] = (ui_button) {TEXTURE_ICON_SORT, left + step, bottom};
     data->buttons[BUTTON_LAYOUT] = (ui_button) {titlemanager_layout_icons[settings->titleLayout], left, bottom};
     data->buttons[BUTTON_ZOOM] = (ui_button) {zoomIcon, left, bottom - step};
 
     data->view->buttons = data->buttons;
-    data->view->buttonCount = settings->titleLayout == TITLE_LAYOUT_GRID ? BUTTON_COUNT : BUTTON_ZOOM;
+    data->view->buttonAlpha = settings->titleLayout == TITLE_LAYOUT_LIST_BOTTOM ? TITLEMANAGER_BUTTON_LIST_ALPHA : 0xFF;
+    data->view->buttonCount = zooms ? BUTTON_COUNT : BUTTON_ZOOM;
 }
 
 static void titlemanager_apply_layout(titlemanager_data* data) {
-    list_set_layout(data->view, titlemanager_layouts[settings_get()->titleLayout], titlemanager_item_icon);
-    list_set_grid_size(data->view, settings_get()->titleGridSize);
+    list_set_layout(data->view, titlemanager_layouts[settings_get()->titleLayout], titlemanager_item_icon, titlemanager_item_detail);
+    list_set_zoom(data->view, titlemanager_current_zoom());
     titlemanager_update_buttons(data);
 }
 
@@ -136,7 +172,7 @@ static void titlemanager_save(const ftb_settings* next) {
     }
 }
 
-// The Layout button and the Layout row in Options: Grid -> List top -> List bottom.
+// The Layout button and the Layout row in Options: Grid -> List top -> List bottom -> Icon list.
 static void titlemanager_cycle_layout(titlemanager_data* data) {
     ftb_settings next = *settings_get();
     next.titleLayout = (u8) ((next.titleLayout + 1) % TITLE_LAYOUT_COUNT);
@@ -145,13 +181,15 @@ static void titlemanager_cycle_layout(titlemanager_data* data) {
     titlemanager_apply_layout(data);
 }
 
-// The Zoom button (grid only): next zoom level, back to the smallest after the largest.
-static void titlemanager_cycle_grid_size(titlemanager_data* data) {
+// The Zoom button (Grid and Icon list): the layout's next zoom level, back to the smallest after the
+// largest.
+static void titlemanager_cycle_zoom(titlemanager_data* data) {
     ftb_settings next = *settings_get();
-    next.titleGridSize = (u8) ((next.titleGridSize + 1) % LIST_GRID_SIZE_COUNT);
+    u8* zoom = titlemanager_zoom(&next);
+    *zoom = (u8) ((*zoom + 1) % LIST_ZOOM_COUNT);
 
     titlemanager_save(&next);
-    list_set_grid_size(data->view, next.titleGridSize);
+    list_set_zoom(data->view, *zoom);
     titlemanager_update_buttons(data);
 }
 
@@ -365,7 +403,7 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
     }
 
     if(view->buttonActivated == BUTTON_ZOOM) {
-        titlemanager_cycle_grid_size(tmData);
+        titlemanager_cycle_zoom(tmData);
         return;
     }
 

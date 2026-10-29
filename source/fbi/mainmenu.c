@@ -16,6 +16,7 @@ static list_item titles = {"Title Manager", COLOR_TEXT, titlemanager_open};
 static list_item ftp_server = {"FTP Server", COLOR_TEXT, ftp_open};
 // Same screen as FBI Legacy > SD until the SD File Browser gets its own features.
 static list_item file_browser = {"SD File Browser", COLOR_TEXT, files_open_sd};
+static list_item remote_install = {"Remote Install", COLOR_TEXT, remoteinstall_open};
 // Sets FBI Legacy, Update, and Settings apart from the main tools.
 static list_item spacer = {"", COLOR_TEXT, NULL, true};
 static list_item fbi_legacy = {"FBI Legacy", COLOR_TEXT, mainmenu_legacy_open};
@@ -34,7 +35,6 @@ static list_item pending_titles = {"Pending Titles", COLOR_TEXT, pendingtitles_o
 static list_item tickets = {"Tickets", COLOR_TEXT, tickets_open};
 static list_item ext_save_data = {"Ext Save Data", COLOR_TEXT, extsavedata_open};
 static list_item system_save_data = {"System Save Data", COLOR_TEXT, systemsavedata_open};
-static list_item remote_install = {"Remote Install", COLOR_TEXT, remoteinstall_open};
 
 static void mainmenu_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
     u32 logoWidth;
@@ -60,8 +60,9 @@ static void mainmenu_update(ui_view* view, void* data, linked_list* items, list_
     if(linked_list_size(items) == 0) {
         linked_list_add(items, &cia_installer);
         linked_list_add(items, &titles);
-        linked_list_add(items, &ftp_server);
         linked_list_add(items, &file_browser);
+        linked_list_add(items, &ftp_server);
+        linked_list_add(items, &remote_install);
         linked_list_add(items, &spacer);
         linked_list_add(items, &fbi_legacy);
         linked_list_add(items, &update);
@@ -94,7 +95,6 @@ static void mainmenu_legacy_update(ui_view* view, void* data, linked_list* items
         linked_list_add(items, &tickets);
         linked_list_add(items, &ext_save_data);
         linked_list_add(items, &system_save_data);
-        linked_list_add(items, &remote_install);
     }
 }
 

@@ -16,7 +16,8 @@
 static ftb_settings settings = {
         .titleCache = true,
         .titleLayout = TITLE_LAYOUT_GRID,
-        .titleGridSize = LIST_GRID_SIZE_DEFAULT,
+        .titleGridSize = LIST_ZOOM_DEFAULT,
+        .titleIconListSize = LIST_ZOOM_DEFAULT,
         .titleSort = TITLE_SORT_NAME,
         .titleHeaders = true,
 };
@@ -40,7 +41,8 @@ static const struct {
     u8 count;
 } settings_choices[] = {
         {"titleLayout", &settings.titleLayout, TITLE_LAYOUT_COUNT},
-        {"titleGridSize", &settings.titleGridSize, LIST_GRID_SIZE_COUNT},
+        {"titleGridSize", &settings.titleGridSize, LIST_ZOOM_COUNT},
+        {"titleIconListSize", &settings.titleIconListSize, LIST_ZOOM_COUNT},
         {"titleSort", &settings.titleSort, TITLE_SORT_COUNT},
 };
 

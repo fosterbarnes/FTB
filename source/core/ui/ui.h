@@ -20,6 +20,7 @@ typedef struct ui_view_s {
     int buttonActivated;
     int buttonHeld; // drawn held; -1 once the touch leaves the button
     bool buttonTouch; // the current touch started on a button, so the view must ignore it
+    u8 buttonAlpha; // 0xFF (default) = opaque; scales with the view fade
     void* data;
     void (*update)(struct ui_view_s* view, void* data, float bx1, float by1, float bx2, float by2);
     void (*drawTop)(struct ui_view_s* view, void* data, float x1, float y1, float x2, float y2);

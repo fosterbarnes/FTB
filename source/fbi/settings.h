@@ -6,9 +6,10 @@ typedef struct ftb_settings_s {
     bool clock24h; // top bar clock: 24-hour instead of 12-hour
     bool dateDayFirst; // top bar date: DD/MM/YY instead of MM/DD/YY
 
-    // Title Manager view, changed from its Options menu.
+    // Title Manager view, changed from its Options menu and touch buttons.
     u8 titleLayout; // title_layout
-    u8 titleGridSize; // grid zoom, 0 .. LIST_GRID_SIZE_COUNT - 1
+    u8 titleGridSize; // grid zoom, 0 .. LIST_ZOOM_COUNT - 1
+    u8 titleIconListSize; // icon list zoom, 0 .. LIST_ZOOM_COUNT - 1
     u8 titleSort; // title_sort
     bool titleSortDesc;
     bool titleHeaders; // section headers over the list
@@ -18,6 +19,7 @@ typedef enum title_layout_e {
     TITLE_LAYOUT_GRID,
     TITLE_LAYOUT_LIST_TOP,
     TITLE_LAYOUT_LIST_BOTTOM,
+    TITLE_LAYOUT_ICON_LIST, // last: settings.cfg stores the value
     TITLE_LAYOUT_COUNT
 } title_layout;
 

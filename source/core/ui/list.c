@@ -22,11 +22,19 @@
 #define LOADING_DELAY_MS 200
 #define LOADING_DOT 8
 
+// Icons scale by icon edge / NATIVE_ICON from their native size (CTR 48, TWL 32), so every zoom level
+// keeps CTR and TWL icons in proportion.
+#define NATIVE_ICON 48
+
 // Grid layout: icon cells on the top screen. Per zoom level: icon edge, columns across the 390 px
-// left of the scroll bar, row height. Icons scale by icon / GRID_NATIVE_ICON (CTR 48, TWL 32 native),
-// and each cell leaves room for the selection ring.
-#define GRID_NATIVE_ICON 48
+// left of the scroll bar, row height. Each cell leaves room for the selection ring.
 #define GRID_SELECTION_BORDER 4
+
+// Icon list layout: per zoom level the icon edge, the row height (rows divide the 200 px content rect
+// evenly: 5 and 4 rows), and the detail lines under the name.
+#define ICON_LIST_PAD 4
+#define ICON_LIST_TEXT_GAP 6
+#define ICON_LIST_DETAIL_MAX 256
 
 // Section header: a text line, then 1 px gap, 1 px divider, 2 px gap. Same height in every layout.
 #define SECTION_HEADER_PAD 4
@@ -36,9 +44,18 @@ static const struct {
     u32 icon;
     u32 columns;
     u32 rowHeight;
-} list_grid_sizes[LIST_GRID_SIZE_COUNT] = {
+} list_grid_sizes[LIST_ZOOM_COUNT] = {
         {32, 9, 44},
         {48, 7, 64},
+};
+
+static const struct {
+    u32 icon;
+    u32 rowHeight;
+    u32 detailLines;
+} list_icon_list_sizes[LIST_ZOOM_COUNT] = {
+        {32, 40, 1},
+        {48, 50, 2},
 };
 
 enum {
@@ -71,8 +88,9 @@ typedef struct {
     u64 nextActionTime;
     list_layout layout;
     bool paging; // L and R page back and forward
-    u32 gridSize;
+    u32 zoom;
     u32 (*itemIcon)(list_item* item);
+    void (*itemDetail)(list_item* item, char* out, size_t size);
     bool loading;
     u64 loadingStart;
     // Sections. Without headers the list is one section with header height 0, which is the plain
@@ -93,13 +111,20 @@ typedef struct {
     void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected);
 } list_data;
 
-// A row layout is a grid with one column of font-height rows, so scroll math works in rows.
+// A row layout is a grid with one column, so scroll math works in rows.
 static u32 list_columns(list_data* listData) {
-    return listData->layout == LIST_LAYOUT_GRID ? list_grid_sizes[listData->gridSize].columns : 1;
+    return listData->layout == LIST_LAYOUT_GRID ? list_grid_sizes[listData->zoom].columns : 1;
 }
 
 static float list_row_height(list_data* listData) {
-    return listData->layout == LIST_LAYOUT_GRID ? list_grid_sizes[listData->gridSize].rowHeight : screen_get_font_height(0.5f);
+    switch(listData->layout) {
+        case LIST_LAYOUT_GRID:
+            return list_grid_sizes[listData->zoom].rowHeight;
+        case LIST_LAYOUT_ICON_LIST:
+            return list_icon_list_sizes[listData->zoom].rowHeight;
+        default:
+            return screen_get_font_height(0.5f);
+    }
 }
 
 // Rebuilds the sections when the items, the column count, or the label callback changed. Runs at the
@@ -623,8 +648,9 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
 
     bool selectedTouched = false;
     if(size > 0) {
+        // Text rows only: an icon list name would scroll over its icon, and the info screen shows it whole.
         bool scrolls = false;
-        if(listData->selectedItem != NULL && listData->layout != LIST_LAYOUT_GRID) {
+        if(listData->selectedItem != NULL && (listData->layout == LIST_LAYOUT_BOTTOM || listData->layout == LIST_LAYOUT_TOP)) {
             float rowWidth = listData->layout == LIST_LAYOUT_TOP ? TOP_SCREEN_WIDTH : bx2 - bx1;
 
             float itemWidth;
@@ -652,13 +678,14 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
 
         u32 lastSelectedIndex = listData->selectedIndex;
 
-        // Paging moves by the rows that fit on screen, in the same column (sections can end in a short row).
-        if(listData->paging) {
-            int pageRows = (int) ((by2 - by1) / list_row_height(listData));
-            if(pageRows < 1) {
-                pageRows = 1;
-            }
+        // A page is the rows that fit on screen: 13 text rows, 5 or 4 icon list rows.
+        int pageRows = (int) ((by2 - by1) / list_row_height(listData));
+        if(pageRows < 1) {
+            pageRows = 1;
+        }
 
+        // Paging moves by a page in the same column (sections can end in a short row).
+        if(listData->paging) {
             if(list_key_fires(listData, KEY_R)) {
                 list_step_rows(listData, pageRows, size);
             }
@@ -695,11 +722,11 @@ static void list_update(ui_view* view, void* data, float bx1, float by1, float b
             }
 
             if(list_key_fires(listData, KEY_RIGHT)) {
-                list_step_items(listData, 13, size);
+                list_step_items(listData, pageRows, size);
             }
 
             if(list_key_fires(listData, KEY_LEFT)) {
-                list_step_items(listData, -13, size);
+                list_step_items(listData, -pageRows, size);
             }
         }
 
@@ -750,13 +777,28 @@ static void list_draw_header(list_data* listData, list_item* item, float x, floa
     screen_draw_texture(TEXTURE_SCROLL_BAR, x, y + listData->headerHeight - SECTION_HEADER_PAD + 1, width, 1);
 }
 
+// An item's icon texture, or the gray tile when it has none, and its drawn size for an icon edge of
+// iconSize (see NATIVE_ICON).
+static u32 list_item_icon(list_data* listData, list_item* item, u32 iconSize, u32* width, u32* height) {
+    u32 icon = listData->itemIcon != NULL ? listData->itemIcon(item) : 0;
+    u32 iconWidth = NATIVE_ICON;
+    u32 iconHeight = NATIVE_ICON;
+    if(icon != 0) {
+        screen_get_texture_size(&iconWidth, &iconHeight, icon);
+    }
+
+    *width = iconWidth * iconSize / NATIVE_ICON;
+    *height = iconHeight * iconSize / NATIVE_ICON;
+    return icon != 0 ? icon : TEXTURE_SCROLL_BAR;
+}
+
 static void list_draw_grid(list_data* listData, float x1, float y1, float x2, float y2) {
     u32 scrollBarWidth = 0;
     screen_get_texture_size(&scrollBarWidth, NULL, TEXTURE_SCROLL_BAR);
 
-    u32 iconSize = list_grid_sizes[listData->gridSize].icon;
-    u32 columns = list_grid_sizes[listData->gridSize].columns;
-    u32 rowHeight = list_grid_sizes[listData->gridSize].rowHeight;
+    u32 iconSize = list_grid_sizes[listData->zoom].icon;
+    u32 columns = list_grid_sizes[listData->zoom].columns;
+    u32 rowHeight = list_grid_sizes[listData->zoom].rowHeight;
 
     // Whole-pixel cells, centered in the space left of the scroll bar.
     float gridWidth = x2 - x1 - scrollBarWidth;
@@ -790,17 +832,9 @@ static void list_draw_grid(list_data* listData, float x1, float y1, float x2, fl
         if(y > y1 - rowHeight && y <= y2) {
             float x = gridX + offset % columns * cellWidth;
 
-            // Icons scale with the zoom level from their native size (CTR 48, TWL 32); a title without
-            // one gets a gray tile.
-            u32 icon = listData->itemIcon != NULL ? listData->itemIcon(item) : 0;
-            u32 iconWidth = GRID_NATIVE_ICON;
-            u32 iconHeight = GRID_NATIVE_ICON;
-            if(icon != 0) {
-                screen_get_texture_size(&iconWidth, &iconHeight, icon);
-            }
-
-            iconWidth = iconWidth * iconSize / GRID_NATIVE_ICON;
-            iconHeight = iconHeight * iconSize / GRID_NATIVE_ICON;
+            u32 iconWidth = 0;
+            u32 iconHeight = 0;
+            u32 icon = list_item_icon(listData, item, iconSize, &iconWidth, &iconHeight);
 
             // Whole-pixel offsets keep the selection ring the same width on every side.
             float iconX = x + (u32) ((cellWidth - iconWidth) / 2);
@@ -812,13 +846,57 @@ static void list_draw_grid(list_data* listData, float x1, float y1, float x2, fl
                                     iconWidth + GRID_SELECTION_BORDER * 2, iconHeight + GRID_SELECTION_BORDER * 2);
             }
 
-            screen_draw_texture(icon != 0 ? icon : TEXTURE_SCROLL_BAR, iconX, iconY, iconWidth, iconHeight);
+            screen_draw_texture(icon, iconX, iconY, iconWidth, iconHeight);
         }
 
         index++;
     }
 
     list_draw_scroll_bar(listData, x2, y1, y2);
+}
+
+// An icon list row whose top is at y: the icon, then the name over the detail lines the zoom level has
+// room for, the text block centered in the row.
+static void list_draw_icon_row(list_data* listData, list_item* item, float x, float y) {
+    u32 iconSize = list_icon_list_sizes[listData->zoom].icon;
+    u32 rowHeight = list_icon_list_sizes[listData->zoom].rowHeight;
+    u32 maxLines = list_icon_list_sizes[listData->zoom].detailLines;
+    float fontHeight = screen_get_font_height(0.5f);
+
+    u32 iconWidth = 0;
+    u32 iconHeight = 0;
+    u32 icon = list_item_icon(listData, item, iconSize, &iconWidth, &iconHeight);
+    screen_draw_texture(icon, x + ICON_LIST_PAD + (iconSize - iconWidth) / 2, y + (rowHeight - iconHeight) / 2, iconWidth, iconHeight);
+
+    // Keeps the first maxLines lines of the detail text.
+    char detail[ICON_LIST_DETAIL_MAX] = "";
+    u32 lines = 0;
+    if(listData->itemDetail != NULL) {
+        listData->itemDetail(item, detail, sizeof(detail));
+
+        char* line = detail;
+        while(*line != '\0' && lines < maxLines) {
+            lines++;
+
+            char* newline = strchr(line, '\n');
+            if(newline == NULL) {
+                break;
+            }
+
+            if(lines == maxLines) {
+                *newline = '\0';
+            }
+
+            line = newline + 1;
+        }
+    }
+
+    float textX = x + ICON_LIST_PAD + iconSize + ICON_LIST_TEXT_GAP;
+    float textY = y + (u32) ((rowHeight - (lines + 1) * fontHeight) / 2);
+    screen_draw_string(item->name, textX, textY, 0.5f, 0.5f, item->color, false);
+    if(lines > 0) {
+        screen_draw_string(detail, textX, textY + fontHeight, 0.5f, 0.5f, COLOR_TEXT_DIM, false);
+    }
 }
 
 static void list_draw_rows(list_data* listData, float x1, float y1, float x2, float y2) {
@@ -836,7 +914,7 @@ static void list_draw_rows(list_data* listData, float x1, float y1, float x2, fl
         return;
     }
 
-    float fontHeight = screen_get_font_height(0.5f);
+    float rowHeight = list_row_height(listData);
     float y = y1 - listData->scrollPos;
 
     u32 scrollBarWidth = 0;
@@ -866,21 +944,25 @@ static void list_draw_rows(list_data* listData, float x1, float y1, float x2, fl
 
         index++;
 
-        if(y > y1 - fontHeight && y <= y2) {
-            float x = x1 + 2;
-            if(item == listData->selectedItem) {
-                x -= listData->selectionScroll;
-            }
-
+        if(y > y1 - rowHeight && y <= y2) {
             // Overlay goes behind the text so an opaque selection fill keeps the row readable.
             if(item == listData->selectedItem) {
-                screen_draw_texture(TEXTURE_SELECTION_OVERLAY, x1, y, x2 - x1, fontHeight);
+                screen_draw_texture(TEXTURE_SELECTION_OVERLAY, x1, y, x2 - x1, rowHeight);
             }
 
-            screen_draw_string(item->name, x, y, 0.5f, 0.5f, item->color, true);
+            if(listData->layout == LIST_LAYOUT_ICON_LIST) {
+                list_draw_icon_row(listData, item, x1, y);
+            } else {
+                float x = x1 + 2;
+                if(item == listData->selectedItem) {
+                    x -= listData->selectionScroll;
+                }
+
+                screen_draw_string(item->name, x, y, 0.5f, 0.5f, item->color, true);
+            }
         }
 
-        y += fontHeight;
+        y += rowHeight;
     }
 
     list_draw_scroll_bar(listData, x2, y1, y2);
@@ -950,8 +1032,9 @@ ui_view* list_display(const char* name, const char* info, void* data, void (*upd
     listData->scrollVelocity = 0;
     listData->lastScrollTime = 0;
     listData->layout = LIST_LAYOUT_BOTTOM;
-    listData->gridSize = LIST_GRID_SIZE_DEFAULT;
+    listData->zoom = LIST_ZOOM_DEFAULT;
     listData->itemIcon = NULL;
+    listData->itemDetail = NULL;
     listData->sections = &listData->single;
     listData->sectionCount = 1;
     listData->sectionsDirty = true;
@@ -970,11 +1053,13 @@ ui_view* list_display(const char* name, const char* info, void* data, void (*upd
     return view;
 }
 
-void list_set_layout(ui_view* view, list_layout layout, u32 (*itemIcon)(list_item* item)) {
+void list_set_layout(ui_view* view, list_layout layout, u32 (*itemIcon)(list_item* item),
+                     void (*itemDetail)(list_item* item, char* out, size_t size)) {
     list_data* listData = (list_data*) view->data;
 
     listData->layout = layout;
     listData->itemIcon = itemIcon;
+    listData->itemDetail = itemDetail;
     list_reset_scroll(listData);
 }
 
@@ -982,10 +1067,10 @@ void list_set_paging(ui_view* view, bool paging) {
     ((list_data*) view->data)->paging = paging;
 }
 
-void list_set_grid_size(ui_view* view, u32 size) {
+void list_set_zoom(ui_view* view, u32 zoom) {
     list_data* listData = (list_data*) view->data;
 
-    listData->gridSize = size < LIST_GRID_SIZE_COUNT ? size : LIST_GRID_SIZE_DEFAULT;
+    listData->zoom = zoom < LIST_ZOOM_COUNT ? zoom : LIST_ZOOM_DEFAULT;
     list_reset_scroll(listData);
 }
 

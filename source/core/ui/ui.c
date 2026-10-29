@@ -63,6 +63,7 @@ ui_view* ui_create() {
 
     view->buttonActivated = -1;
     view->buttonHeld = -1;
+    view->buttonAlpha = 0xFF;
 
     return view;
 }
@@ -311,6 +312,8 @@ static void ui_draw_bottom(ui_view* ui) {
     if(ui->drawBottom != NULL) {
         ui->drawBottom(ui, ui->data, 0, bottomScreenTopBarHeight, BOTTOM_SCREEN_WIDTH, BOTTOM_SCREEN_HEIGHT - bottomScreenBottomBarHeight);
     }
+
+    screen_set_base_alpha((u8) (ui_fade_alpha * ui->buttonAlpha / 0xFF));
 
     for(u32 i = 0; i < ui->buttonCount; i++) {
         const ui_button* button = &ui->buttons[i];

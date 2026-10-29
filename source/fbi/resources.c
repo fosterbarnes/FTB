@@ -41,9 +41,11 @@ void resources_load() {
         return;
     }
 
-    // Themes made before the FTP screen have no ftp* keys; those log lines use the text color.
+    // Themes made before the FTP screen have no ftp* keys, and themes made before the icon list have no
+    // textdim key; those use the text color.
     u32 textColor = 0xFFFFFFFF;
     bool ftpColorSet[3] = {false, false, false};
+    bool textDimSet = false;
 
     char line[128];
     while(fgets(line, sizeof(line), fd) != NULL) {
@@ -84,6 +86,9 @@ void resources_load() {
         } else if(strcasecmp(key, "ftpresponse") == 0) {
             screen_set_color(COLOR_FTP_RESPONSE, color);
             ftpColorSet[2] = true;
+        } else if(strcasecmp(key, "textdim") == 0) {
+            screen_set_color(COLOR_TEXT_DIM, color);
+            textDimSet = true;
         }
     }
 
@@ -93,6 +98,10 @@ void resources_load() {
         if(!ftpColorSet[i]) {
             screen_set_color(COLOR_FTP_ERROR + i, textColor);
         }
+    }
+
+    if(!textDimSet) {
+        screen_set_color(COLOR_TEXT_DIM, textColor);
     }
 
     resources_load_texture(TEXTURE_BOTTOM_SCREEN_BG, "bottom_screen_bg.png");
@@ -133,4 +142,5 @@ void resources_load() {
     resources_load_texture(TEXTURE_ICON_LAYOUT_GRID, "icon_layout_grid.png");
     resources_load_texture(TEXTURE_ICON_LAYOUT_TOP, "icon_layout_top.png");
     resources_load_texture(TEXTURE_ICON_LAYOUT_BOTTOM, "icon_layout_bottom.png");
+    resources_load_texture(TEXTURE_ICON_LAYOUT_ICON_LIST, "icon_layout_icon_list.png");
 }

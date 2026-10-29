@@ -41,6 +41,7 @@ static list_item about_items[] = {
          "jansson: MIT\n"
          "zlib: zlib license\n"
          "quirc: ISC (Daniel Beer)\n"
+         "QR Code generator: MIT (Project Nayuki)\n"
          "stb_image: public domain"},
         {.name = "License", .color = COLOR_TEXT, .data =
          "FBI and FTB source: MIT\n"

@@ -14,6 +14,7 @@ static void mainmenu_legacy_open();
 static list_item cia_installer = {.name = "CIA Installer", .color = COLOR_TEXT, .data = ciainstaller_open};
 static list_item titles = {.name = "Title Manager", .color = COLOR_TEXT, .data = titlemanager_open};
 static list_item ftp_server = {.name = "FTP Server", .color = COLOR_TEXT, .data = ftp_open};
+static list_item receive = {.name = "Receive", .color = COLOR_TEXT, .data = receive_open};
 // Same screen as FBI Legacy > SD until the SD File Browser gets its own features.
 static list_item file_browser = {.name = "SD File Browser", .color = COLOR_TEXT, .data = files_open_sd};
 static list_item remote_install = {.name = "Remote Install", .color = COLOR_TEXT, .data = remoteinstall_open};
@@ -62,6 +63,7 @@ static void mainmenu_update(ui_view* view, void* data, linked_list* items, list_
         linked_list_add(items, &titles);
         linked_list_add(items, &file_browser);
         linked_list_add(items, &ftp_server);
+        linked_list_add(items, &receive);
         linked_list_add(items, &remote_install);
         linked_list_add(items, &spacer);
         linked_list_add(items, &fbi_legacy);

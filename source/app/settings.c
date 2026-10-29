@@ -34,6 +34,7 @@ static const struct {
         {"systemChanges", &settings.systemChanges},
         {"titleBottom", &settings.titleBottom},
         {"titleHideSystem", &settings.titleHideSystem},
+        {"receiveAutoAccept", &settings.receiveAutoAccept},
 };
 
 // Choice settings stored as key=N, N below count; anything else keeps the default.
@@ -141,6 +142,10 @@ static void settings_toggle_date_day_first() {
     settings_toggle(&settings.dateDayFirst);
 }
 
+static void settings_toggle_receive_auto_accept() {
+    settings_toggle(&settings.receiveAutoAccept);
+}
+
 static void settings_system_changes_onresponse(ui_view* view, void* data, u32 response) {
     if(response == PROMPT_YES) {
         settings_toggle(&settings.systemChanges);
@@ -209,6 +214,13 @@ static settings_entry cia_folders_entry = {
         "Stored in sdmc:/ftb/ciaFolders.cfg."
 };
 
+static settings_entry receive_auto_accept_entry = {
+        settings_toggle_receive_auto_accept,
+        "Off: Receive asks before each batch of links or files.\n"
+        "On: anyone on your network can install and save files without a prompt. Writes to boot.firm, "
+        "luma, and Nintendo 3DS still ask."
+};
+
 static settings_entry system_changes_entry = {
         settings_toggle_system_changes,
         "Off: system titles, tickets, and save data cannot be deleted or replaced, and system storage "
@@ -226,6 +238,7 @@ static list_item clear_title_cache_item = {.name = "Clear title cache", .color =
 static list_item clock24h_item = {.color = COLOR_TEXT, .data = &clock24h_entry};
 static list_item date_day_first_item = {.color = COLOR_TEXT, .data = &date_day_first_entry};
 static list_item cia_folders_item = {.name = "CIA folders", .color = COLOR_TEXT, .data = &cia_folders_entry};
+static list_item receive_auto_accept_item = {.color = COLOR_TEXT, .data = &receive_auto_accept_entry};
 static list_item system_changes_item = {.color = COLOR_WARNING, .data = &system_changes_entry};
 static list_item about_item = {.name = "About", .color = COLOR_TEXT, .data = &about_entry};
 
@@ -256,6 +269,7 @@ static void settings_update(ui_view* view, void* data, linked_list* items, list_
         linked_list_add(items, &clock24h_item);
         linked_list_add(items, &date_day_first_item);
         linked_list_add(items, &cia_folders_item);
+        linked_list_add(items, &receive_auto_accept_item);
         linked_list_add(items, &system_changes_item);
         linked_list_add(items, &about_item);
     }
@@ -264,6 +278,8 @@ static void settings_update(ui_view* view, void* data, linked_list* items, list_
     title_cache_item.color = settings.titleCache ? COLOR_ENABLED : COLOR_DISABLED;
     snprintf(clock24h_item.name, LIST_ITEM_NAME_MAX, "Time format: %s", settings.clock24h ? "24-hour" : "12-hour");
     snprintf(date_day_first_item.name, LIST_ITEM_NAME_MAX, "Date format: %s", settings.dateDayFirst ? "DD/MM/YY" : "MM/DD/YY");
+    snprintf(receive_auto_accept_item.name, LIST_ITEM_NAME_MAX, "Receive without asking: %s", settings.receiveAutoAccept ? "On" : "Off");
+    receive_auto_accept_item.color = settings.receiveAutoAccept ? COLOR_ENABLED : COLOR_DISABLED;
     snprintf(system_changes_item.name, LIST_ITEM_NAME_MAX, "System changes: %s", settings.systemChanges ? "On" : "Off");
 }
 

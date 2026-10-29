@@ -71,17 +71,22 @@ typedef struct data_op_data_s {
 
     // Errors
     bool (*error)(void* data, u32 index, Result res, ui_view** errorView);
+    // No Retry prompt after a failed item (stream sources cannot rewind): the op goes on when error
+    // returned true and stops otherwise.
+    bool noRetry;
 
     // General
     task_state state;
     u64 startTime;
 
     // Internal
-    volatile bool retryResponse;
     u64 rateTime;
     u64 rateBytes;
 } data_op_data;
 
 Result task_data_op(data_op_data* data);
+// Runs the whole op on the calling (worker) thread and returns its result; state is not used as a task,
+// but state.cancelled still stops it.
+Result task_data_op_run(data_op_data* data);
 // "<headline>\n25.9 GiB in 00:12:31" for finish prompts.
 void task_data_op_format_summary(const data_op_data* data, const char* headline, char* out, size_t size);

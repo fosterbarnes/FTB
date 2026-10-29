@@ -10,4 +10,15 @@ ui_view* info_display(const char* name, const char* info, bool bar, void* data, 
 // Draws the data op's own progress layout (item bar, batch bar, stage, speed) instead of the
 // update callback's text. The callback still handles cancel and finish.
 void info_set_data_op(ui_view* view, data_op_data* op);
+
+// The data op layout for screens that draw it themselves; draw keeps the bars' easing between frames
+// (zero it before the first frame).
+typedef struct {
+    float itemShown;
+    float totalShown;
+    u32 lastProcessed;
+    u64 lastDrawTime;
+} info_op_draw;
+
+void info_draw_op(info_op_draw* draw, data_op_data* op, float x1, float y1, float x2, float y2);
 void info_destroy(ui_view* view);

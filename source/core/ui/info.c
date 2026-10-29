@@ -29,10 +29,7 @@ typedef struct {
 
     // Data op views draw their own layout from the op's live fields.
     data_op_data* op;
-    float itemShown;
-    float totalShown;
-    u32 lastProcessed;
-    u64 lastDrawTime;
+    info_op_draw opDraw;
 } info_data;
 
 static void info_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
@@ -109,12 +106,10 @@ static void info_format_size(char* out, size_t size, u64 done, u64 total) {
     snprintf(out, size, "%.1f %s / %.1f %s", ui_get_display_size(done), ui_get_display_size_units(done), ui_get_display_size(total), ui_get_display_size_units(total));
 }
 
-static void info_draw_data_op(info_data* infoData, float x1, float y1, float x2, float y2) {
-    data_op_data* op = infoData->op;
-
+void info_draw_op(info_op_draw* draw, data_op_data* op, float x1, float y1, float x2, float y2) {
     u64 now = osGetTime();
-    u64 dt = infoData->lastDrawTime != 0 ? now - infoData->lastDrawTime : 0;
-    infoData->lastDrawTime = now;
+    u64 dt = draw->lastDrawTime != 0 ? now - draw->lastDrawTime : 0;
+    draw->lastDrawTime = now;
 
     // Snapshot the worker's fields once per frame.
     const char* stage = op->stage;
@@ -133,7 +128,7 @@ static void info_draw_data_op(info_data* infoData, float x1, float y1, float x2,
 
     float itemFraction = currTotal != 0 ? info_clamp((float) ((double) currProcessed / (double) currTotal)) : 0;
     if(!busy) {
-        infoData->itemShown = info_ease(infoData->itemShown, itemFraction, dt);
+        draw->itemShown = info_ease(draw->itemShown, itemFraction, dt);
     }
 
     float totalFraction = op->totalBytes != 0 ? info_clamp((float) ((double) (doneBytes + currProcessed) / (double) op->totalBytes))
@@ -141,11 +136,11 @@ static void info_draw_data_op(info_data* infoData, float x1, float y1, float x2,
 
     // The batch bar only moves backward when the worker restarts an item; a one-frame dip while it
     // hands bytes from one item to the next must not reset it.
-    if(processed < infoData->lastProcessed || totalFraction > infoData->totalShown) {
-        infoData->totalShown = info_ease(infoData->totalShown, totalFraction, dt);
+    if(processed < draw->lastProcessed || totalFraction > draw->totalShown) {
+        draw->totalShown = info_ease(draw->totalShown, totalFraction, dt);
     }
 
-    infoData->lastProcessed = processed;
+    draw->lastProcessed = processed;
 
     float lineHeight = screen_get_font_height(0.5f);
     float itemHeight = lineHeight + INFO_ROW_GAP + INFO_ITEM_BAR_HEIGHT + INFO_ROW_GAP + lineHeight;
@@ -180,7 +175,7 @@ static void info_draw_data_op(info_data* infoData, float x1, float y1, float x2,
     if(busy) {
         info_draw_sweep(x, y, INFO_ITEM_BAR_HEIGHT);
     } else {
-        info_draw_bar(x, y, INFO_ITEM_BAR_HEIGHT, infoData->itemShown);
+        info_draw_bar(x, y, INFO_ITEM_BAR_HEIGHT, draw->itemShown);
     }
 
     y += INFO_ITEM_BAR_HEIGHT + INFO_ROW_GAP;
@@ -208,7 +203,7 @@ static void info_draw_data_op(info_data* infoData, float x1, float y1, float x2,
     info_draw_row("Total", right, x, y);
     y += lineHeight + INFO_ROW_GAP;
 
-    info_draw_bar(x, y, INFO_TOTAL_BAR_HEIGHT, infoData->totalShown);
+    info_draw_bar(x, y, INFO_TOTAL_BAR_HEIGHT, draw->totalShown);
     y += INFO_TOTAL_BAR_HEIGHT + INFO_ROW_GAP;
 
     left[0] = '\0';
@@ -230,7 +225,7 @@ static void info_draw_bottom(ui_view* view, void* data, float x1, float y1, floa
     info_data* infoData = (info_data*) data;
 
     if(infoData->op != NULL) {
-        info_draw_data_op(infoData, x1, y1, x2, y2);
+        info_draw_op(&infoData->opDraw, infoData->op, x1, y1, x2, y2);
         return;
     }
 

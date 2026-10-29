@@ -16,10 +16,10 @@
 <table border="0">
 <tbody>
 <tr>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.38/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.38/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.38/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.38/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.39/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.39/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.39/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.39/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
 </tr>
 </tbody>
 </table>
@@ -30,7 +30,8 @@
 - **[CIA Installer](https://github.com/fosterbarnes/FTB/wiki/CIA-Installer):** Qucikly scans given folder(s) for .cia files. Faster than manually browsing to your .cia files under the old 'SD' menu.
 - **[Title Manager](https://github.com/fosterbarnes/FTB/wiki/Title-Manager):** All new layouts and UI. Icon grid, list, or icon list. Sorting options, section jumps, and a title cache that makes opening the full list pretty quick.
 - **[FTP Server](https://github.com/fosterbarnes/FTB/wiki/FTP-Server):** Easily transfer files to and from the SD card without leaving the app.
-- **[Remote Install](https://github.com/fosterbarnes/FTB/wiki/Remote-Install):** Install from a URL, a QR code, or a PC on your network. (Same as OG FBI at the moment)
+- **[Receive](https://github.com/fosterbarnes/FTB/wiki/Receive):** Send links, CIAs, and any other files from a phone or PC browser (scan the QR code on screen), `ftbsend.py`, or FBI's servefiles/Boop. CIAs install straight from the network.
+- **[Remote Install](https://github.com/fosterbarnes/FTB/wiki/Remote-Install):** Install from a URL or a QR code. (Same as OG FBI at the moment)
 - **[Themes](https://github.com/fosterbarnes/FTB/wiki/Theming):** Dark by default; FBI themes are supported.
 - **[In-app updates](https://github.com/fosterbarnes/FTB/wiki/Install#updating)** Easily update ftb from inside the app. Auto installs and re-launches.
 

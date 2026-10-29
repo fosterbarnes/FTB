@@ -20,6 +20,7 @@ void files_open_twl_photo();
 void files_open_twl_sound();
 void ftp_open();
 void pendingtitles_open();
+void receive_open();
 void remoteinstall_open();
 void settings_open();
 void systemsavedata_open();

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FTB Receive</title>
+<style>
+:root { --bg: #1B1B1B; --panel: #2A2A2A; --pressed: #383838; --line: #545454; --accent: #765E98; --text: #FFFFFF; --dim: #9E9E9E; --ok: #4CAF50; --bad: #F44336; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 system-ui, sans-serif; }
+main { max-width: 640px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+h1 { font-size: 20px; margin: 0; }
+h2 { font-size: 16px; margin: 0 0 8px; }
+section { background: var(--panel); border-radius: 8px; padding: 12px; display: grid; gap: 8px; }
+textarea, input[type=text] { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: inherit; }
+textarea { min-height: 88px; resize: vertical; }
+button, .pick { background: var(--pressed); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; font: inherit; cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.pick:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+#drop { border: 2px dashed var(--line); border-radius: 8px; padding: 16px; text-align: center; color: var(--dim); }
+#drop.over { border-color: var(--accent); color: var(--text); }
+label.check { display: flex; gap: 8px; align-items: center; }
+progress { width: 100%; height: 10px; accent-color: var(--accent); }
+#status { min-height: 1.4em; }
+.dim { color: var(--dim); }
+.ok { color: var(--ok); }
+.bad { color: var(--bad); }
+ul { margin: 0; padding-left: 18px; max-height: 240px; overflow: auto; }
+</style>
+</head>
+<body>
+<main>
+<h1>FTB Receive</h1>
+
+<section aria-labelledby="linksTitle">
+<h2 id="linksTitle">Links</h2>
+<label for="links" class="dim">Links to CIA, ticket, or 3DSX files, one or more</label>
+<textarea id="links" spellcheck="false" autocomplete="off"></textarea>
+<div class="row"><button id="sendLinks" class="primary" type="button">Install links</button></div>
+</section>
+
+<section aria-labelledby="filesTitle">
+<h2 id="filesTitle">Files</h2>
+<div class="row">
+<label class="pick">Choose files<input id="pickFiles" type="file" multiple></label>
+<label class="pick">Choose folder<input id="pickFolder" type="file" webkitdirectory></label>
+<button id="clear" type="button">Clear</button>
+</div>
+<div id="drop">Drop files or folders here</div>
+<div id="chosen" class="dim">No files chosen</div>
+<label for="dest">SD folder for saved files</label>
+<input id="dest" type="text" value="/" spellcheck="false" autocomplete="off">
+<label class="check"><input id="saveAll" type="checkbox">Save CIA, ticket, and 3DSX files instead of installing</label>
+<label class="check"><input id="replace" type="checkbox">Replace existing files</label>
+<div class="row"><button id="sendFiles" class="primary" type="button" disabled>Send files</button></div>
+</section>
+
+<section aria-labelledby="statusTitle">
+<h2 id="statusTitle">Status</h2>
+<div id="status" role="status" aria-live="polite" class="dim">Ready</div>
+<progress id="bar" max="1" value="0" hidden></progress>
+<ul id="results"></ul>
+</section>
+</main>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const INSTALL_EXT = [".cia", ".tik", ".cetk", ".3dsx"];
+const FILE_MAX = 0xFFFFFFFF;
+const FILES_MAX = 1000;
+let chosen = []; // {file, path}
+let busy = false;
+
+const size = n => n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(1) + " KiB" : n < 1073741824 ? (n / 1048576).toFixed(1) + " MiB" : (n / 1073741824).toFixed(2) + " GiB";
+
+function setStatus(text, kind) {
+    $("status").textContent = text;
+    $("status").className = kind || "";
+}
+
+function setBusy(value) {
+    busy = value;
+    $("sendLinks").disabled = value;
+    $("sendFiles").disabled = value || chosen.length === 0;
+    $("clear").disabled = value;
+}
+
+function showChosen() {
+    const total = chosen.reduce((sum, item) => sum + item.file.size, 0);
+    $("chosen").textContent = chosen.length === 0 ? "No files chosen" : chosen.length + (chosen.length === 1 ? " file, " : " files, ") + size(total);
+    setBusy(busy);
+}
+
+function add(file, path) {
+    if (!chosen.some(item => item.path === path)) chosen.push({file, path});
+}
+
+function showResults(names, results, installs) {
+    const list = $("results");
+    list.textContent = "";
+    results.forEach((result, i) => {
+        const li = document.createElement("li");
+        if (result.ok) {
+            li.textContent = (installs[i] ? "Installed: " : "Saved: ") + names[i];
+            li.className = "ok";
+        } else if (result.skipped) {
+            li.textContent = "Skipped (" + result.error + "): " + names[i];
+            li.className = "dim";
+        } else {
+            li.textContent = "Failed: " + names[i] + ": " + result.error;
+            li.className = "bad";
+        }
+        list.appendChild(li);
+    });
+}
+
+async function offer(body, waiting) {
+    setStatus(waiting, "");
+    const response = await fetch("/offer", {method: "POST", headers: {"X-FTB": "1", "Content-Type": "application/json"}, body: JSON.stringify(body)});
+    const reply = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(reply.error || "The 3DS answered " + response.status);
+    return reply;
+}
+
+function linksFrom(text) {
+    const tokens = text.split(/\s+/).filter(token => /^https?:\/\//i.test(token));
+    const links = tokens.length > 0 ? tokens : text.split(/\r?\n/).map(line => line.trim()).filter(line => line !== "");
+    return [...new Set(links)];
+}
+
+$("sendLinks").addEventListener("click", async () => {
+    const links = linksFrom($("links").value);
+    if (links.length === 0) return setStatus("Enter at least one link.", "bad");
+    if (links.length > 128) return setStatus("Send 128 links or fewer at a time.", "bad");
+    setBusy(true);
+    $("results").textContent = "";
+    try {
+        // The answer comes once the 3DS has installed them.
+        const reply = await offer({links}, "Accept on the 3DS, then wait for the install to finish");
+        if (!reply.accepted) {
+            setStatus("Declined on the 3DS.", "bad");
+        } else {
+            const failed = reply.results.filter(result => !result.ok).length;
+            setStatus(failed === 0 ? "Done." : failed + " of " + links.length + " not installed.", failed === 0 ? "ok" : "bad");
+            showResults(links, reply.results, links.map(() => true));
+        }
+    } catch (error) {
+        setStatus(error.message, "bad");
+    }
+    setBusy(false);
+});
+
+$("pickFiles").addEventListener("change", event => {
+    for (const file of event.target.files) add(file, file.name);
+    event.target.value = "";
+    showChosen();
+});
+
+$("pickFolder").addEventListener("change", event => {
+    for (const file of event.target.files) add(file, file.webkitRelativePath || file.name);
+    event.target.value = "";
+    showChosen();
+});
+
+$("clear").addEventListener("click", () => {
+    chosen = [];
+    $("results").textContent = "";
+    showChosen();
+});
+
+// Folders dropped whole keep their layout under the SD folder.
+async function walk(entry) {
+    if (entry.isFile) {
+        const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+        add(file, entry.fullPath.replace(/^\/+/, ""));
+        return;
+    }
+    const reader = entry.createReader();
+    for (;;) {
+        const entries = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+        if (entries.length === 0) break;
+        for (const child of entries) {
+            if (!child.name.startsWith(".")) await walk(child);
+        }
+    }
+}
+
+const drop = $("drop");
+["dragenter", "dragover"].forEach(type => drop.addEventListener(type, event => { event.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(type => drop.addEventListener(type, () => drop.classList.remove("over")));
+drop.addEventListener("drop", async event => {
+    event.preventDefault();
+    if (busy) return;
+    const entries = [...event.dataTransfer.items].map(item => item.webkitGetAsEntry && item.webkitGetAsEntry()).filter(Boolean);
+    try {
+        if (entries.length > 0) {
+            for (const entry of entries) await walk(entry);
+        } else {
+            for (const file of event.dataTransfer.files) add(file, file.name);
+        }
+    } catch (error) {
+        setStatus("Could not read the dropped files: " + error.message, "bad");
+    }
+    showChosen();
+});
+
+$("dest").value = localStorage.getItem("ftbDest") || "/";
+$("dest").addEventListener("change", () => localStorage.setItem("ftbDest", $("dest").value));
+
+function upload(token, files, total) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/data?token=" + token);
+        xhr.setRequestHeader("X-FTB", "1");
+        const started = Date.now();
+        xhr.upload.onprogress = event => {
+            $("bar").value = event.loaded / total;
+            const seconds = (Date.now() - started) / 1000;
+            setStatus("Sending " + size(event.loaded) + " of " + size(total) + (seconds > 1 ? ", " + size(event.loaded / seconds) + "/s" : ""), "");
+        };
+        xhr.onload = () => {
+            let reply = null;
+            try { reply = JSON.parse(xhr.responseText); } catch (error) { reply = null; }
+            if (xhr.status === 200 && reply && Array.isArray(reply.results)) resolve(reply.results);
+            else reject(new Error((reply && reply.error) || "The 3DS answered " + xhr.status));
+        };
+        xhr.onerror = () => reject(new Error("Stopped on the 3DS or connection lost."));
+        // Blob parts refer to the files: the browser streams them from disk.
+        xhr.send(new Blob(files));
+    });
+}
+
+$("sendFiles").addEventListener("click", async () => {
+    let dest = $("dest").value.trim() || "/";
+    if (!dest.startsWith("/")) dest = "/" + dest;
+    const saveAll = $("saveAll").checked;
+    const items = chosen.map(item => ({
+        path: item.path,
+        size: item.file.size,
+        install: !saveAll && INSTALL_EXT.some(ext => item.path.toLowerCase().endsWith(ext))
+    }));
+
+    const tooBig = items.find(item => item.size > FILE_MAX);
+    const tooSmall = items.find(item => item.install && item.size < 4);
+    if (items.length > FILES_MAX) return setStatus("Send " + FILES_MAX + " files or fewer at a time.", "bad");
+    if (tooBig) return setStatus(tooBig.path + " is over 4 GiB, which the SD card cannot hold.", "bad");
+    if (tooSmall) return setStatus(tooSmall.path + " is too small to install.", "bad");
+
+    setBusy(true);
+    $("results").textContent = "";
+    const total = items.reduce((sum, item) => sum + item.size, 0);
+    try {
+        const reply = await offer({dest, replace: $("replace").checked, files: items}, "Accept on the 3DS");
+        if (!reply.accepted) {
+            setStatus("Declined on the 3DS.", "bad");
+        } else {
+            $("bar").hidden = false;
+            $("bar").value = 0;
+            const results = await upload(reply.token, chosen.map(item => item.file), total);
+            const failed = results.filter(result => !result.ok).length;
+            setStatus(failed === 0 ? "Done." : failed + " of " + items.length + " not received.", failed === 0 ? "ok" : "bad");
+            showResults(items.map(item => item.path), results, items.map(item => item.install));
+        }
+    } catch (error) {
+        setStatus(error.message, "bad");
+    }
+    $("bar").hidden = true;
+    setBusy(false);
+});
+</script>
+</body>
+</html>

@@ -703,6 +703,10 @@ static const char* description_to_string(Result res) {
     }
 }
 
+const char* error_get_description(Result result) {
+    return description_to_string(result);
+}
+
 typedef struct {
     char fullText[4096];
     void* data;

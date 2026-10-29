@@ -239,14 +239,8 @@ static Result task_data_op_delete(data_op_data* data, u32 index) {
     return data->delete(data->data, index);
 }
 
-static void task_data_op_retry_onresponse(ui_view* view, void* data, u32 response) {
-    ((data_op_data*) data)->retryResponse = response == PROMPT_YES;
-}
-
 // The op's result is the last item's: the UI shows success only when the final item succeeded.
-static Result task_data_op_thread(void* arg) {
-    data_op_data* data = (data_op_data*) arg;
-
+static Result task_data_op_loop(data_op_data* data) {
     Result result = 0;
     for(data->processed = 0; data->processed < data->total; data->processed++) {
         Result res = 0;
@@ -292,7 +286,7 @@ static Result task_data_op_thread(void* arg) {
                 }
 
                 // A locked system change fails the same way again, so there is nothing to retry.
-                if(res == R_APP_SYSTEM_LOCKED) {
+                if(res == R_APP_SYSTEM_LOCKED || data->noRetry) {
                     if(!proceed) {
                         break;
                     }
@@ -300,25 +294,28 @@ static Result task_data_op_thread(void* arg) {
                     continue;
                 }
 
-                ui_view* retryView = prompt_display_yes_no("Confirmation", "Retry?", COLOR_TEXT, data, NULL, task_data_op_retry_onresponse);
-                if(retryView != NULL) {
-                    svcWaitSynchronization(retryView->active, U64_MAX);
-
-                    if(data->retryResponse) {
-                        if(proceed) {
-                            data->processed--;
-                            data->doneBytes -= itemBytes;
-                        } else {
-                            data->processed = 0;
-                            data->doneBytes = 0;
-                        }
-                    } else if(!proceed) {
-                        break;
+                // prompt_wait_yes_no, not a wait on the view: ui_pop signals the view before the
+                // response callback runs.
+                if(prompt_wait_yes_no("Confirmation", "Retry?", COLOR_TEXT, NULL, NULL)) {
+                    if(proceed) {
+                        data->processed--;
+                        data->doneBytes -= itemBytes;
+                    } else {
+                        data->processed = 0;
+                        data->doneBytes = 0;
                     }
+                } else if(!proceed) {
+                    break;
                 }
             }
         }
     }
+
+    return result;
+}
+
+static Result task_data_op_thread(void* arg) {
+    Result result = task_data_op_loop((data_op_data*) arg);
 
     task_sleep_unblock();
     return result;
@@ -331,11 +328,7 @@ void task_data_op_format_summary(const data_op_data* data, const char* headline,
     snprintf(out, size, "%s\n%.1f %s in %s", headline, ui_get_display_size(bytes), ui_get_display_size_units(bytes), ui_get_display_eta(seconds));
 }
 
-Result task_data_op(data_op_data* data) {
-    if(data == NULL) {
-        return R_APP_INVALID_ARGUMENT;
-    }
-
+static void task_data_op_reset(data_op_data* data) {
     data->processed = 0;
 
     data->currProcessed = 0;
@@ -349,6 +342,28 @@ Result task_data_op(data_op_data* data) {
     data->startTime = osGetTime();
     data->rateTime = data->startTime;
     data->rateBytes = 0;
+}
+
+Result task_data_op_run(data_op_data* data) {
+    if(data == NULL) {
+        return R_APP_INVALID_ARGUMENT;
+    }
+
+    task_data_op_reset(data);
+
+    task_sleep_block();
+    Result result = task_data_op_loop(data);
+    task_sleep_unblock();
+
+    return result;
+}
+
+Result task_data_op(data_op_data* data) {
+    if(data == NULL) {
+        return R_APP_INVALID_ARGUMENT;
+    }
+
+    task_data_op_reset(data);
 
     // Blocked before the worker starts: it unblocks when it ends, and a quick op could end before
     // this thread got here.

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../../core/task/dataop.h"
+
 typedef struct ticket_info_s ticket_info;
 typedef struct linked_list_s linked_list;
 typedef struct list_item_s list_item;
@@ -53,6 +55,9 @@ void action_import_secure_value(linked_list* items, list_item* selected);
 void action_export_secure_value(linked_list* items, list_item* selected);
 void action_delete_secure_value(linked_list* items, list_item* selected);
 
+// Splits newline-separated URLs into out (at most max), skipping blank lines; a URL without a scheme
+// gets "http://". Returns how many were written.
+u32 action_parse_urls(const char* text, char (*out)[DOWNLOAD_URL_MAX], u32 max);
 void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,
                         void (*finishedURL)(void* data, u32 index),
                         void (*finishedAll)(void* data),

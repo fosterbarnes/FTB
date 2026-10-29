@@ -6,6 +6,7 @@ typedef struct ftb_settings_s {
     bool clock24h; // top bar clock: 24-hour instead of 12-hour
     bool dateDayFirst; // top bar date: DD/MM/YY instead of MM/DD/YY
     bool systemChanges; // safety.h: system title, ticket, save, and NAND changes allowed
+    bool receiveAutoAccept; // Receive starts batches without asking (boot.firm, luma, Nintendo 3DS still ask)
 
     // Title Manager view, changed from its Options menu and touch buttons.
     u8 titleStyle; // title_style

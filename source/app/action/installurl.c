@@ -5,17 +5,10 @@
 #include <3ds.h>
 
 #include "action.h"
-#include "ciainstall.h"
-#include "ticketinstall.h"
+#include "contentinstall.h"
 #include "../resources.h"
 #include "../task/uitask.h"
 #include "../../core/core.h"
-
-typedef enum content_type_e {
-    CONTENT_CIA,
-    CONTENT_TICKET,
-    CONTENT_3DSX_SMDH
-} content_type;
 
 typedef struct {
     char urls[INSTALL_URLS_MAX][DOWNLOAD_URL_MAX];
@@ -27,10 +20,7 @@ typedef struct {
     void (*finishedAll)(void* data);
     void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index);
 
-    content_type contentType;
-    cia_install install;
-    ticket_install ticket;
-    char currPath[FILE_PATH_MAX];
+    content_install content;
 
     data_op_data installInfo;
 } install_url_data;
@@ -83,97 +73,19 @@ static Result action_install_url_get_src_url(void* data, u32 index, char* url, s
 static Result action_install_url_open_dst(void* data, u32 index, void* initialReadBlock, u32 initialReadSize, u64 size, u32* handle) {
     install_url_data* installData = (install_url_data*) data;
 
-    Result res = 0;
-
-    installData->contentType = CONTENT_CIA;
     installData->installInfo.stage = "Preparing";
-    memset(&installData->currPath, 0, sizeof(installData->currPath));
 
-    // The magic checks below read 4 bytes.
-    if(initialReadSize < sizeof(u32)) {
-        return R_APP_BAD_DATA;
-    }
+    char fileName[FILE_NAME_MAX];
+    string_get_path_file(fileName, installData->urls[index], FILE_NAME_MAX);
 
-    if(*(u16*) initialReadBlock == 0x2020) {
-        installData->contentType = CONTENT_CIA;
-
-        res = cia_install_begin(&installData->install, initialReadBlock, initialReadSize, data, action_install_url_draw_top, handle);
-    } else if(*(u16*) initialReadBlock == 0x0100) {
-        installData->contentType = CONTENT_TICKET;
-
-        res = ticket_install_begin(&installData->ticket, initialReadBlock, initialReadSize, handle);
-    } else if(*(u32*) initialReadBlock == 0x58534433 /* 3DSX */ || *(u32*) initialReadBlock == 0x48444D53 /* SMDH */) {
-        installData->contentType = CONTENT_3DSX_SMDH;
-
-        FS_Archive sdmcArchive = 0;
-        if(R_SUCCEEDED(res = FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
-            char dir[FILE_PATH_MAX];
-            if(strlen(installData->paths[index]) > 0) {
-                string_get_parent_path(dir, installData->paths[index], FILE_PATH_MAX);
-                string_copy(installData->currPath, installData->paths[index], FILE_PATH_MAX);
-            } else {
-                char filename[FILE_NAME_MAX];
-                string_get_path_file(filename, installData->urls[index], FILE_NAME_MAX);
-
-                char name[FILE_NAME_MAX];
-                string_get_file_name(name, filename, FILE_NAME_MAX);
-
-                snprintf(dir, FILE_PATH_MAX, "/3ds/%s/", name);
-                if(snprintf(installData->currPath, FILE_PATH_MAX, "/3ds/%s/%s.%s", name, name, *(u32*) initialReadBlock == 0x58534433 ? "3dsx" : "smdh") >= FILE_PATH_MAX) {
-                    res = R_APP_OUT_OF_RANGE; // a cut path would write to the wrong file
-                }
-            }
-
-            if(R_SUCCEEDED(res) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/3ds/")) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, dir))) {
-                FS_Path* path = fs_make_path_utf8(installData->currPath);
-                if(path != NULL) {
-                    res = FSUSER_OpenFileDirectly(handle, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), *path, FS_OPEN_WRITE | FS_OPEN_CREATE, 0);
-
-                    fs_free_path_utf8(path);
-                } else {
-                    res = R_APP_OUT_OF_MEMORY;
-                }
-            }
-
-            FSUSER_CloseArchive(sdmcArchive);
-        }
-    } else {
-        res = R_APP_BAD_DATA;
-    }
-
-    return res;
+    return content_install_begin(&installData->content, fileName, installData->paths[index], initialReadBlock, initialReadSize, data,
+                                 action_install_url_draw_top, handle);
 }
 
 static Result action_install_url_close_dst(void* data, u32 index, bool succeeded, u32 handle) {
     install_url_data* installData = (install_url_data*) data;
 
-    Result res = 0;
-
-    if(installData->contentType == CONTENT_CIA) {
-        res = cia_install_end(&installData->install, &installData->installInfo, succeeded, handle);
-    } else if(installData->contentType == CONTENT_TICKET) {
-        res = ticket_install_end(&installData->ticket, succeeded, handle);
-    } else if(succeeded) {
-        if(installData->contentType == CONTENT_3DSX_SMDH) {
-            res = FSFILE_Close(handle);
-        }
-    } else {
-        if(installData->contentType == CONTENT_3DSX_SMDH) {
-            res = FSFILE_Close(handle);
-
-            FS_Archive sdmcArchive = 0;
-            if(R_SUCCEEDED(FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
-                FS_Path* path = fs_make_path_utf8(installData->currPath);
-                if(path != NULL) {
-                    FSUSER_DeleteFile(sdmcArchive, *path);
-
-                    fs_free_path_utf8(path);
-                }
-
-                FSUSER_CloseArchive(sdmcArchive);
-            }
-        }
-    }
+    Result res = content_end(&installData->content, &installData->installInfo, succeeded, handle);
 
     if(succeeded && R_SUCCEEDED(res) && installData->finishedURL != NULL) {
         installData->finishedURL(installData->userData, index);
@@ -248,6 +160,51 @@ static void action_install_url_confirm_onresponse(ui_view* view, void* data, u32
     }
 }
 
+u32 action_parse_urls(const char* text, char (*out)[DOWNLOAD_URL_MAX], u32 max) {
+    u32 count = 0;
+
+    size_t textLen = strlen(text);
+    const char* currStart = text;
+    while(count < max && (size_t) (currStart - text) < textLen) {
+        const char* currEnd = strchr(currStart, '\n');
+        if(currEnd == NULL) {
+            currEnd = text + textLen;
+        }
+
+        u32 len = currEnd - currStart;
+
+        // Blank lines (and the \r of \r\n endings) would become "http://" entries that fail.
+        while(len > 0 && (currStart[len - 1] == '\r' || currStart[len - 1] == ' ')) {
+            len--;
+        }
+
+        if(len == 0) {
+            currStart = currEnd + 1;
+            continue;
+        }
+
+        if((len < 7 || strncmp(currStart, "http://", 7) != 0) && (len < 8 || strncmp(currStart, "https://", 8) != 0)) {
+            if(len > DOWNLOAD_URL_MAX - 8) {
+                len = DOWNLOAD_URL_MAX - 8;
+            }
+
+            string_copy(out[count], "http://", 8);
+            string_copy(&out[count][7], currStart, len + 1);
+        } else {
+            if(len > DOWNLOAD_URL_MAX - 1) {
+                len = DOWNLOAD_URL_MAX - 1;
+            }
+
+            string_copy(out[count], currStart, len + 1);
+        }
+
+        count++;
+        currStart = currEnd + 1;
+    }
+
+    return count;
+}
+
 void action_install_url(const char* confirmMessage, const char* urls, const char* paths, void* userData,
                         void (*finishedURL)(void* data, u32 index),
                         void (*finishedAll)(void* data),
@@ -259,38 +216,7 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
         return;
     }
 
-    data->installInfo.total = 0;
-
-    size_t payloadLen = strlen(urls);
-    if(payloadLen > 0) {
-        const char* currStart = urls;
-        while(data->installInfo.total < INSTALL_URLS_MAX && currStart - urls < payloadLen) {
-            const char* currEnd = strchr(currStart, '\n');
-            if(currEnd == NULL) {
-                currEnd = urls + payloadLen;
-            }
-
-            u32 len = currEnd - currStart;
-
-            if((len < 7 || strncmp(currStart, "http://", 7) != 0) && (len < 8 || strncmp(currStart, "https://", 8) != 0)) {
-                if(len > DOWNLOAD_URL_MAX - 8) {
-                    len = DOWNLOAD_URL_MAX - 8;
-                }
-
-                string_copy(data->urls[data->installInfo.total], "http://", 8);
-                string_copy(&data->urls[data->installInfo.total][7], currStart, len + 1);
-            } else {
-                if(len > DOWNLOAD_URL_MAX - 1) {
-                    len = DOWNLOAD_URL_MAX - 1;
-                }
-
-                string_copy(data->urls[data->installInfo.total], currStart, len + 1);
-            }
-
-            data->installInfo.total++;
-            currStart = currEnd + 1;
-        }
-    }
+    data->installInfo.total = action_parse_urls(urls, data->urls, INSTALL_URLS_MAX);
 
     if(paths != NULL) {
         size_t pathsLen = strlen(paths);
@@ -318,9 +244,6 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
     data->finishedURL = finishedURL;
     data->finishedAll = finishedAll;
     data->drawTop = drawTop;
-
-    data->contentType = CONTENT_CIA;
-    memset(&data->currPath, 0, sizeof(data->currPath));
 
     data->installInfo.data = data;
 

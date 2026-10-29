@@ -9,3 +9,5 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ---
 
 The FTP server in source/ftpd is ported from ftpd (https://github.com/mtheall/ftpd), Copyright (C) 2026 Michael Theall, Dave Murphy, TuxSH, licensed under the GNU General Public License version 3 or later (source/ftpd/LICENSE). Because FTB builds include it, FTB binaries are distributed under GPL v3 or later. The rest of FTB's own source remains available under the MIT license above. source/ftpd/posix keeps its BSD license headers.
+
+source/libs/qrcodegen is the QR Code generator library (C) v1.8.0 (https://www.nayuki.io/page/qr-code-generator-library), Copyright (c) Project Nayuki, MIT license (full text in its file headers).

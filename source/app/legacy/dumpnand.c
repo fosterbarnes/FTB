@@ -87,11 +87,11 @@ static bool dumpnand_error(void* data, u32 index, Result res, ui_view** errorVie
 static void dumpnand_update(ui_view* view, void* data, float* progress, char* text) {
     data_op_data* dumpData = (data_op_data*) data;
 
-    if(dumpData->finished) {
+    if(task_is_finished(&dumpData->state)) {
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(dumpData->result)) {
+        if(R_SUCCEEDED(dumpData->state.result)) {
             prompt_display_notify("Success", "NAND dumped.", COLOR_TEXT, NULL, NULL, NULL);
         }
 
@@ -101,7 +101,7 @@ static void dumpnand_update(ui_view* view, void* data, float* progress, char* te
     }
 
     if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(dumpData->cancelEvent);
+        task_cancel(&dumpData->state);
     }
 }
 
@@ -156,7 +156,7 @@ void dumpnand_open() {
 
     data->error = dumpnand_error;
 
-    data->finished = true;
+    data->state.finished = true;
 
     prompt_display_yes_no("Confirmation", "Dump raw NAND image to the SD card?", COLOR_TEXT, data, NULL, dumpnand_onresponse);
 }

@@ -35,7 +35,7 @@ void task_populate_tickets_update_use(list_item* item) {
     item->color = info->inUse ? COLOR_TICKET_IN_USE : COLOR_TICKET_NOT_IN_USE;
 }
 
-static void task_populate_tickets_thread(void* arg) {
+static Result task_populate_tickets_thread(void* arg) {
     populate_tickets_data* data = (populate_tickets_data*) arg;
 
     Result res = 0;
@@ -48,8 +48,7 @@ static void task_populate_tickets_thread(void* arg) {
                 qsort(ticketIds, ticketCount, sizeof(u64), task_populate_tickets_compare_ids);
 
                 for(u32 i = 0; i < ticketCount && R_SUCCEEDED(res); i++) {
-                    svcWaitSynchronization(task_get_pause_event(), U64_MAX);
-                    if(task_is_quit_all() || svcWaitSynchronization(data->cancelEvent, 0) == 0) {
+                    if(task_is_cancelled(&data->state)) {
                         break;
                     }
 
@@ -83,10 +82,7 @@ static void task_populate_tickets_thread(void* arg) {
         }
     }
 
-    svcCloseHandle(data->cancelEvent);
-
-    data->result = res;
-    data->finished = true;
+    return res;
 }
 
 void task_free_ticket(list_item* item) {
@@ -124,25 +120,5 @@ Result task_populate_tickets(populate_tickets_data* data) {
 
     task_clear_tickets(data->items);
 
-    data->finished = false;
-    data->result = 0;
-    data->cancelEvent = 0;
-
-    Result res = 0;
-    if(R_SUCCEEDED(res = svcCreateEvent(&data->cancelEvent, RESET_STICKY))) {
-        if(threadCreate(task_populate_tickets_thread, data, 0x10000, 0x19, 1, true) == NULL) {
-            res = R_APP_THREAD_CREATE_FAILED;
-        }
-    }
-
-    if(R_FAILED(res)) {
-        data->finished = true;
-
-        if(data->cancelEvent != 0) {
-            svcCloseHandle(data->cancelEvent);
-            data->cancelEvent = 0;
-        }
-    }
-
-    return res;
+    return task_start(&data->state, task_populate_tickets_thread, data, 0x19, 1);
 }

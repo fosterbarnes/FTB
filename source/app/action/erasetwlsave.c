@@ -82,11 +82,11 @@ static bool action_erase_twl_save_error(void* data, u32 index, Result res, ui_vi
 static void action_erase_twl_save_update(ui_view* view, void* data, float* progress, char* text) {
     erase_twl_save_data* eraseData = (erase_twl_save_data*) data;
 
-    if(eraseData->eraseInfo.finished) {
+    if(task_is_finished(&eraseData->eraseInfo.state)) {
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(eraseData->eraseInfo.result)) {
+        if(R_SUCCEEDED(eraseData->eraseInfo.state.result)) {
             prompt_display_notify("Success", "Save erased.", COLOR_TEXT, eraseData->title, task_draw_title_info, NULL);
         }
 
@@ -96,7 +96,7 @@ static void action_erase_twl_save_update(ui_view* view, void* data, float* progr
     }
 
     if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(eraseData->eraseInfo.cancelEvent);
+        task_cancel(&eraseData->eraseInfo.state);
     }
 }
 
@@ -153,7 +153,7 @@ void action_erase_twl_save(linked_list* items, list_item* selected) {
 
     data->eraseInfo.error = action_erase_twl_save_error;
 
-    data->eraseInfo.finished = true;
+    data->eraseInfo.state.finished = true;
 
     prompt_display_yes_no("Confirmation", "Erase the save of the selected title?", COLOR_TEXT, data, action_erase_twl_save_draw_top, action_erase_twl_save_onresponse);
 }

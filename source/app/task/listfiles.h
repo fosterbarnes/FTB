@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../../core/task/task.h"
+
 #ifndef FILE_NAME_MAX
 #define FILE_NAME_MAX 256
 #define FILE_PATH_MAX 512
@@ -49,9 +51,7 @@ typedef struct populate_files_data_s {
     volatile u32 metaLoaded;
     volatile u32 metaTotal;
 
-    volatile bool finished;
-    Result result;
-    Handle cancelEvent;
+    task_state state;
 } populate_files_data;
 
 int task_compare_files(void* userData, const void* p1, const void* p2);

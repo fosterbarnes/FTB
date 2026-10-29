@@ -29,8 +29,7 @@ static Result task_populate_pending_titles_from(populate_pending_titles_data* da
                 if(pendingTitleInfos != NULL) {
                     if(R_SUCCEEDED(res = AM_GetPendingTitleInfo(pendingTitleCount, mediaType, pendingTitleIds, pendingTitleInfos))) {
                         for(u32 i = 0; i < pendingTitleCount && R_SUCCEEDED(res); i++) {
-                            svcWaitSynchronization(task_get_pause_event(), U64_MAX);
-                            if(task_is_quit_all() || svcWaitSynchronization(data->cancelEvent, 0) == 0) {
+                            if(task_is_cancelled(&data->state)) {
                                 break;
                             }
 
@@ -78,7 +77,7 @@ static Result task_populate_pending_titles_from(populate_pending_titles_data* da
     return res;
 }
 
-static void task_populate_pending_titles_thread(void* arg) {
+static Result task_populate_pending_titles_thread(void* arg) {
     populate_pending_titles_data* data = (populate_pending_titles_data*) arg;
 
     Result res = 0;
@@ -87,10 +86,7 @@ static void task_populate_pending_titles_thread(void* arg) {
         res = task_populate_pending_titles_from(data, MEDIATYPE_NAND);
     }
 
-    svcCloseHandle(data->cancelEvent);
-
-    data->result = res;
-    data->finished = true;
+    return res;
 }
 
 void task_free_pending_title(list_item* item) {
@@ -128,25 +124,5 @@ Result task_populate_pending_titles(populate_pending_titles_data* data) {
 
     task_clear_pending_titles(data->items);
 
-    data->finished = false;
-    data->result = 0;
-    data->cancelEvent = 0;
-
-    Result res = 0;
-    if(R_SUCCEEDED(res = svcCreateEvent(&data->cancelEvent, RESET_STICKY))) {
-        if(threadCreate(task_populate_pending_titles_thread, data, 0x10000, 0x19, 1, true) == NULL) {
-            res = R_APP_THREAD_CREATE_FAILED;
-        }
-    }
-
-    if(R_FAILED(res)) {
-        data->finished = true;
-
-        if(data->cancelEvent != 0) {
-            svcCloseHandle(data->cancelEvent);
-            data->cancelEvent = 0;
-        }
-    }
-
-    return res;
+    return task_start(&data->state, task_populate_pending_titles_thread, data, 0x19, 1);
 }

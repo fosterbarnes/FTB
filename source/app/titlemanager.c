@@ -368,20 +368,11 @@ static void titlemanager_draw_info(ui_view* view, void* data, float x1, float y1
     task_draw_title_progress(&tmData->populateData, tmData->populateStart, progressX1, x2, y2);
 }
 
-static void titlemanager_wait_populate(titlemanager_data* tmData) {
-    if(!tmData->populateData.finished) {
-        svcSignalEvent(tmData->populateData.cancelEvent);
-        while(!tmData->populateData.finished) {
-            svcSleepThread(1000000);
-        }
-    }
-}
-
 static void titlemanager_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     titlemanager_data* tmData = (titlemanager_data*) data;
 
     if(hidKeysDown() & KEY_B) {
-        titlemanager_wait_populate(tmData);
+        task_cancel_and_wait(&tmData->populateData.state);
 
         ui_pop();
 
@@ -414,7 +405,7 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
     titlemanager_update_name(tmData);
 
     if(!tmData->populated) {
-        titlemanager_wait_populate(tmData);
+        task_cancel_and_wait(&tmData->populateData.state);
 
         tmData->populateData.items = items;
         title_cache_mode cacheMode = TITLE_CACHE_OFF;
@@ -443,8 +434,10 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
         tmData->populated = true;
     }
 
+    bool finished = task_is_finished(&tmData->populateData.state);
+
     // The populate thread inserts while it runs, so only sort once it is done.
-    if(tmData->populateData.finished && tmData->sortDirty) {
+    if(finished && tmData->sortDirty) {
         titlemanager_load_order(tmData);
         linked_list_sort(items, tmData, titlemanager_compare);
         tmData->sortDirty = false;
@@ -453,20 +446,20 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
     list_set_sections(view, settings_get()->titleHeaders ? titlemanager_section : NULL);
 
     // Reveal the finished list at its first title.
-    if(tmData->populateData.finished && tmData->loading) {
+    if(finished && tmData->loading) {
         tmData->loading = false;
         list_set_loading(view, false);
     }
 
-    if(tmData->populateData.finished && R_FAILED(tmData->populateData.result)) {
-        error_display_res(NULL, NULL, tmData->populateData.result, "Failed to populate title list.");
+    if(finished && R_FAILED(tmData->populateData.state.result)) {
+        error_display_res(NULL, NULL, tmData->populateData.state.result, "Failed to populate title list.");
 
-        tmData->populateData.result = 0;
+        tmData->populateData.state.result = 0;
     }
 
     // Actions such as Delete Title remove items, which the populate thread may be walking until it
     // finishes, so titles open once the list is complete.
-    if(selected != NULL && selected->data != NULL && tmData->populateData.finished
+    if(selected != NULL && selected->data != NULL && finished
        && (selectedTouched || (hidKeysDown() & KEY_A))) {
         titles_action_open(items, selected);
         return;
@@ -483,7 +476,7 @@ void titlemanager_open() {
 
     data->populateData.userData = data;
 
-    data->populateData.finished = true;
+    data->populateData.state.finished = true;
 
     titlemanager_update_name(data);
     data->view = list_display(data->name, TITLEMANAGER_INFO, data, titlemanager_update, titlemanager_draw_info);

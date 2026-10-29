@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../../core/task/task.h"
+
 typedef struct linked_list_s linked_list;
 typedef struct list_item_s list_item;
 
@@ -10,9 +12,7 @@ typedef struct system_save_data_info_s {
 typedef struct populate_system_save_data_data_s {
     linked_list* items;
 
-    volatile bool finished;
-    Result result;
-    Handle cancelEvent;
+    task_state state;
 } populate_system_save_data_data;
 
 void task_free_system_save_data(list_item* item);

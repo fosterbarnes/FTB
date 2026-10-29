@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../../core/task/task.h"
+
 typedef struct linked_list_s linked_list;
 typedef struct list_item_s list_item;
 
@@ -13,9 +15,7 @@ typedef struct ticket_info_s {
 typedef struct populate_tickets_data_s {
     linked_list* items;
 
-    volatile bool finished;
-    Result result;
-    Handle cancelEvent;
+    task_state state;
 } populate_tickets_data;
 
 void task_populate_tickets_update_use(list_item* item);

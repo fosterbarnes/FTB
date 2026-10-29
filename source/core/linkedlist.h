@@ -2,6 +2,10 @@
 
 #include <stdbool.h>
 
+// No lock. One worker thread may add (linked_list_add, linked_list_add_sorted) while the UI walks
+// or indexes the list: nodes are complete before they are linked. Sort and remove only while no
+// worker writes the same list.
+
 typedef struct linked_list_node_s {
     struct linked_list_node_s* prev;
     struct linked_list_node_s* next;

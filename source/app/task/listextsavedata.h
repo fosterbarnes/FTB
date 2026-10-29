@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../../core/task/task.h"
+
 typedef struct linked_list_s linked_list;
 typedef struct list_item_s list_item;
 
@@ -18,9 +20,7 @@ typedef struct populate_ext_save_data_data_s {
     bool (*filter)(void* data, u64 extSaveDataId, FS_MediaType mediaType);
     int (*compare)(void* data, const void* p1, const void* p2);
 
-    volatile bool finished;
-    Result result;
-    Handle cancelEvent;
+    task_state state;
 } populate_ext_save_data_data;
 
 void task_free_ext_save_data(list_item* item);

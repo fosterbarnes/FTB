@@ -82,12 +82,7 @@ static void pendingtitles_update(ui_view* view, void* data, linked_list* items, 
     pendingtitles_data* listData = (pendingtitles_data*) data;
 
     if(hidKeysDown() & KEY_B) {
-        if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
-        }
+        task_cancel_and_wait(&listData->populateData.state);
 
         ui_pop();
 
@@ -99,12 +94,7 @@ static void pendingtitles_update(ui_view* view, void* data, linked_list* items, 
     }
 
     if(!listData->populated || (hidKeysDown() & KEY_X)) {
-        if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
-        }
+        task_cancel_and_wait(&listData->populateData.state);
 
         listData->populateData.items = items;
         Result res = task_populate_pending_titles(&listData->populateData);
@@ -115,10 +105,10 @@ static void pendingtitles_update(ui_view* view, void* data, linked_list* items, 
         listData->populated = true;
     }
 
-    if(listData->populateData.finished && R_FAILED(listData->populateData.result)) {
-        error_display_res(NULL, NULL, listData->populateData.result, "Failed to populate pending title list.");
+    if(task_is_finished(&listData->populateData.state) && R_FAILED(listData->populateData.state.result)) {
+        error_display_res(NULL, NULL, listData->populateData.state.result, "Failed to populate pending title list.");
 
-        listData->populateData.result = 0;
+        listData->populateData.state.result = 0;
     }
 
     if(selected != NULL && selected->data != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
@@ -135,7 +125,7 @@ void pendingtitles_open() {
         return;
     }
 
-    data->populateData.finished = true;
+    data->populateData.state.finished = true;
 
     list_display("Pending Titles", "A: Select, B: Return, X: Refresh", data, pendingtitles_update, pendingtitles_draw_top);
 }

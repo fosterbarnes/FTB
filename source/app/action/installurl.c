@@ -263,11 +263,11 @@ static bool action_install_url_error(void* data, u32 index, Result res, ui_view*
 static void action_install_url_install_update(ui_view* view, void* data, float* progress, char* text) {
     install_url_data* installData = (install_url_data*) data;
 
-    if(installData->installInfo.finished) {
+    if(task_is_finished(&installData->installInfo.state)) {
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(installData->installInfo.result)) {
+        if(R_SUCCEEDED(installData->installInfo.state.result)) {
             static char summary[64];
             task_data_op_format_summary(&installData->installInfo, "Install finished.", summary, sizeof(summary));
             prompt_display_notify("Success", summary, COLOR_TEXT, NULL, NULL, NULL);
@@ -279,7 +279,7 @@ static void action_install_url_install_update(ui_view* view, void* data, float* 
     }
 
     if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(installData->installInfo.cancelEvent);
+        task_cancel(&installData->installInfo.state);
     }
 }
 
@@ -396,7 +396,7 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
 
     data->installInfo.error = action_install_url_error;
 
-    data->installInfo.finished = true;
+    data->installInfo.state.finished = true;
 
     prompt_display_yes_no("Confirmation", confirmMessage, COLOR_TEXT, data, action_install_url_draw_top, action_install_url_confirm_onresponse);
 }

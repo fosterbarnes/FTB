@@ -139,6 +139,7 @@ static void ciainstaller_action_open(linked_list* items, list_item* selected) {
 static void ciainstaller_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
     ciainstaller_data* installerData = (ciainstaller_data*) data;
     populate_cias_data* populateData = &installerData->populateData;
+    bool finished = task_is_finished(&populateData->state);
 
     if(selected != NULL && selected->data != NULL) {
         if(ciainstaller_is_all_row(selected)) {
@@ -146,11 +147,11 @@ static void ciainstaller_draw_top(ui_view* view, void* data, float x1, float y1,
         } else {
             task_draw_file_info(view, selected->data, x1, y1, x2, y2);
         }
-    } else if(populateData->finished) {
+    } else if(finished) {
         ciainstaller_draw_text(ciafolders_count() == 0 ? "No CIA folders." : "No CIAs found.", x1, y1, x2, y2);
     }
 
-    if(!populateData->finished) {
+    if(!finished) {
         // Snapshot: the populate thread keeps writing these.
         u32 total = populateData->metaTotal;
         u32 loaded = populateData->metaLoaded;
@@ -169,17 +170,8 @@ static void ciainstaller_draw_top(ui_view* view, void* data, float x1, float y1,
     }
 }
 
-static void ciainstaller_wait(ciainstaller_data* installerData) {
-    if(!installerData->populateData.finished) {
-        svcSignalEvent(installerData->populateData.cancelEvent);
-        while(!installerData->populateData.finished) {
-            svcSleepThread(1000000);
-        }
-    }
-}
-
 static void ciainstaller_repopulate(ciainstaller_data* installerData, linked_list* items) {
-    ciainstaller_wait(installerData);
+    task_cancel_and_wait(&installerData->populateData.state);
 
     populate_cias_data* populateData = &installerData->populateData;
     populateData->items = items;
@@ -205,7 +197,7 @@ static void ciainstaller_update(ui_view* view, void* data, linked_list* items, l
     if(hidKeysDown() & KEY_B) {
         ui_pop();
 
-        ciainstaller_wait(installerData);
+        task_cancel_and_wait(&installerData->populateData.state);
         fs_close_archive(installerData->archive);
         free(installerData);
 
@@ -221,7 +213,7 @@ static void ciainstaller_update(ui_view* view, void* data, linked_list* items, l
     }
 
     // Actions wait for the scan: install and delete remove rows that the meta pass walks.
-    if(installerData->populateData.finished) {
+    if(task_is_finished(&installerData->populateData.state)) {
         if(selected != NULL && selected->data != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
             if(!ciainstaller_is_all_row(selected) || linked_list_size(items) > 1) {
                 ciainstaller_action_open(items, selected);
@@ -239,10 +231,11 @@ static void ciainstaller_update(ui_view* view, void* data, linked_list* items, l
         ciainstaller_repopulate(installerData, items);
     }
 
-    if(installerData->populateData.finished && R_FAILED(installerData->populateData.result)) {
-        error_display_res(NULL, NULL, installerData->populateData.result, "Failed to populate CIA list.");
+    task_state* state = &installerData->populateData.state;
+    if(task_is_finished(state) && R_FAILED(state->result)) {
+        error_display_res(NULL, NULL, state->result, "Failed to populate CIA list.");
 
-        installerData->populateData.result = 0;
+        state->result = 0;
     }
 }
 
@@ -254,7 +247,7 @@ static void ciainstaller_open_list() {
         return;
     }
 
-    data->populateData.finished = true;
+    data->populateData.state.finished = true;
 
     Result res = fs_open_archive(&data->archive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""));
     if(R_FAILED(res)) {

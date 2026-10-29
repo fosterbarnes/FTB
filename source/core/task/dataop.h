@@ -1,5 +1,7 @@
 #pragma once
 
+#include "task.h"
+
 typedef struct json_t json_t;
 
 typedef struct ui_view_s ui_view;
@@ -69,9 +71,7 @@ typedef struct data_op_data_s {
     bool (*error)(void* data, u32 index, Result res, ui_view** errorView);
 
     // General
-    volatile bool finished;
-    Result result;
-    Handle cancelEvent;
+    task_state state;
     u64 startTime;
 
     // Internal

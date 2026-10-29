@@ -17,7 +17,7 @@ static int task_populate_system_save_data_compare_ids(const void* e1, const void
     return id1 > id2 ? 1 : id1 < id2 ? -1 : 0;
 }
 
-static void task_populate_system_save_data_thread(void* arg) {
+static Result task_populate_system_save_data_thread(void* arg) {
     populate_system_save_data_data* data = (populate_system_save_data_data*) arg;
 
     Result res = 0;
@@ -28,8 +28,7 @@ static void task_populate_system_save_data_thread(void* arg) {
         qsort(systemSaveDataIds, systemSaveDataCount, sizeof(u32), task_populate_system_save_data_compare_ids);
 
         for(u32 i = 0; i < systemSaveDataCount && R_SUCCEEDED(res); i++) {
-            svcWaitSynchronization(task_get_pause_event(), U64_MAX);
-            if(task_is_quit_all() || svcWaitSynchronization(data->cancelEvent, 0) == 0) {
+            if(task_is_cancelled(&data->state)) {
                 break;
             }
 
@@ -55,10 +54,7 @@ static void task_populate_system_save_data_thread(void* arg) {
         }
     }
 
-    svcCloseHandle(data->cancelEvent);
-
-    data->result = res;
-    data->finished = true;
+    return res;
 }
 
 void task_free_system_save_data(list_item* item) {
@@ -96,25 +92,5 @@ Result task_populate_system_save_data(populate_system_save_data_data* data) {
 
     task_clear_system_save_data(data->items);
 
-    data->finished = false;
-    data->result = 0;
-    data->cancelEvent = 0;
-
-    Result res = 0;
-    if(R_SUCCEEDED(res = svcCreateEvent(&data->cancelEvent, RESET_STICKY))) {
-        if(threadCreate(task_populate_system_save_data_thread, data, 0x10000, 0x19, 1, true) == NULL) {
-            res = R_APP_THREAD_CREATE_FAILED;
-        }
-    }
-
-    if(R_FAILED(res)) {
-        data->finished = true;
-
-        if(data->cancelEvent != 0) {
-            svcCloseHandle(data->cancelEvent);
-            data->cancelEvent = 0;
-        }
-    }
-
-    return res;
+    return task_start(&data->state, task_populate_system_save_data_thread, data, 0x19, 1);
 }

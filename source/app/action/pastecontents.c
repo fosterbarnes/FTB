@@ -243,7 +243,7 @@ static void action_paste_contents_free_data(paste_contents_data* data) {
 static void action_paste_contents_update(ui_view* view, void* data, float* progress, char* text) {
     paste_contents_data* pasteData = (paste_contents_data*) data;
 
-    if(pasteData->pasteInfo.finished) {
+    if(task_is_finished(&pasteData->pasteInfo.state)) {
         FSUSER_ControlArchive(pasteData->target->archive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0);
 
         linked_list_sort(pasteData->items, NULL, task_compare_files);
@@ -251,7 +251,7 @@ static void action_paste_contents_update(ui_view* view, void* data, float* progr
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(pasteData->pasteInfo.result)) {
+        if(R_SUCCEEDED(pasteData->pasteInfo.state.result)) {
             prompt_display_notify("Success", "Contents pasted.", COLOR_TEXT, NULL, NULL, NULL);
         }
 
@@ -260,8 +260,8 @@ static void action_paste_contents_update(ui_view* view, void* data, float* progr
         return;
     }
 
-    if((hidKeysDown() & KEY_B) && !pasteData->pasteInfo.finished) {
-        svcSignalEvent(pasteData->pasteInfo.cancelEvent);
+    if(hidKeysDown() & KEY_B) {
+        task_cancel(&pasteData->pasteInfo.state);
     }
 }
 
@@ -295,17 +295,17 @@ static void action_paste_contents_loading_draw_top(ui_view* view, void* data, fl
 static void action_paste_contents_loading_update(ui_view* view, void* data, float* progress, char* text)  {
     paste_contents_loading_data* loadingData = (paste_contents_loading_data*) data;
 
-    if(loadingData->popData.finished) {
+    if(task_is_finished(&loadingData->popData.state)) {
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(loadingData->popData.result)) {
+        if(R_SUCCEEDED(loadingData->popData.state.result)) {
             loadingData->pasteData->pasteInfo.total = linked_list_size(&loadingData->pasteData->contents);
             loadingData->pasteData->pasteInfo.processed = loadingData->pasteData->pasteInfo.total;
 
             prompt_display_yes_no("Confirmation", "Paste clipboard contents to the current directory?", COLOR_TEXT, loadingData->pasteData, action_paste_contents_draw_top, action_paste_contents_onresponse);
         } else {
-            error_display_res(NULL, NULL, loadingData->popData.result, "Failed to populate clipboard content list.");
+            error_display_res(NULL, NULL, loadingData->popData.state.result, "Failed to populate clipboard content list.");
 
             action_paste_contents_free_data(loadingData->pasteData);
         }
@@ -314,8 +314,8 @@ static void action_paste_contents_loading_update(ui_view* view, void* data, floa
         return;
     }
 
-    if((hidKeysDown() & KEY_B) && !loadingData->popData.finished) {
-        svcSignalEvent(loadingData->popData.cancelEvent);
+    if(hidKeysDown() & KEY_B) {
+        task_cancel(&loadingData->popData.state);
     }
 
     snprintf(text, PROGRESS_TEXT_MAX, "Fetching clipboard content list...");
@@ -371,7 +371,7 @@ void action_paste_contents(linked_list* items, list_item* selected) {
 
     data->pasteInfo.error = action_paste_contents_error;
 
-    data->pasteInfo.finished = true;
+    data->pasteInfo.state.finished = true;
 
     linked_list_init(&data->contents);
 

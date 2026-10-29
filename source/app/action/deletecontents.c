@@ -98,13 +98,13 @@ static void action_delete_free_data(delete_data* data) {
 static void action_delete_update(ui_view* view, void* data, float* progress, char* text) {
     delete_data* deleteData = (delete_data*) data;
 
-    if(deleteData->deleteInfo.finished) {
+    if(task_is_finished(&deleteData->deleteInfo.state)) {
         FSUSER_ControlArchive(deleteData->target->archive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0);
 
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(deleteData->deleteInfo.result)) {
+        if(R_SUCCEEDED(deleteData->deleteInfo.state.result)) {
             prompt_display_notify("Success", "Deleted.", COLOR_TEXT, NULL, NULL, NULL);
         }
 
@@ -113,8 +113,8 @@ static void action_delete_update(ui_view* view, void* data, float* progress, cha
         return;
     }
 
-    if((hidKeysDown() & KEY_B) && !deleteData->deleteInfo.finished) {
-        svcSignalEvent(deleteData->deleteInfo.cancelEvent);
+    if(hidKeysDown() & KEY_B) {
+        task_cancel(&deleteData->deleteInfo.state);
     }
 
     *progress = deleteData->deleteInfo.total > 0 ? (float) deleteData->deleteInfo.processed / (float) deleteData->deleteInfo.total : 0;
@@ -153,17 +153,17 @@ static void action_delete_loading_draw_top(ui_view* view, void* data, float x1, 
 static void action_delete_loading_update(ui_view* view, void* data, float* progress, char* text)  {
     delete_loading_data* loadingData = (delete_loading_data*) data;
 
-    if(loadingData->popData.finished) {
+    if(task_is_finished(&loadingData->popData.state)) {
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(loadingData->popData.result)) {
+        if(R_SUCCEEDED(loadingData->popData.state.result)) {
             loadingData->deleteData->deleteInfo.total = linked_list_size(&loadingData->deleteData->contents);
             loadingData->deleteData->deleteInfo.processed = loadingData->deleteData->deleteInfo.total;
 
             prompt_display_yes_no("Confirmation", loadingData->message, COLOR_TEXT, loadingData->deleteData, action_delete_draw_top, action_delete_onresponse);
         } else {
-            error_display_res(NULL, NULL, loadingData->popData.result, "Failed to populate content list.");
+            error_display_res(NULL, NULL, loadingData->popData.state.result, "Failed to populate content list.");
 
             action_delete_free_data(loadingData->deleteData);
         }
@@ -172,8 +172,8 @@ static void action_delete_loading_update(ui_view* view, void* data, float* progr
         return;
     }
 
-    if((hidKeysDown() & KEY_B) && !loadingData->popData.finished) {
-        svcSignalEvent(loadingData->popData.cancelEvent);
+    if(hidKeysDown() & KEY_B) {
+        task_cancel(&loadingData->popData.state);
     }
 
     snprintf(text, PROGRESS_TEXT_MAX, "Fetching content list...");
@@ -211,7 +211,7 @@ static void action_delete_internal(linked_list* items, list_item* selected, cons
 
     data->deleteInfo.error = action_delete_error;
 
-    data->deleteInfo.finished = false;
+    data->deleteInfo.state.finished = false;
 
     linked_list_init(&data->contents);
 

@@ -1,6 +1,8 @@
 #include <malloc.h>
 #include <stdlib.h>
 
+#include <3ds.h>
+
 #include "linkedlist.h"
 
 void linked_list_init(linked_list* list) {
@@ -90,18 +92,20 @@ bool linked_list_add(linked_list* list, void* value) {
 
     node->value = value;
     node->next = NULL;
+    node->prev = list->last;
+
+    // A reader on the other core may follow the new link at once: the node is complete first.
+    __dmb();
 
     if(list->first == NULL || list->last == NULL) {
-        node->prev = NULL;
-
         list->first = node;
         list->last = node;
     } else {
-        node->prev = list->last;
-
         list->last->next = node;
         list->last = node;
     }
+
+    __dmb();
 
     list->size++;
     list->version++;
@@ -166,6 +170,9 @@ bool linked_list_add_sorted(linked_list* list, void* value, void* userData, int 
     node->prev = next->prev;
     node->next = next;
 
+    // As in linked_list_add: the node is complete before a forward walk can reach it.
+    __dmb();
+
     if(next->prev != NULL) {
         next->prev->next = node;
     } else {
@@ -173,6 +180,8 @@ bool linked_list_add_sorted(linked_list* list, void* value, void* userData, int 
     }
 
     next->prev = node;
+
+    __dmb();
 
     list->size++;
     list->version++;

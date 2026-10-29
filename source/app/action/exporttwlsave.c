@@ -104,11 +104,11 @@ static bool action_export_twl_save_error(void* data, u32 index, Result res, ui_v
 static void action_export_twl_save_update(ui_view* view, void* data, float* progress, char* text) {
     export_twl_save_data* exportData = (export_twl_save_data*) data;
 
-    if(exportData->exportInfo.finished) {
+    if(task_is_finished(&exportData->exportInfo.state)) {
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(exportData->exportInfo.result)) {
+        if(R_SUCCEEDED(exportData->exportInfo.state.result)) {
             prompt_display_notify("Success", "Save exported.", COLOR_TEXT, exportData->title, task_draw_title_info, NULL);
         }
 
@@ -118,7 +118,7 @@ static void action_export_twl_save_update(ui_view* view, void* data, float* prog
     }
 
     if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(exportData->exportInfo.cancelEvent);
+        task_cancel(&exportData->exportInfo.state);
     }
 }
 
@@ -175,7 +175,7 @@ void action_export_twl_save(linked_list* items, list_item* selected) {
 
     data->exportInfo.error = action_export_twl_save_error;
 
-    data->exportInfo.finished = true;
+    data->exportInfo.state.finished = true;
 
     prompt_display_yes_no("Confirmation", "Export the save of the selected title?", COLOR_TEXT, data, action_export_twl_save_draw_top, action_export_twl_save_onresponse);
 }

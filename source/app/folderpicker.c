@@ -48,12 +48,7 @@ static void folderpicker_navigate_up(folderpicker_data* pickerData) {
 }
 
 static void folderpicker_close(ui_view* view, folderpicker_data* pickerData, linked_list* items) {
-    if(!pickerData->populateData.finished) {
-        svcSignalEvent(pickerData->populateData.cancelEvent);
-        while(!pickerData->populateData.finished) {
-            svcSleepThread(1000000);
-        }
-    }
+    task_cancel_and_wait(&pickerData->populateData.state);
 
     ui_pop();
 
@@ -106,12 +101,7 @@ static void folderpicker_update(ui_view* view, void* data, linked_list* items, l
     }
 
     if(!pickerData->populated) {
-        if(!pickerData->populateData.finished) {
-            svcSignalEvent(pickerData->populateData.cancelEvent);
-            while(!pickerData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
-        }
+        task_cancel_and_wait(&pickerData->populateData.state);
 
         pickerData->populateData.items = items;
         pickerData->populateData.archive = pickerData->archive;
@@ -125,10 +115,10 @@ static void folderpicker_update(ui_view* view, void* data, linked_list* items, l
         pickerData->populated = true;
     }
 
-    if(pickerData->populateData.finished && R_FAILED(pickerData->populateData.result)) {
-        error_display_res(NULL, NULL, pickerData->populateData.result, "Failed to populate folder list.");
+    if(task_is_finished(&pickerData->populateData.state) && R_FAILED(pickerData->populateData.state.result)) {
+        error_display_res(NULL, NULL, pickerData->populateData.state.result, "Failed to populate folder list.");
 
-        pickerData->populateData.result = 0;
+        pickerData->populateData.state.result = 0;
     }
 }
 
@@ -142,7 +132,7 @@ void folderpicker_open(const char* title, void* data, void (*onPicked)(void* dat
 
     pickerData->populateData.includeBase = true;
     pickerData->populateData.filter = folderpicker_filter;
-    pickerData->populateData.finished = true;
+    pickerData->populateData.state.finished = true;
 
     snprintf(pickerData->currDir, FILE_PATH_MAX, "/");
 

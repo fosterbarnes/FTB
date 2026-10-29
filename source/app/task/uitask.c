@@ -272,7 +272,7 @@ void task_draw_title_info(ui_view* view, void* data, float x1, float y1, float x
 #define TITLES_PROGRESS_BAR 2
 
 void task_draw_title_progress(populate_titles_data* populateData, u64 start, float x1, float x2, float y2) {
-    if(populateData->finished || osGetTime() - start < TITLES_PROGRESS_DELAY_MS) {
+    if(task_is_finished(&populateData->state) || osGetTime() - start < TITLES_PROGRESS_DELAY_MS) {
         return;
     }
 

@@ -90,11 +90,11 @@ static bool action_import_twl_save_error(void* data, u32 index, Result res, ui_v
 static void action_import_twl_save_update(ui_view* view, void* data, float* progress, char* text) {
     import_twl_save_data* importData = (import_twl_save_data*) data;
 
-    if(importData->importInfo.finished) {
+    if(task_is_finished(&importData->importInfo.state)) {
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(importData->importInfo.result)) {
+        if(R_SUCCEEDED(importData->importInfo.state.result)) {
             prompt_display_notify("Success", "Save imported.", COLOR_TEXT, importData->title, task_draw_title_info, NULL);
         }
 
@@ -104,7 +104,7 @@ static void action_import_twl_save_update(ui_view* view, void* data, float* prog
     }
 
     if(hidKeysDown() & KEY_B) {
-        svcSignalEvent(importData->importInfo.cancelEvent);
+        task_cancel(&importData->importInfo.state);
     }
 }
 
@@ -161,7 +161,7 @@ void action_import_twl_save(linked_list* items, list_item* selected) {
 
     data->importInfo.error = action_import_twl_save_error;
 
-    data->importInfo.finished = true;
+    data->importInfo.state.finished = true;
 
     prompt_display_yes_no("Confirmation", "Import the save of the selected title?", COLOR_TEXT, data, action_import_twl_save_draw_top, action_import_twl_save_onresponse);
 }

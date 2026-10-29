@@ -162,7 +162,7 @@ static void action_install_tickets_free_data(install_tickets_data* data) {
 static void action_install_tickets_update(ui_view* view, void* data, float* progress, char* text) {
     install_tickets_data* installData = (install_tickets_data*) data;
 
-    if(installData->installInfo.finished) {
+    if(task_is_finished(&installData->installInfo.state)) {
         if(installData->delete) {
             FSUSER_ControlArchive(installData->target->archive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0);
         }
@@ -170,7 +170,7 @@ static void action_install_tickets_update(ui_view* view, void* data, float* prog
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(installData->installInfo.result)) {
+        if(R_SUCCEEDED(installData->installInfo.state.result)) {
             prompt_display_notify("Success", "Install finished.", COLOR_TEXT, NULL, NULL, NULL);
         }
 
@@ -179,8 +179,8 @@ static void action_install_tickets_update(ui_view* view, void* data, float* prog
         return;
     }
 
-    if((hidKeysDown() & KEY_B) && !installData->installInfo.finished) {
-        svcSignalEvent(installData->installInfo.cancelEvent);
+    if(hidKeysDown() & KEY_B) {
+        task_cancel(&installData->installInfo.state);
     }
 }
 
@@ -218,17 +218,17 @@ static void action_install_tickets_loading_draw_top(ui_view* view, void* data, f
 static void action_install_tickets_loading_update(ui_view* view, void* data, float* progress, char* text)  {
     install_tickets_loading_data* loadingData = (install_tickets_loading_data*) data;
 
-    if(loadingData->popData.finished) {
+    if(task_is_finished(&loadingData->popData.state)) {
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(loadingData->popData.result)) {
+        if(R_SUCCEEDED(loadingData->popData.state.result)) {
             loadingData->installData->installInfo.total = linked_list_size(&loadingData->installData->contents);
             loadingData->installData->installInfo.processed = loadingData->installData->installInfo.total;
 
             prompt_display_yes_no("Confirmation", loadingData->message, COLOR_TEXT, loadingData->installData, action_install_tickets_draw_top, action_install_tickets_onresponse);
         } else {
-            error_display_res(NULL, NULL, loadingData->popData.result, "Failed to populate ticket list.");
+            error_display_res(NULL, NULL, loadingData->popData.state.result, "Failed to populate ticket list.");
 
             action_install_tickets_free_data(loadingData->installData);
         }
@@ -237,8 +237,8 @@ static void action_install_tickets_loading_update(ui_view* view, void* data, flo
         return;
     }
 
-    if((hidKeysDown() & KEY_B) && !loadingData->popData.finished) {
-        svcSignalEvent(loadingData->popData.cancelEvent);
+    if(hidKeysDown() & KEY_B) {
+        task_cancel(&loadingData->popData.state);
     }
 
     snprintf(text, PROGRESS_TEXT_MAX, "Fetching ticket list...");
@@ -291,7 +291,7 @@ static void action_install_tickets_internal(linked_list* items, list_item* selec
 
     data->installInfo.error = action_install_tickets_error;
 
-    data->installInfo.finished = true;
+    data->installInfo.state.finished = true;
 
     linked_list_init(&data->contents);
 

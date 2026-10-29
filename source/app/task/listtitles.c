@@ -303,11 +303,6 @@ static int task_populate_titles_compare_ids(const void* e1, const void* e2) {
     return id1 > id2 ? 1 : id1 < id2 ? -1 : 0;
 }
 
-static bool task_populate_titles_cancelled(populate_titles_data* data) {
-    svcWaitSynchronization(task_get_pause_event(), U64_MAX);
-    return task_is_quit_all() || svcWaitSynchronization(data->cancelEvent, 0) == 0;
-}
-
 static void task_populate_titles_free_pass(title_pass* pass) {
     free(pass->ids);
     free(pass->infos);
@@ -462,7 +457,7 @@ static Result task_populate_titles_add_cached(populate_titles_data* data, title_
     Result res = 0;
     bool have = task_populate_titles_read_record(fd, old);
     for(u32 i = 0; i < pass->count && have && R_SUCCEEDED(res); i++) {
-        if(task_populate_titles_cancelled(data)) {
+        if(task_is_cancelled(&data->state)) {
             pass->complete = false;
             break;
         }
@@ -503,7 +498,7 @@ static Result task_populate_titles_add_missing(populate_titles_data* data, title
             continue;
         }
 
-        if(task_populate_titles_cancelled(data)) {
+        if(task_is_cancelled(&data->state)) {
             pass->complete = false;
             break;
         }
@@ -557,7 +552,7 @@ static void task_populate_titles_write_cache(const title_pass* pass, u8 language
     }
 }
 
-static void task_populate_titles_thread(void* arg) {
+static Result task_populate_titles_thread(void* arg) {
     populate_titles_data* data = (populate_titles_data*) arg;
 
     title_pass passes[] = {
@@ -620,10 +615,7 @@ static void task_populate_titles_thread(void* arg) {
         task_populate_titles_free_pass(&passes[i]);
     }
 
-    svcCloseHandle(data->cancelEvent);
-
-    data->result = res;
-    data->finished = true;
+    return res;
 }
 
 void task_free_title(list_item* item) {
@@ -670,27 +662,7 @@ Result task_populate_titles(populate_titles_data* data) {
     data->total = 0;
     data->loaded = 0;
 
-    data->finished = false;
-    data->result = 0;
-    data->cancelEvent = 0;
-
-    Result res = 0;
-    if(R_SUCCEEDED(res = svcCreateEvent(&data->cancelEvent, RESET_STICKY))) {
-        if(threadCreate(task_populate_titles_thread, data, 0x10000, 0x19, 1, true) == NULL) {
-            res = R_APP_THREAD_CREATE_FAILED;
-        }
-    }
-
-    if(R_FAILED(res)) {
-        data->finished = true;
-
-        if(data->cancelEvent != 0) {
-            svcCloseHandle(data->cancelEvent);
-            data->cancelEvent = 0;
-        }
-    }
-
-    return res;
+    return task_start(&data->state, task_populate_titles_thread, data, 0x19, 1);
 }
 
 static bool task_clear_title_cache_file(const char* path) {

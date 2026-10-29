@@ -12,11 +12,6 @@
 // Directory entries read per FSDIR_Read call; folders of any size are read in full.
 #define CIA_SCAN_CHUNK 64
 
-static bool task_populate_cias_cancelled(populate_cias_data* data) {
-    svcWaitSynchronization(task_get_pause_event(), U64_MAX);
-    return task_is_quit_all() || svcWaitSynchronization(data->cancelEvent, 0) == 0;
-}
-
 // A folder inside another configured folder is already covered by that folder's walk.
 static bool task_populate_cias_nested(populate_cias_data* data, u32 index) {
     const char* path = data->folders[index];
@@ -57,7 +52,7 @@ static Result task_populate_cias_read_dir(populate_cias_data* data, const char* 
     u32 count = 0;
     while(!*quit && R_SUCCEEDED(res) && R_SUCCEEDED(res = FSDIR_Read(dirHandle, &count, CIA_SCAN_CHUNK, entries)) && count > 0) {
         for(u32 i = 0; i < count && R_SUCCEEDED(res); i++) {
-            if(task_populate_cias_cancelled(data)) {
+            if(task_is_cancelled(&data->state)) {
                 *quit = true;
                 break;
             }
@@ -168,7 +163,7 @@ static Result task_populate_cias_add_all_row(populate_cias_data* data, const cha
     return 0;
 }
 
-static void task_populate_cias_thread(void* arg) {
+static Result task_populate_cias_thread(void* arg) {
     populate_cias_data* data = (populate_cias_data*) arg;
 
     Result res = 0;
@@ -219,7 +214,7 @@ static void task_populate_cias_thread(void* arg) {
         data->metaTotal = linked_list_size(data->items) > 0 ? linked_list_size(data->items) - 1 : 0;
 
         linked_list_iterate(data->items, &iter);
-        while(linked_list_iter_has_next(&iter) && !task_populate_cias_cancelled(data)) {
+        while(linked_list_iter_has_next(&iter) && !task_is_cancelled(&data->state)) {
             file_info* info = (file_info*) ((list_item*) linked_list_iter_next(&iter))->data;
             if(info->attributes & FS_ATTRIBUTE_DIRECTORY) {
                 continue;
@@ -230,10 +225,7 @@ static void task_populate_cias_thread(void* arg) {
         }
     }
 
-    svcCloseHandle(data->cancelEvent);
-
-    data->result = res;
-    data->finished = true;
+    return res;
 }
 
 Result task_populate_cias(populate_cias_data* data) {
@@ -245,25 +237,6 @@ Result task_populate_cias(populate_cias_data* data) {
 
     data->metaLoaded = 0;
     data->metaTotal = 0;
-    data->finished = false;
-    data->result = 0;
-    data->cancelEvent = 0;
 
-    Result res = 0;
-    if(R_SUCCEEDED(res = svcCreateEvent(&data->cancelEvent, RESET_STICKY))) {
-        if(threadCreate(task_populate_cias_thread, data, 0x10000, 0x19, 1, true) == NULL) {
-            res = R_APP_THREAD_CREATE_FAILED;
-        }
-    }
-
-    if(R_FAILED(res)) {
-        data->finished = true;
-
-        if(data->cancelEvent != 0) {
-            svcCloseHandle(data->cancelEvent);
-            data->cancelEvent = 0;
-        }
-    }
-
-    return res;
+    return task_start(&data->state, task_populate_cias_thread, data, 0x19, 1);
 }

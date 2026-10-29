@@ -251,12 +251,7 @@ typedef struct {
 } remoteinstall_qr_data;
 
 static void remoteinstall_qr_stop_capture(remoteinstall_qr_data* data) {
-    if(!data->captureInfo.finished) {
-        svcSignalEvent(data->captureInfo.cancelEvent);
-        while(!data->captureInfo.finished) {
-            svcSleepThread(1000000);
-        }
-    }
+    task_cancel_and_wait(&data->captureInfo.state);
 
     data->capturing = false;
 
@@ -290,9 +285,9 @@ static void remoteinstall_qr_draw_top(ui_view* view, void* data, float x1, float
     remoteinstall_qr_data* installData = (remoteinstall_qr_data*) data;
 
     if(installData->tex != 0) {
-        svcWaitSynchronization(installData->captureInfo.mutex, U64_MAX);
+        LightLock_Lock(&installData->captureInfo.lock);
         screen_load_texture_untiled(installData->tex, installData->captureInfo.buffer, QR_IMAGE_WIDTH * QR_IMAGE_HEIGHT * sizeof(u16), QR_IMAGE_WIDTH, QR_IMAGE_HEIGHT, GPU_RGB565, false);
-        svcReleaseMutex(installData->captureInfo.mutex);
+        LightLock_Unlock(&installData->captureInfo.lock);
 
         screen_draw_texture(installData->tex, 0, 0, QR_IMAGE_WIDTH, QR_IMAGE_HEIGHT);
     }
@@ -333,12 +328,12 @@ static void remoteinstall_qr_update(ui_view* view, void* data, float* progress, 
         }
     }
 
-    if(installData->captureInfo.finished) {
+    if(task_is_finished(&installData->captureInfo.state)) {
         ui_pop();
         info_destroy(view);
 
-        if(R_FAILED(installData->captureInfo.result)) {
-            error_display_res(NULL, NULL, installData->captureInfo.result, "Error while capturing camera frames.");
+        if(R_FAILED(installData->captureInfo.state.result)) {
+            error_display_res(NULL, NULL, installData->captureInfo.state.result, "Error while capturing camera frames.");
         }
 
         remoteinstall_qr_free_data(installData);
@@ -350,7 +345,7 @@ static void remoteinstall_qr_update(ui_view* view, void* data, float* progress, 
     int h = 0;
     uint8_t* qrBuf = quirc_begin(installData->qrContext, &w, &h);
 
-    svcWaitSynchronization(installData->captureInfo.mutex, U64_MAX);
+    LightLock_Lock(&installData->captureInfo.lock);
 
     for(int x = 0; x < w; x++) {
         for(int y = 0; y < h; y++) {
@@ -359,7 +354,7 @@ static void remoteinstall_qr_update(ui_view* view, void* data, float* progress, 
         }
     }
 
-    svcReleaseMutex(installData->captureInfo.mutex);
+    LightLock_Unlock(&installData->captureInfo.lock);
 
     quirc_end(installData->qrContext);
 
@@ -401,7 +396,8 @@ static void remoteinstall_scan_qr_code() {
 
     data->captureInfo.camera = CAMERA_OUTER;
 
-    data->captureInfo.finished = true;
+    LightLock_Init(&data->captureInfo.lock);
+    data->captureInfo.state.finished = true;
 
     data->qrContext = quirc_new();
     if(data->qrContext == NULL) {

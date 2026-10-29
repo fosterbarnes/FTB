@@ -205,12 +205,7 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
     titles_data* listData = (titles_data*) data;
 
     if(hidKeysDown() & KEY_B) {
-        if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
-        }
+        task_cancel_and_wait(&listData->populateData.state);
 
         ui_pop();
 
@@ -227,12 +222,7 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
     }
 
     if(!listData->populated || (hidKeysDown() & KEY_X)) {
-        if(!listData->populateData.finished) {
-            svcSignalEvent(listData->populateData.cancelEvent);
-            while(!listData->populateData.finished) {
-                svcSleepThread(1000000);
-            }
-        }
+        task_cancel_and_wait(&listData->populateData.state);
 
         listData->populateData.items = items;
         title_cache_mode cacheMode = TITLE_CACHE_OFF;
@@ -250,10 +240,10 @@ static void titles_update(ui_view* view, void* data, linked_list* items, list_it
         listData->populated = true;
     }
 
-    if(listData->populateData.finished && R_FAILED(listData->populateData.result)) {
-        error_display_res(NULL, NULL, listData->populateData.result, "Failed to populate title list.");
+    if(task_is_finished(&listData->populateData.state) && R_FAILED(listData->populateData.state.result)) {
+        error_display_res(NULL, NULL, listData->populateData.state.result, "Failed to populate title list.");
 
-        listData->populateData.result = 0;
+        listData->populateData.state.result = 0;
     }
 
     if(selected != NULL && selected->data != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
@@ -335,7 +325,7 @@ void titles_legacy_open() {
     data->populateData.filter = titles_filter;
     data->populateData.compare = titles_compare;
 
-    data->populateData.finished = true;
+    data->populateData.state.finished = true;
 
     data->showGameCard = true;
     data->showSD = true;

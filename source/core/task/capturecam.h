@@ -1,5 +1,7 @@
 #pragma once
 
+#include "task.h"
+
 typedef enum capture_cam_camera_e {
     CAMERA_OUTER,
     CAMERA_INNER
@@ -11,11 +13,11 @@ typedef struct capture_cam_data_s {
     s16 height;
     capture_cam_camera camera;
 
-    Handle mutex;
+    // Guards buffer. The caller initializes it once (LightLock_Init) before drawing or starting;
+    // it has no handle, so it stays usable between captures.
+    LightLock lock;
 
-    volatile bool finished;
-    Result result;
-    Handle cancelEvent;
+    task_state state;
 } capture_cam_data;
 
 Result task_capture_cam(capture_cam_data* data);

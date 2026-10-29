@@ -221,7 +221,7 @@ static void action_install_cias_free_data(install_cias_data* data) {
 static void action_install_cias_update(ui_view* view, void* data, float* progress, char* text) {
     install_cias_data* installData = (install_cias_data*) data;
 
-    if(installData->installInfo.finished) {
+    if(task_is_finished(&installData->installInfo.state)) {
         if(installData->delete) {
             FSUSER_ControlArchive(installData->target->archive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0);
         }
@@ -229,7 +229,7 @@ static void action_install_cias_update(ui_view* view, void* data, float* progres
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(installData->installInfo.result)) {
+        if(R_SUCCEEDED(installData->installInfo.state.result)) {
             static char summary[64];
             task_data_op_format_summary(&installData->installInfo, "Install finished.", summary, sizeof(summary));
             prompt_display_notify("Success", summary, COLOR_TEXT, NULL, NULL, NULL);
@@ -240,8 +240,8 @@ static void action_install_cias_update(ui_view* view, void* data, float* progres
         return;
     }
 
-    if((hidKeysDown() & KEY_B) && !installData->installInfo.finished) {
-        svcSignalEvent(installData->installInfo.cancelEvent);
+    if(hidKeysDown() & KEY_B) {
+        task_cancel(&installData->installInfo.state);
     }
 }
 
@@ -338,15 +338,15 @@ static void action_install_cias_loading_draw_top(ui_view* view, void* data, floa
 static void action_install_cias_loading_update(ui_view* view, void* data, float* progress, char* text)  {
     install_cias_loading_data* loadingData = (install_cias_loading_data*) data;
 
-    if(loadingData->popData.finished) {
+    if(task_is_finished(&loadingData->popData.state)) {
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(loadingData->popData.result)) {
+        if(R_SUCCEEDED(loadingData->popData.state.result)) {
             u32 dropped = action_install_cias_drop_system(loadingData->installData);
             action_install_cias_confirm(loadingData->installData, loadingData->message, dropped);
         } else {
-            error_display_res(NULL, NULL, loadingData->popData.result, "Failed to populate CIA list.");
+            error_display_res(NULL, NULL, loadingData->popData.state.result, "Failed to populate CIA list.");
 
             action_install_cias_free_data(loadingData->installData);
         }
@@ -355,8 +355,8 @@ static void action_install_cias_loading_update(ui_view* view, void* data, float*
         return;
     }
 
-    if((hidKeysDown() & KEY_B) && !loadingData->popData.finished) {
-        svcSignalEvent(loadingData->popData.cancelEvent);
+    if(hidKeysDown() & KEY_B) {
+        task_cancel(&loadingData->popData.state);
     }
 
     u32 metaLoaded = loadingData->popData.metaLoaded;
@@ -419,7 +419,7 @@ static install_cias_data* action_install_cias_create(linked_list* items, list_it
 
     data->installInfo.error = action_install_cias_error;
 
-    data->installInfo.finished = true;
+    data->installInfo.state.finished = true;
 
     return data;
 }

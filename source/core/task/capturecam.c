@@ -7,17 +7,18 @@
 #include "task.h"
 #include "../error.h"
 
-#define EVENT_CANCEL 0
-#define EVENT_RECV 1
-#define EVENT_BUFFER_ERROR 2
+#define EVENT_RECV 0
+#define EVENT_BUFFER_ERROR 1
 
-#define EVENT_COUNT 3
+#define EVENT_COUNT 2
 
-static void task_capture_cam_thread(void* arg) {
+// Frames arrive at 30 fps; the timeout only matters if the camera stalls, so cancel is still seen.
+#define CAPTURE_WAIT_NS 100000000
+
+static Result task_capture_cam_thread(void* arg) {
     capture_cam_data* data = (capture_cam_data*) arg;
 
     Handle events[EVENT_COUNT] = {0};
-    events[EVENT_CANCEL] = data->cancelEvent;
 
     Result res = 0;
 
@@ -44,24 +45,21 @@ static void task_capture_cam_thread(void* arg) {
                    && R_SUCCEEDED(res = CAMU_ClearBuffer(PORT_CAM1))
                    && R_SUCCEEDED(res = CAMU_SetReceiving(&events[EVENT_RECV], buffer, PORT_CAM1, bufferSize, (s16) transferUnit))
                    && R_SUCCEEDED(res = CAMU_StartCapture(PORT_CAM1))) {
-                    bool cancelRequested = false;
-                    while(!task_is_quit_all() && !cancelRequested && R_SUCCEEDED(res)) {
-                        svcWaitSynchronization(task_get_pause_event(), U64_MAX);
-
+                    while(!task_is_cancelled(&data->state) && R_SUCCEEDED(res)) {
                         s32 index = 0;
-                        if(R_SUCCEEDED(res = svcWaitSynchronizationN(&index, events, EVENT_COUNT, false, U64_MAX))) {
+                        res = svcWaitSynchronizationN(&index, events, EVENT_COUNT, false, CAPTURE_WAIT_NS);
+                        if(R_DESCRIPTION(res) == RD_TIMEOUT) {
+                            res = 0;
+                        } else if(R_SUCCEEDED(res)) {
                             switch(index) {
-                                case EVENT_CANCEL:
-                                    cancelRequested = true;
-                                    break;
                                 case EVENT_RECV:
                                     svcCloseHandle(events[EVENT_RECV]);
                                     events[EVENT_RECV] = 0;
 
-                                    svcWaitSynchronization(data->mutex, U64_MAX);
+                                    LightLock_Lock(&data->lock);
                                     memcpy(data->buffer, buffer, bufferSize);
                                     GSPGPU_FlushDataCache(data->buffer, bufferSize);
-                                    svcReleaseMutex(data->mutex);
+                                    LightLock_Unlock(&data->lock);
 
                                     res = CAMU_SetReceiving(&events[EVENT_RECV], buffer, PORT_CAM1, bufferSize, (s16) transferUnit);
                                     break;
@@ -109,10 +107,7 @@ static void task_capture_cam_thread(void* arg) {
         }
     }
 
-    svcCloseHandle(data->mutex);
-
-    data->result = res;
-    data->finished = true;
+    return res;
 }
 
 Result task_capture_cam(capture_cam_data* data) {
@@ -120,33 +115,5 @@ Result task_capture_cam(capture_cam_data* data) {
         return R_APP_INVALID_ARGUMENT;
     }
 
-    data->mutex = 0;
-
-    data->finished = false;
-    data->result = 0;
-    data->cancelEvent = 0;
-
-    Result res = 0;
-
-    if(R_SUCCEEDED(res = svcCreateEvent(&data->cancelEvent, RESET_STICKY)) && R_SUCCEEDED(res = svcCreateMutex(&data->mutex, false))) {
-        if(threadCreate(task_capture_cam_thread, data, 0x10000, 0x1A, 0, true) == NULL) {
-            res = R_APP_THREAD_CREATE_FAILED;
-        }
-    }
-
-    if(R_FAILED(res)) {
-        data->finished = true;
-
-        if(data->cancelEvent != 0) {
-            svcCloseHandle(data->cancelEvent);
-            data->cancelEvent = 0;
-        }
-
-        if(data->mutex != 0) {
-            svcCloseHandle(data->mutex);
-            data->mutex = 0;
-        }
-    }
-
-    return res;
+    return task_start(&data->state, task_capture_cam_thread, data, 0x1A, 0);
 }

@@ -297,12 +297,7 @@ static void files_draw_top(ui_view* view, void* data, float x1, float y1, float 
 }
 
 static void files_repopulate(files_data* listData, linked_list* items) {
-    if(!listData->populateData.finished) {
-        svcSignalEvent(listData->populateData.cancelEvent);
-        while(!listData->populateData.finished) {
-            svcSleepThread(1000000);
-        }
-    }
+    task_cancel_and_wait(&listData->populateData.state);
 
     listData->populateData.items = items;
     listData->populateData.archive = listData->archive;
@@ -323,12 +318,7 @@ static void files_navigate(files_data* listData, linked_list* items, const char*
 }
 
 static void files_free_data(files_data* data) {
-    if(!data->populateData.finished) {
-        svcSignalEvent(data->populateData.cancelEvent);
-        while(!data->populateData.finished) {
-            svcSleepThread(1000000);
-        }
-    }
+    task_cancel_and_wait(&data->populateData.state);
 
     if(data->archive != 0) {
         fs_close_archive(data->archive);
@@ -399,10 +389,11 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
         files_repopulate(listData, items);
     }
 
-    if(listData->populateData.finished && R_FAILED(listData->populateData.result)) {
-        error_display_res(NULL, NULL, listData->populateData.result, "Failed to populate file list.");
+    task_state* state = &listData->populateData.state;
+    if(task_is_finished(state) && R_FAILED(state->result)) {
+        error_display_res(NULL, NULL, state->result, "Failed to populate file list.");
 
-        listData->populateData.result = 0;
+        state->result = 0;
     }
 }
 
@@ -421,7 +412,7 @@ void files_open(FS_ArchiveID archiveId, FS_Path archivePath) {
     data->populateData.filter = files_filter;
     data->populateData.filterData = data;
 
-    data->populateData.finished = true;
+    data->populateData.state.finished = true;
 
     data->populated = false;
 

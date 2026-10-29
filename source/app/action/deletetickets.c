@@ -79,11 +79,11 @@ static void action_delete_tickets_free_data(delete_tickets_data* data) {
 static void action_delete_tickets_update(ui_view* view, void* data, float* progress, char* text) {
     delete_tickets_data* deleteData = (delete_tickets_data*) data;
 
-    if(deleteData->deleteInfo.finished) {
+    if(task_is_finished(&deleteData->deleteInfo.state)) {
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(deleteData->deleteInfo.result)) {
+        if(R_SUCCEEDED(deleteData->deleteInfo.state.result)) {
             prompt_display_notify("Success", "Ticket(s) deleted.", COLOR_TEXT, NULL, NULL, NULL);
         }
 
@@ -92,8 +92,8 @@ static void action_delete_tickets_update(ui_view* view, void* data, float* progr
         return;
     }
 
-    if((hidKeysDown() & KEY_B) && !deleteData->deleteInfo.finished) {
-        svcSignalEvent(deleteData->deleteInfo.cancelEvent);
+    if(hidKeysDown() & KEY_B) {
+        task_cancel(&deleteData->deleteInfo.state);
     }
 
     *progress = deleteData->deleteInfo.total > 0 ? (float) deleteData->deleteInfo.processed / (float) deleteData->deleteInfo.total : 0;
@@ -132,11 +132,11 @@ static void action_delete_tickets_loading_draw_top(ui_view* view, void* data, fl
 static void action_delete_tickets_loading_update(ui_view* view, void* data, float* progress, char* text)  {
     delete_tickets_loading_data* loadingData = (delete_tickets_loading_data*) data;
 
-    if(loadingData->popData.finished) {
+    if(task_is_finished(&loadingData->popData.state)) {
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(loadingData->popData.result)) {
+        if(R_SUCCEEDED(loadingData->popData.state.result)) {
             delete_tickets_data* deleteData = loadingData->deleteData;
             bool locked = !safety_allowed();
             u32 kept = 0;
@@ -169,7 +169,7 @@ static void action_delete_tickets_loading_update(ui_view* view, void* data, floa
 
             prompt_display_yes_no("Confirmation", deleteData->message, COLOR_TEXT, deleteData, action_delete_tickets_draw_top, action_delete_tickets_onresponse);
         } else {
-            error_display_res(NULL, NULL, loadingData->popData.result, "Failed to populate ticket list.");
+            error_display_res(NULL, NULL, loadingData->popData.state.result, "Failed to populate ticket list.");
 
             action_delete_tickets_free_data(loadingData->deleteData);
         }
@@ -178,8 +178,8 @@ static void action_delete_tickets_loading_update(ui_view* view, void* data, floa
         return;
     }
 
-    if((hidKeysDown() & KEY_B) && !loadingData->popData.finished) {
-        svcSignalEvent(loadingData->popData.cancelEvent);
+    if(hidKeysDown() & KEY_B) {
+        task_cancel(&loadingData->popData.state);
     }
 
     snprintf(text, PROGRESS_TEXT_MAX, "Fetching ticket list...");
@@ -207,7 +207,7 @@ static void action_delete_tickets_internal(linked_list* items, list_item* select
 
     data->deleteInfo.error = action_delete_tickets_error;
 
-    data->deleteInfo.finished = false;
+    data->deleteInfo.state.finished = false;
 
     linked_list_init(&data->contents);
 

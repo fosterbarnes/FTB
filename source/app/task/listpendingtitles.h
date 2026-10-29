@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../../core/task/task.h"
+
 typedef struct linked_list_s linked_list;
 typedef struct list_item_s list_item;
 
@@ -12,9 +14,7 @@ typedef struct pending_title_info_s {
 typedef struct populate_pending_titles_data_s {
     linked_list* items;
 
-    volatile bool finished;
-    Result result;
-    Handle cancelEvent;
+    task_state state;
 } populate_pending_titles_data;
 
 void task_free_pending_title(list_item* item);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ciafolders.h"
+#include "../../core/task/task.h"
 
 // Name of the pinned first row, which stands for every CIA in the list.
 #define CIA_ALL_NAME "<all CIAs>"
@@ -16,9 +17,7 @@ typedef struct populate_cias_data_s {
     volatile u32 metaLoaded;
     volatile u32 metaTotal;
 
-    volatile bool finished;
-    Result result;
-    Handle cancelEvent;
+    task_state state;
 } populate_cias_data;
 
 // Lists the .cia files in every folder and its subfolders, sorted by name, after the pinned

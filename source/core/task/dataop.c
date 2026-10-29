@@ -44,7 +44,7 @@ static void task_data_op_update_rate(data_op_data* data) {
 static Result task_data_op_check_running(data_op_data* data) {
     Result res = 0;
 
-    if(task_is_quit_all() || svcWaitSynchronization(data->cancelEvent, 0) == 0) {
+    if(task_is_quit_all() || data->state.cancelled) {
         res = R_APP_CANCELLED;
     } else {
         bool suspended = svcWaitSynchronization(task_get_suspend_event(), 0) != 0;
@@ -232,9 +232,11 @@ static void task_data_op_retry_onresponse(ui_view* view, void* data, u32 respons
     ((data_op_data*) data)->retryResponse = response == PROMPT_YES;
 }
 
-static void task_data_op_thread(void* arg) {
+// The op's result is the last item's: the UI shows success only when the final item succeeded.
+static Result task_data_op_thread(void* arg) {
     data_op_data* data = (data_op_data*) arg;
 
+    Result result = 0;
     for(data->processed = 0; data->processed < data->total; data->processed++) {
         Result res = 0;
 
@@ -256,7 +258,7 @@ static void task_data_op_thread(void* arg) {
             }
         }
 
-        data->result = res;
+        result = res;
 
         // Bytes of this item count toward the batch; a retry below takes them back out. The UI sums
         // doneBytes + currProcessed, reading doneBytes first, so zeroing currProcessed before the add
@@ -307,11 +309,8 @@ static void task_data_op_thread(void* arg) {
         }
     }
 
-    svcCloseHandle(data->cancelEvent);
-
-    data->finished = true;
-
-    aptSetSleepAllowed(true);
+    task_sleep_unblock();
+    return result;
 }
 
 void task_data_op_format_summary(const data_op_data* data, const char* headline, char* out, size_t size) {
@@ -340,30 +339,13 @@ Result task_data_op(data_op_data* data) {
     data->rateTime = data->startTime;
     data->rateBytes = 0;
 
-    data->finished = false;
-    data->result = 0;
-    data->cancelEvent = 0;
+    // Blocked before the worker starts: it unblocks when it ends, and a quick op could end before
+    // this thread got here.
+    task_sleep_block();
 
-    // Blocked before the worker starts: it allows sleep again when it ends, and a quick op could end
-    // before this thread got here, leaving sleep blocked.
-    aptSetSleepAllowed(false);
-
-    Result res = 0;
-    if(R_SUCCEEDED(res = svcCreateEvent(&data->cancelEvent, RESET_STICKY))) {
-        if(threadCreate(task_data_op_thread, data, 0x10000, 0x18, 1, true) == NULL) {
-            res = R_APP_THREAD_CREATE_FAILED;
-        }
-    }
-
+    Result res = task_start(&data->state, task_data_op_thread, data, 0x18, 1);
     if(R_FAILED(res)) {
-        data->finished = true;
-
-        if(data->cancelEvent != 0) {
-            svcCloseHandle(data->cancelEvent);
-            data->cancelEvent = 0;
-        }
-
-        aptSetSleepAllowed(true);
+        task_sleep_unblock();
     }
 
     return res;

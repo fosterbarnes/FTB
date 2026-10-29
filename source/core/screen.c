@@ -31,12 +31,16 @@ static u8 base_alpha = 0xFF;
 
 static u32 color_config[MAX_COLORS] = {0xFF000000};
 
+// ID 0 is never allocated: it means "no texture", which loads skip and draws treat as empty.
 static struct {
     bool allocated;
     C3D_Tex tex;
     u32 width;
     u32 height;
 } textures[MAX_TEXTURES];
+
+// List workers allocate icons on core 1 while the UI frees them on core 0.
+static LightLock textures_lock;
 
 static void screen_set_blend(u32 color, bool rgb, bool alpha) {
     C3D_TexEnv* env = C3D_GetTexEnv(0);
@@ -67,6 +71,8 @@ static void screen_set_blend(u32 color, bool rgb, bool alpha) {
 }
 
 void screen_init() {
+    LightLock_Init(&textures_lock);
+
     if(!C3D_Init(C3D_DEFAULT_CMDBUF_SIZE * 4)) {
         error_panic("Failed to initialize the GPU.");
         return;
@@ -220,8 +226,11 @@ static u32 screen_next_pow_2(u32 i) {
     return i;
 }
 
+// 0 when the pool is full (about 1000 icons); callers then show no icon.
 u32 screen_allocate_free_texture() {
     u32 id = 0;
+
+    LightLock_Lock(&textures_lock);
     for(u32 i = 1; i < MAX_TEXTURES; i++) {
         if(!textures[i].allocated) {
             textures[i].allocated = true;
@@ -230,19 +239,20 @@ u32 screen_allocate_free_texture() {
             break;
         }
     }
-
-    if(id == 0) {
-        error_panic("Out of free textures.");
-        return 0;
-    }
+    LightLock_Unlock(&textures_lock);
 
     return id;
 }
 
-static void screen_prepare_texture(u32* pow2WidthOut, u32* pow2HeightOut, u32 id, u32 width, u32 height, GPU_TEXCOLOR format, bool linearFilter) {
+// False for ID 0 (no texture), so loads into a failed allocation do nothing.
+static bool screen_prepare_texture(u32* pow2WidthOut, u32* pow2HeightOut, u32 id, u32 width, u32 height, GPU_TEXCOLOR format, bool linearFilter) {
     if(id >= MAX_TEXTURES) {
         error_panic("Attempted to prepare invalid texture ID \"%lu\".", id);
-        return;
+        return false;
+    }
+
+    if(id == 0) {
+        return false;
     }
 
     u32 pow2Width = screen_next_pow_2(width);
@@ -262,7 +272,7 @@ static void screen_prepare_texture(u32* pow2WidthOut, u32* pow2HeightOut, u32 id
 
     if(textures[id].tex.data == NULL && !C3D_TexInit(&textures[id].tex, (u16) pow2Width, (u16) pow2Height, format)) {
         error_panic("Failed to initialize texture with ID \"%lu\".", id);
-        return;
+        return false;
     }
 
     C3D_TexSetFilter(&textures[id].tex, linearFilter ? GPU_LINEAR : GPU_NEAREST, GPU_NEAREST);
@@ -278,12 +288,16 @@ static void screen_prepare_texture(u32* pow2WidthOut, u32* pow2HeightOut, u32 id
     if(pow2HeightOut != NULL) {
         *pow2HeightOut = pow2Height;
     }
+
+    return true;
 }
 
 void screen_load_texture_tiled(u32 id, void* data, u32 size, u32 width, u32 height, GPU_TEXCOLOR format, bool linearFilter) {
     u32 pow2Width = 0;
     u32 pow2Height = 0;
-    screen_prepare_texture(&pow2Width, &pow2Height, id, width, height, format, linearFilter);
+    if(!screen_prepare_texture(&pow2Width, &pow2Height, id, width, height, format, linearFilter)) {
+        return;
+    }
 
     if(width != pow2Width || height != pow2Height) {
         u32 pixelSize = size / width / height;
@@ -310,7 +324,9 @@ static u32 screen_tile_index(u32 x, u32 y, u32 pow2Width) {
 void screen_load_texture_untiled(u32 id, void* data, u32 size, u32 width, u32 height, GPU_TEXCOLOR format, bool linearFilter) {
     u32 pow2Width = 0;
     u32 pow2Height = 0;
-    screen_prepare_texture(&pow2Width, &pow2Height, id, width, height, format, linearFilter);
+    if(!screen_prepare_texture(&pow2Width, &pow2Height, id, width, height, format, linearFilter)) {
+        return;
+    }
 
     u32 pixelSize = size / width / height;
 
@@ -392,12 +408,16 @@ void screen_unload_texture(u32 id) {
         return;
     }
 
+    LightLock_Lock(&textures_lock);
+
     C3D_TexDelete(&textures[id].tex);
     textures[id].tex.data = NULL;
 
     textures[id].allocated = false;
     textures[id].width = 0;
     textures[id].height = 0;
+
+    LightLock_Unlock(&textures_lock);
 }
 
 void screen_get_texture_size(u32* width, u32* height, u32 id) {

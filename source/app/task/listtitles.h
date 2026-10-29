@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../../core/task/task.h"
+
 typedef struct linked_list_s linked_list;
 typedef struct list_item_s list_item;
 
@@ -40,9 +42,7 @@ typedef struct populate_titles_data_s {
     volatile u32 total;
     volatile u32 loaded;
 
-    volatile bool finished;
-    Result result;
-    Handle cancelEvent;
+    task_state state;
 } populate_titles_data;
 
 void task_free_title(list_item* item);

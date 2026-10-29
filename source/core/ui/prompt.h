@@ -18,3 +18,5 @@ ui_view* prompt_display_notify(const char* name, const char* text, u32 color, vo
                                                                                           void (*onResponse)(ui_view* view, void* data, u32 response));
 ui_view* prompt_display_yes_no(const char* name, const char* text, u32 color, void* data, void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2),
                                                                                          void (*onResponse)(ui_view* view, void* data, u32 response));
+// Worker threads only: shows a yes/no prompt and blocks until it is answered. True for Yes.
+bool prompt_wait_yes_no(const char* name, const char* text, u32 color, void* data, void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2));

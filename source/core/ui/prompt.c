@@ -201,3 +201,42 @@ ui_view* prompt_display_yes_no(const char* name, const char* text, u32 color, vo
     static u32 optionButtons[2] = {KEY_A, KEY_B};
     return prompt_display_multi_choice(name, text, color, options, optionButtons, 2, data, drawTop, onResponse);
 }
+
+typedef struct {
+    void* data;
+    void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2);
+
+    volatile bool yes;
+    Handle answered;
+} prompt_wait_data;
+
+static void prompt_wait_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
+    prompt_wait_data* waitData = (prompt_wait_data*) data;
+
+    if(waitData->drawTop != NULL) {
+        waitData->drawTop(view, waitData->data, x1, y1, x2, y2);
+    }
+}
+
+// Runs on the UI thread. The worker waits on this event, not the view's active event: ui_pop
+// signals that before onResponse runs, so the answer could be read before it is stored.
+static void prompt_wait_onresponse(ui_view* view, void* data, u32 response) {
+    prompt_wait_data* waitData = (prompt_wait_data*) data;
+
+    waitData->yes = response == PROMPT_YES;
+    svcSignalEvent(waitData->answered);
+}
+
+bool prompt_wait_yes_no(const char* name, const char* text, u32 color, void* data, void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2)) {
+    prompt_wait_data waitData = {.data = data, .drawTop = drawTop, .yes = false};
+    if(R_FAILED(svcCreateEvent(&waitData.answered, RESET_ONESHOT))) {
+        return false;
+    }
+
+    if(prompt_display_yes_no(name, text, color, &waitData, prompt_wait_draw_top, prompt_wait_onresponse) != NULL) {
+        svcWaitSynchronization(waitData.answered, U64_MAX);
+    }
+
+    svcCloseHandle(waitData.answered);
+    return waitData.yes;
+}

@@ -5,6 +5,7 @@
 #include <3ds.h>
 
 #include "resources.h"
+#include "safety.h"
 #include "screens.h"
 #include "action/action.h"
 #include "task/uitask.h"
@@ -61,6 +62,19 @@ typedef struct {
     bool containsCias;
     bool containsTickets;
 } files_action_data;
+
+// System storage opens read-only while system changes are locked (safety.h).
+static bool files_read_only(FS_ArchiveID archiveId) {
+    switch(archiveId) {
+        case ARCHIVE_NAND_CTR_FS:
+        case ARCHIVE_NAND_TWL_FS:
+        case ARCHIVE_SYSTEM_SAVEDATA:
+        case ARCHIVE_SHARED_EXTDATA:
+            return !safety_allowed();
+        default:
+            return false;
+    }
+}
 
 static bool files_filter(void* data, const char* name, u32 attributes) {
     files_data* listData = (files_data*) data;
@@ -128,6 +142,32 @@ static void files_action_update(ui_view* view, void* data, linked_list* items, l
 
     if(linked_list_size(items) == 0) {
         file_info* info = (file_info*) actionData->selected->data;
+
+        // Read-only: copying out (and installing, which checks the lock itself) only.
+        if(files_read_only(actionData->parent->archiveId)) {
+            if(info->attributes & FS_ATTRIBUTE_DIRECTORY) {
+                if(actionData->containsCias) {
+                    linked_list_add(items, &install_all_cias);
+                }
+
+                if(actionData->containsTickets) {
+                    linked_list_add(items, &install_all_tickets);
+                }
+
+                linked_list_add(items, &copy_all_contents);
+            } else {
+                if(info->isCia) {
+                    linked_list_add(items, &install_cia);
+                }
+
+                if(info->isTicket) {
+                    linked_list_add(items, &install_ticket);
+                }
+            }
+
+            linked_list_add(items, &copy);
+            return;
+        }
 
         if(info->attributes & FS_ATTRIBUTE_DIRECTORY) {
             if(actionData->containsCias) {
@@ -418,7 +458,7 @@ void files_open(FS_ArchiveID archiveId, FS_Path archivePath) {
         return;
     }
 
-    list_display("Files", "A: Select, B: Back, X: Refresh, Select: Options", data, files_update, files_draw_top);
+    list_display(files_read_only(archiveId) ? "Files (Read-only)" : "Files", "A: Select, B: Back, X: Refresh, Select: Options", data, files_update, files_draw_top);
 }
 
 static void files_open_nand_warning_onresponse(ui_view* view, void* data, u32 response) {
@@ -430,6 +470,12 @@ static void files_open_nand_warning_onresponse(ui_view* view, void* data, u32 re
 }
 
 void files_open_nand_warning(FS_ArchiveID archive) {
+    // Read-only NAND cannot be modified, so it needs no warning.
+    if(files_read_only(archive)) {
+        files_open(archive, fsMakePath(PATH_EMPTY, ""));
+        return;
+    }
+
     prompt_display_yes_no("Confirmation", "Modifying the NAND is dangerous and can render\n the system inoperable.\nMake sure you know what you are doing.\n\nProceed?", COLOR_TEXT, (void*) archive, NULL, files_open_nand_warning_onresponse);
 }
 

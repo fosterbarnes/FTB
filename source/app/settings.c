@@ -32,6 +32,7 @@ static const struct {
         {"dateDayFirst", &settings.dateDayFirst},
         {"titleSortDesc", &settings.titleSortDesc},
         {"titleHeaders", &settings.titleHeaders},
+        {"systemChanges", &settings.systemChanges},
 };
 
 // Choice settings stored as key=N, N below count; anything else keeps the default.
@@ -139,6 +140,30 @@ static void settings_toggle_date_day_first() {
     settings_toggle(&settings.dateDayFirst);
 }
 
+static void settings_system_changes_onresponse(ui_view* view, void* data, u32 response) {
+    if(response == PROMPT_YES) {
+        settings_toggle(&settings.systemChanges);
+    }
+}
+
+// Turning the lock off needs no confirmation.
+static void settings_toggle_system_changes() {
+    if(settings.systemChanges) {
+        settings_toggle(&settings.systemChanges);
+        return;
+    }
+
+    prompt_display_yes_no("Warning",
+                          "Allows deleting and installing system\n"
+                          "titles, tickets, and saves, and writing\n"
+                          "to NAND. A mistake can stop the console\n"
+                          "from booting. Back up NAND with\n"
+                          "GodMode9 first.\n"
+                          "\n"
+                          "Allow system changes?",
+                          COLOR_WARNING, NULL, NULL, settings_system_changes_onresponse);
+}
+
 static void settings_clear_title_cache_onresponse(ui_view* view, void* data, u32 response) {
     if(response != PROMPT_YES) {
         return;
@@ -183,6 +208,13 @@ static settings_entry cia_folders_entry = {
         "Stored in sdmc:/ftb/ciaFolders.cfg."
 };
 
+static settings_entry system_changes_entry = {
+        settings_toggle_system_changes,
+        "Off: system titles, tickets, and save data cannot be deleted or replaced, and system storage "
+        "(NAND, system saves, shared ext data) opens read-only.\n"
+        "On: works like FBI. Back up NAND with GodMode9 first."
+};
+
 static settings_entry about_entry = {
         about_open,
         "Build type, install location, data folder, credits, and licenses."
@@ -193,6 +225,7 @@ static list_item clear_title_cache_item = {"Clear title cache", COLOR_TEXT, &cle
 static list_item clock24h_item = {"", COLOR_TEXT, &clock24h_entry};
 static list_item date_day_first_item = {"", COLOR_TEXT, &date_day_first_entry};
 static list_item cia_folders_item = {"CIA folders", COLOR_TEXT, &cia_folders_entry};
+static list_item system_changes_item = {.color = COLOR_WARNING, .data = &system_changes_entry};
 static list_item about_item = {"About", COLOR_TEXT, &about_entry};
 
 static void settings_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
@@ -231,6 +264,7 @@ static void settings_update(ui_view* view, void* data, linked_list* items, list_
         linked_list_add(items, &clock24h_item);
         linked_list_add(items, &date_day_first_item);
         linked_list_add(items, &cia_folders_item);
+        linked_list_add(items, &system_changes_item);
         linked_list_add(items, &about_item);
     }
 
@@ -238,6 +272,7 @@ static void settings_update(ui_view* view, void* data, linked_list* items, list_
     title_cache_item.color = settings.titleCache ? COLOR_ENABLED : COLOR_DISABLED;
     snprintf(clock24h_item.name, LIST_ITEM_NAME_MAX, "Time format: %s", settings.clock24h ? "24-hour" : "12-hour");
     snprintf(date_day_first_item.name, LIST_ITEM_NAME_MAX, "Date format: %s", settings.dateDayFirst ? "DD/MM/YY" : "MM/DD/YY");
+    snprintf(system_changes_item.name, LIST_ITEM_NAME_MAX, "System changes: %s", settings.systemChanges ? "On" : "Off");
 }
 
 void settings_open() {

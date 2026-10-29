@@ -503,6 +503,8 @@ static const char* description_to_string(Result res) {
                     return "Bad data";
                 case R_APP_HTTP_TOO_MANY_REDIRECTS:
                     return "Too many redirects";
+                case R_APP_SYSTEM_LOCKED:
+                    return "Locked by Settings > System changes";
                 default:
                     if(res >= R_APP_HTTP_ERROR_BASE && res < R_APP_HTTP_ERROR_END) {
                         switch(res - R_APP_HTTP_ERROR_BASE) {

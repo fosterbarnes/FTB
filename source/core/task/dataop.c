@@ -278,6 +278,15 @@ static void task_data_op_thread(void* arg) {
                     svcWaitSynchronization(errorView->active, U64_MAX);
                 }
 
+                // A locked system change fails the same way again, so there is nothing to retry.
+                if(res == R_APP_SYSTEM_LOCKED) {
+                    if(!proceed) {
+                        break;
+                    }
+
+                    continue;
+                }
+
                 ui_view* retryView = prompt_display_yes_no("Confirmation", "Retry?", COLOR_TEXT, data, NULL, task_data_op_retry_onresponse);
                 if(retryView != NULL) {
                     svcWaitSynchronization(retryView->active, U64_MAX);

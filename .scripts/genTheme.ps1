@@ -33,6 +33,8 @@ $TEXT_COLORS = [ordered]@{
     ftperror = '#F44336'; ftpcommand = '#4CAF50'; ftpresponse = '#26C6DA'
     # Secondary text: Title Manager icon list detail lines.
     textdim = '#9E9E9E'
+    # Settings > System changes and its confirmations.
+    warning = '#F44336'
 }
 
 function invokeMagick { runNativeCommand magick $args 'magick' }

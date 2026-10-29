@@ -5,6 +5,7 @@
 
 #include "action.h"
 #include "../resources.h"
+#include "../safety.h"
 #include "../task/uitask.h"
 #include "../../core/core.h"
 
@@ -13,6 +14,9 @@ typedef struct {
     bool unused;
 
     linked_list contents;
+
+    // Confirmation text when it is built at runtime; the prompt keeps the pointer.
+    char message[128];
 
     data_op_data deleteInfo;
 } delete_tickets_data;
@@ -133,22 +137,37 @@ static void action_delete_tickets_loading_update(ui_view* view, void* data, floa
         info_destroy(view);
 
         if(R_SUCCEEDED(loadingData->popData.result)) {
+            delete_tickets_data* deleteData = loadingData->deleteData;
+            bool locked = !safety_allowed();
+            u32 kept = 0;
+
             linked_list_iter iter;
-            linked_list_iterate(&loadingData->deleteData->contents, &iter);
+            linked_list_iterate(&deleteData->contents, &iter);
             while(linked_list_iter_has_next(&iter)) {
                 list_item* item = (list_item*) linked_list_iter_next(&iter);
                 ticket_info* info = (ticket_info*) item->data;
 
-                if(info->inUse) {
+                bool keptSystem = !info->inUse && locked && safety_is_system_title(info->titleId);
+                if(info->inUse || keptSystem) {
                     linked_list_iter_remove(&iter);
                     task_free_ticket(item);
                 }
+
+                if(keptSystem) {
+                    kept++;
+                }
             }
 
-            loadingData->deleteData->deleteInfo.total = linked_list_size(&loadingData->deleteData->contents);
-            loadingData->deleteData->deleteInfo.processed = loadingData->deleteData->deleteInfo.total;
+            deleteData->deleteInfo.total = linked_list_size(&deleteData->contents);
+            deleteData->deleteInfo.processed = deleteData->deleteInfo.total;
 
-            prompt_display_yes_no("Confirmation", loadingData->message, COLOR_TEXT, loadingData->deleteData, action_delete_tickets_draw_top, action_delete_tickets_onresponse);
+            if(kept > 0) {
+                snprintf(deleteData->message, sizeof(deleteData->message), "%s\n%lu system ticket%s kept (System changes is off).", loadingData->message, kept, kept == 1 ? "" : "s");
+            } else {
+                string_copy(deleteData->message, loadingData->message, sizeof(deleteData->message));
+            }
+
+            prompt_display_yes_no("Confirmation", deleteData->message, COLOR_TEXT, deleteData, action_delete_tickets_draw_top, action_delete_tickets_onresponse);
         } else {
             error_display_res(NULL, NULL, loadingData->popData.result, "Failed to populate ticket list.");
 
@@ -227,6 +246,10 @@ static void action_delete_tickets_internal(linked_list* items, list_item* select
 }
 
 void action_delete_ticket(linked_list* items, list_item* selected) {
+    if(safety_is_system_title(((ticket_info*) selected->data)->titleId) && !safety_check("Deleting system tickets")) {
+        return;
+    }
+
     action_delete_tickets_internal(items, selected, "Delete the selected ticket?", false);
 }
 

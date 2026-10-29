@@ -54,5 +54,6 @@
 #define COLOR_FTP_COMMAND 12
 #define COLOR_FTP_RESPONSE 13
 #define COLOR_TEXT_DIM 14
+#define COLOR_WARNING 15
 
 void resources_load();

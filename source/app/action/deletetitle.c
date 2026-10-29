@@ -4,6 +4,7 @@
 
 #include "action.h"
 #include "../resources.h"
+#include "../safety.h"
 #include "../task/uitask.h"
 #include "../../core/core.h"
 
@@ -52,6 +53,10 @@ static void action_delete_title_onresponse(ui_view* view, void* data, u32 respon
 }
 
 static void action_delete_title_internal(linked_list* items, list_item* selected, const char* message, bool ticket) {
+    if(safety_is_system_title(((title_info*) selected->data)->titleId) && !safety_check("Deleting system titles")) {
+        return;
+    }
+
     delete_title_data* data = (delete_title_data*) calloc(1, sizeof(delete_title_data));
     if(data == NULL) {
         error_display(NULL, NULL, "Failed to allocate delete title data.");

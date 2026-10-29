@@ -16,10 +16,10 @@
 <table border="0">
 <tbody>
 <tr>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.30/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.30/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.30/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.30/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.31/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.31/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.31/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.31/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
 </tr>
 </tbody>
 </table>

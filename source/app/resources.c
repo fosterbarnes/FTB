@@ -42,10 +42,12 @@ void resources_load() {
     }
 
     // Themes made before the FTP screen have no ftp* keys, and themes made before the icon list have no
-    // textdim key; those use the text color.
+    // textdim key; those use the text color. Without a warning key, warnings use ftperror, then text.
     u32 textColor = 0xFFFFFFFF;
+    u32 ftpErrorColor = 0;
     bool ftpColorSet[3] = {false, false, false};
     bool textDimSet = false;
+    bool warningSet = false;
 
     char line[128];
     while(fgets(line, sizeof(line), fd) != NULL) {
@@ -79,6 +81,7 @@ void resources_load() {
             screen_set_color(COLOR_TICKET_NOT_IN_USE, color);
         } else if(strcasecmp(key, "ftperror") == 0) {
             screen_set_color(COLOR_FTP_ERROR, color);
+            ftpErrorColor = color;
             ftpColorSet[0] = true;
         } else if(strcasecmp(key, "ftpcommand") == 0) {
             screen_set_color(COLOR_FTP_COMMAND, color);
@@ -89,10 +92,17 @@ void resources_load() {
         } else if(strcasecmp(key, "textdim") == 0) {
             screen_set_color(COLOR_TEXT_DIM, color);
             textDimSet = true;
+        } else if(strcasecmp(key, "warning") == 0) {
+            screen_set_color(COLOR_WARNING, color);
+            warningSet = true;
         }
     }
 
     fclose(fd);
+
+    if(!warningSet) {
+        screen_set_color(COLOR_WARNING, ftpColorSet[0] ? ftpErrorColor : textColor);
+    }
 
     for(u32 i = 0; i < 3; i++) {
         if(!ftpColorSet[i]) {

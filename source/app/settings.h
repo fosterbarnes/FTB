@@ -5,6 +5,7 @@ typedef struct ftb_settings_s {
     bool titleCache; // Titles reads and writes sdmc:/ftb/cache/
     bool clock24h; // top bar clock: 24-hour instead of 12-hour
     bool dateDayFirst; // top bar date: DD/MM/YY instead of MM/DD/YY
+    bool systemChanges; // safety.h: system title, ticket, save, and NAND changes allowed
 
     // Title Manager view, changed from its Options menu and touch buttons.
     u8 titleLayout; // title_layout

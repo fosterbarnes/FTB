@@ -6,6 +6,7 @@
 
 #include "action.h"
 #include "../resources.h"
+#include "../safety.h"
 #include "../task/uitask.h"
 #include "../../core/core.h"
 
@@ -19,20 +20,15 @@ typedef struct {
 
     bool delete;
 
-    volatile bool n3dsContinue;
-
-    // Seed need of the CIA being installed, read from its first block.
+    // Title ID and seed need of the CIA being installed, read from its first block.
+    u64 currTitleId;
     cia_seed seed;
 
-    // Confirmation text when it is built at runtime; the prompt keeps the pointer.
-    char message[64];
+    // Confirmation text; the prompt keeps the pointer.
+    char message[192];
 
     data_op_data installInfo;
 } install_cias_data;
-
-static void action_install_cias_n3ds_onresponse(ui_view* view, void* data, u32 response) {
-    ((install_cias_data*) data)->n3dsContinue = response == PROMPT_YES;
-}
 
 static void action_install_cias_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     install_cias_data* installData = (install_cias_data*) data;
@@ -120,47 +116,51 @@ static Result action_install_cias_read_src(void* data, u32 handle, u32* bytesRea
 static Result action_install_cias_open_dst(void* data, u32 index, void* initialReadBlock, u64 size, u32* handle) {
     install_cias_data* installData = (install_cias_data*) data;
 
-    installData->n3dsContinue = false;
+    installData->currTitleId = 0;
     installData->seed = CIA_SEED_UNKNOWN;
     installData->installInfo.stage = "Preparing";
 
-    file_info* info = (file_info*) ((list_item*) linked_list_get(&installData->contents, index))->data;
+    // The title ID comes from the CIA being installed, as for URL installs, so the lock also covers
+    // CIAs whose list meta did not load. The first block holds the whole header and TMD start.
+    u32 blockSize = size < installData->installInfo.bufferSize ? (u32) size : installData->installInfo.bufferSize;
 
-    FS_MediaType dest = fs_get_title_destination(info->ciaInfo.titleId);
+    u64 titleId = 0;
+    Result res = 0;
+    if(R_FAILED(res = cia_get_title_id(&titleId, (u8*) initialReadBlock, blockSize)) || R_FAILED(res = safety_confirm_install(titleId, data, action_install_cias_draw_top))) {
+        return res;
+    }
+
+    FS_MediaType dest = fs_get_title_destination(titleId);
 
     bool n3ds = false;
-    if(R_SUCCEEDED(APT_CheckNew3DS(&n3ds)) && !n3ds && ((info->ciaInfo.titleId >> 28) & 0xF) == 2) {
-        ui_view* view = prompt_display_yes_no("Confirmation", "Title is intended for New 3DS systems.\nContinue?", COLOR_TEXT, data, action_install_cias_draw_top, action_install_cias_n3ds_onresponse);
-        if(view != NULL) {
-            svcWaitSynchronization(view->active, U64_MAX);
-        }
-
-        if(!installData->n3dsContinue) {
-            return R_APP_SKIPPED;
-        }
+    if(R_SUCCEEDED(APT_CheckNew3DS(&n3ds)) && !n3ds && ((titleId >> 28) & 0xF) == 2
+       && !prompt_wait_yes_no("Confirmation", "Title is intended for New 3DS systems.\nContinue?", COLOR_TEXT, data, action_install_cias_draw_top)) {
+        return R_APP_SKIPPED;
     }
 
     // Deleting the running app before it reinstalls itself causes issues.
     u64 currTitleId = 0;
     FS_MediaType currMediaType = MEDIATYPE_NAND;
 
-    if(envIsHomebrew() || R_FAILED(APT_GetAppletInfo((NS_APPID) envGetAptAppId(), &currTitleId, (u8*) &currMediaType, NULL, NULL, NULL)) || info->ciaInfo.titleId != currTitleId || dest != currMediaType) {
-        AM_DeleteTitle(dest, info->ciaInfo.titleId);
-        AM_DeleteTicket(info->ciaInfo.titleId);
+    if(envIsHomebrew() || R_FAILED(APT_GetAppletInfo((NS_APPID) envGetAptAppId(), &currTitleId, (u8*) &currMediaType, NULL, NULL, NULL)) || titleId != currTitleId || dest != currMediaType) {
+        AM_DeleteTitle(dest, titleId);
+        AM_DeleteTicket(titleId);
 
         if(dest == MEDIATYPE_SD) {
             AM_QueryAvailableExternalTitleDatabase(NULL);
         }
     }
 
-    return AM_StartCiaInstall(dest, handle);
+    if(R_SUCCEEDED(res = AM_StartCiaInstall(dest, handle))) {
+        installData->currTitleId = titleId;
+    }
+
+    return res;
 }
 
 static Result action_install_cias_close_dst(void* data, u32 index, bool succeeded, u32 handle) {
     if(succeeded) {
         install_cias_data* installData = (install_cias_data*) data;
-
-        file_info* info = (file_info*) ((list_item*) linked_list_get(&installData->contents, index))->data;
 
         installData->installInfo.stage = "Finishing install";
 
@@ -169,12 +169,12 @@ static Result action_install_cias_close_dst(void* data, u32 index, bool succeede
             // Only seeded titles (or unreadable CIAs) need the seed lookup, which can mean a server request.
             if(installData->seed != CIA_SEED_NO) {
                 installData->installInfo.stage = "Importing seed";
-                http_download_seed(info->ciaInfo.titleId);
+                http_download_seed(installData->currTitleId);
             }
 
-            if((info->ciaInfo.titleId & 0xFFFFFFF) == 0x0000002) {
+            if(safety_is_native_firm(installData->currTitleId)) {
                 installData->installInfo.stage = "Installing firmware";
-                res = AM_InstallFirm(info->ciaInfo.titleId);
+                res = AM_InstallFirm(installData->currTitleId);
             }
         }
 
@@ -271,6 +271,57 @@ static void action_install_cias_onresponse(ui_view* view, void* data, u32 respon
     }
 }
 
+// While system changes are locked, drops the system CIAs (by loaded title ID) before confirming;
+// the install checks every CIA again. Returns how many were dropped.
+static u32 action_install_cias_drop_system(install_cias_data* data) {
+    if(safety_allowed()) {
+        return 0;
+    }
+
+    u32 dropped = 0;
+
+    linked_list_iter iter;
+    linked_list_iterate(&data->contents, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        list_item* item = (list_item*) linked_list_iter_next(&iter);
+        file_info* info = (file_info*) item->data;
+
+        if(info->isCia && info->ciaInfo.loaded && safety_is_system_title(info->ciaInfo.titleId)) {
+            linked_list_iter_remove(&iter);
+            task_free_file(item);
+
+            dropped++;
+        }
+    }
+
+    return dropped;
+}
+
+static void action_install_cias_confirm(install_cias_data* data, const char* question, u32 dropped) {
+    u32 total = linked_list_size(&data->contents);
+    if(total == 0) {
+        action_install_cias_free_data(data);
+
+        // Only system CIAs were selected: say why nothing happens.
+        if(dropped > 0) {
+            safety_check("Installing system titles");
+        }
+
+        return;
+    }
+
+    data->installInfo.total = total;
+    data->installInfo.processed = total;
+
+    if(dropped > 0) {
+        snprintf(data->message, sizeof(data->message), "%s\n%lu system CIA%s skipped (System changes is off).", question, dropped, dropped == 1 ? "" : "s");
+    } else {
+        string_copy(data->message, question, sizeof(data->message));
+    }
+
+    prompt_display_yes_no("Confirmation", data->message, COLOR_TEXT, data, action_install_cias_draw_top, action_install_cias_onresponse);
+}
+
 typedef struct {
     install_cias_data* installData;
 
@@ -292,10 +343,8 @@ static void action_install_cias_loading_update(ui_view* view, void* data, float*
         info_destroy(view);
 
         if(R_SUCCEEDED(loadingData->popData.result)) {
-            loadingData->installData->installInfo.total = linked_list_size(&loadingData->installData->contents);
-            loadingData->installData->installInfo.processed = loadingData->installData->installInfo.total;
-
-            prompt_display_yes_no("Confirmation", loadingData->message, COLOR_TEXT, loadingData->installData, action_install_cias_draw_top, action_install_cias_onresponse);
+            u32 dropped = action_install_cias_drop_system(loadingData->installData);
+            action_install_cias_confirm(loadingData->installData, loadingData->message, dropped);
         } else {
             error_display_res(NULL, NULL, loadingData->popData.result, "Failed to populate CIA list.");
 
@@ -345,8 +394,6 @@ static install_cias_data* action_install_cias_create(linked_list* items, list_it
     data->target = (file_info*) data->targetItem->data;
 
     data->delete = delete;
-
-    data->n3dsContinue = false;
 
     data->installInfo.data = data;
 
@@ -449,17 +496,12 @@ static void action_install_cias_rows(linked_list* items, list_item* selected, bo
         }
     }
 
+    u32 dropped = action_install_cias_drop_system(data);
     u32 total = linked_list_size(&data->contents);
-    if(total == 0) {
-        action_install_cias_free_data(data);
-        return;
-    }
 
-    data->installInfo.total = total;
-    data->installInfo.processed = total;
-
-    snprintf(data->message, sizeof(data->message), "%s all %lu CIA%s?", delete ? "Install and delete" : "Install", total, total == 1 ? "" : "s");
-    prompt_display_yes_no("Confirmation", data->message, COLOR_TEXT, data, action_install_cias_draw_top, action_install_cias_onresponse);
+    char question[64];
+    snprintf(question, sizeof(question), "%s all %lu CIA%s?", delete ? "Install and delete" : "Install", total, total == 1 ? "" : "s");
+    action_install_cias_confirm(data, question, dropped);
 }
 
 void action_install_cias_all(linked_list* items, list_item* selected) {

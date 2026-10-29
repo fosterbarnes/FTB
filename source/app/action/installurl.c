@@ -6,6 +6,7 @@
 
 #include "action.h"
 #include "../resources.h"
+#include "../safety.h"
 #include "../task/uitask.h"
 #include "../../core/core.h"
 
@@ -28,7 +29,6 @@ typedef struct {
     content_type contentType;
     u64 currTitleId;
     cia_seed seed;
-    volatile bool n3dsContinue;
     ticket_info ticketInfo;
     char currPath[FILE_PATH_MAX];
 
@@ -41,10 +41,6 @@ static void action_install_url_free_data(install_url_data* data) {
     }
 
     free(data);
-}
-
-static void action_install_url_n3ds_onresponse(ui_view* view, void* data, u32 response) {
-    ((install_url_data*) data)->n3dsContinue = response == PROMPT_YES;
 }
 
 static void action_install_url_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -92,7 +88,6 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
     installData->contentType = CONTENT_CIA;
     installData->currTitleId = 0;
     installData->seed = CIA_SEED_UNKNOWN;
-    installData->n3dsContinue = false;
     installData->installInfo.stage = "Preparing";
     memset(&installData->ticketInfo, 0, sizeof(installData->ticketInfo));
     memset(&installData->currPath, 0, sizeof(installData->currPath));
@@ -101,19 +96,14 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
         installData->contentType = CONTENT_CIA;
 
         u64 titleId = 0;
-        if(R_SUCCEEDED(res = cia_get_title_id(&titleId, (u8*) initialReadBlock, installData->installInfo.bufferSize))) {
+        if(R_SUCCEEDED(res = cia_get_title_id(&titleId, (u8*) initialReadBlock, installData->installInfo.bufferSize))
+           && R_SUCCEEDED(res = safety_confirm_install(titleId, data, action_install_url_draw_top))) {
             FS_MediaType dest = fs_get_title_destination(titleId);
 
             bool n3ds = false;
-            if(R_SUCCEEDED(APT_CheckNew3DS(&n3ds)) && !n3ds && ((titleId >> 28) & 0xF) == 2) {
-                ui_view* view = prompt_display_yes_no("Confirmation", "Title is intended for New 3DS systems.\nContinue?", COLOR_TEXT, data, action_install_url_draw_top, action_install_url_n3ds_onresponse);
-                if(view != NULL) {
-                    svcWaitSynchronization(view->active, U64_MAX);
-                }
-
-                if(!installData->n3dsContinue) {
-                    return R_APP_SKIPPED;
-                }
+            if(R_SUCCEEDED(APT_CheckNew3DS(&n3ds)) && !n3ds && ((titleId >> 28) & 0xF) == 2
+               && !prompt_wait_yes_no("Confirmation", "Title is intended for New 3DS systems.\nContinue?", COLOR_TEXT, data, action_install_url_draw_top)) {
+                return R_APP_SKIPPED;
             }
 
             // Deleting the running app before it reinstalls itself causes issues.
@@ -134,7 +124,8 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
             }
         }
     } else if(*(u16*) initialReadBlock == 0x0100) {
-        if(R_SUCCEEDED(res = ticket_get_title_id(&installData->ticketInfo.titleId, (u8*) initialReadBlock, installData->installInfo.bufferSize))) {
+        if(R_SUCCEEDED(res = ticket_get_title_id(&installData->ticketInfo.titleId, (u8*) initialReadBlock, installData->installInfo.bufferSize))
+           && R_SUCCEEDED(res = safety_check_title(installData->ticketInfo.titleId))) {
             installData->contentType = CONTENT_TICKET;
 
             installData->ticketInfo.inUse = false;
@@ -199,7 +190,7 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
                     http_download_seed(installData->currTitleId);
                 }
 
-                if(installData->currTitleId == 0x0004013800000002 || installData->currTitleId == 0x0004013820000002) {
+                if(safety_is_native_firm(installData->currTitleId)) {
                     installData->installInfo.stage = "Installing firmware";
                     res = AM_InstallFirm(installData->currTitleId);
                 }
@@ -383,7 +374,6 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
 
     data->contentType = CONTENT_CIA;
     data->currTitleId = 0;
-    data->n3dsContinue = false;
     memset(&data->ticketInfo, 0, sizeof(data->ticketInfo));
     memset(&data->currPath, 0, sizeof(data->currPath));
 

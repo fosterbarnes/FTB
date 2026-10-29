@@ -18,6 +18,9 @@ void action_install_cia(linked_list* items, list_item* selected);
 void action_install_cia_delete(linked_list* items, list_item* selected);
 void action_install_cias(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
 void action_install_cias_delete(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
+// Every CIA row of items (meta loaded, as in the CIA Installer); selected is shown when done.
+void action_install_cias_all(linked_list* items, list_item* selected);
+void action_install_cias_all_delete(linked_list* items, list_item* selected);
 void action_install_ticket(linked_list* items, list_item* selected);
 void action_install_ticket_delete(linked_list* items, list_item* selected);
 void action_install_tickets(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);

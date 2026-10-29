@@ -16,16 +16,22 @@
 <table border="0">
 <tbody>
 <tr>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.25/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.25/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.25/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.25/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.26/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.26/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.26/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.26/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
 </tr>
 </tbody>
 </table>
 <!-- End Quick Reference -->
 
 ## Features
+
+### CIA Installer
+- Lists every CIA in your CIA folders (subfolders included), so there is no file browsing.
+- Finds a `cia`, `.cia`, or `cias` folder on the SD card the first time you open it, or lets you pick one.
+- Install, install and delete, or delete one CIA, or install all of them at once.
+- Add or remove CIA folders from the installer (Select) or in Settings.
 
 ### Built-in FTP server
 Transfer files to and from the SD card over Wi-Fi (powered by ftpd).

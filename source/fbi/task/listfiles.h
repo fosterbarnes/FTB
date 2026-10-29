@@ -58,4 +58,8 @@ int task_compare_files(void* userData, const void* p1, const void* p2);
 void task_free_file(list_item* item);
 void task_clear_files(linked_list* items);
 Result task_create_file_item(list_item** out, FS_Archive archive, const char* path, u32 attributes, bool meta);
+// Copy of a file item that does not own the source's icon texture.
+Result task_copy_file_item(list_item** out, const list_item* src);
+// Reads size and attributes, plus title info and icon for CIAs and the title ID for tickets.
+void task_load_file_meta(file_info* fileInfo);
 Result task_populate_files(populate_files_data* data);

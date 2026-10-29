@@ -3,6 +3,7 @@
 
 #include <3ds.h>
 
+#include "ciafolders.h"
 #include "resources.h"
 #include "section.h"
 #include "settings.h"
@@ -10,14 +11,17 @@
 
 static void mainmenu_legacy_open();
 
-static list_item sd = {"SD", COLOR_TEXT, files_open_sd};
+static list_item cia_installer = {"CIA Installer", COLOR_TEXT, ciainstaller_open};
 static list_item titles = {"Title Manager", COLOR_TEXT, titlemanager_open};
 static list_item ftp_server = {"FTP Server", COLOR_TEXT, ftp_open};
+// Same screen as FBI Legacy > SD until the File Browser gets its own features.
+static list_item file_browser = {"File Browser", COLOR_TEXT, files_open_sd};
 static list_item fbi_legacy = {"FBI Legacy", COLOR_TEXT, mainmenu_legacy_open};
 static list_item update = {"Update", COLOR_TEXT, update_open};
 static list_item settings = {"Settings", COLOR_TEXT, settings_open};
 
 // FBI Legacy submenu.
+static list_item sd = {"SD", COLOR_TEXT, files_open_sd};
 static list_item titles_legacy = {"Titles", COLOR_TEXT, titles_legacy_open};
 static list_item ctr_nand = {"CTR NAND", COLOR_TEXT, files_open_ctr_nand};
 static list_item twl_nand = {"TWL NAND", COLOR_TEXT, files_open_twl_nand};
@@ -52,9 +56,10 @@ static void mainmenu_update(ui_view* view, void* data, linked_list* items, list_
     }
 
     if(linked_list_size(items) == 0) {
-        linked_list_add(items, &sd);
+        linked_list_add(items, &cia_installer);
         linked_list_add(items, &titles);
         linked_list_add(items, &ftp_server);
+        linked_list_add(items, &file_browser);
         linked_list_add(items, &fbi_legacy);
         linked_list_add(items, &update);
         linked_list_add(items, &settings);
@@ -75,6 +80,7 @@ static void mainmenu_legacy_update(ui_view* view, void* data, linked_list* items
     }
 
     if(linked_list_size(items) == 0) {
+        linked_list_add(items, &sd);
         linked_list_add(items, &titles_legacy);
         linked_list_add(items, &ctr_nand);
         linked_list_add(items, &twl_nand);
@@ -96,6 +102,7 @@ static void mainmenu_legacy_open() {
 void mainmenu_open() {
     resources_load();
     settings_load();
+    ciafolders_load();
 
     list_display("Main Menu", "A: Select, START: Exit", NULL, mainmenu_update, mainmenu_draw_top);
 }

@@ -8,6 +8,8 @@ Result app_restart();
 void mainmenu_open();
 
 void about_open();
+void ciafolders_open();
+void ciainstaller_open();
 void dumpnand_open();
 void extsavedata_open();
 void files_open(FS_ArchiveID archiveId, FS_Path archivePath);

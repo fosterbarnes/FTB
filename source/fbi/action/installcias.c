@@ -24,6 +24,9 @@ typedef struct {
     // Seed need of the CIA being installed, read from its first block.
     cia_seed seed;
 
+    // Confirmation text when it is built at runtime; the prompt keeps the pointer.
+    char message[64];
+
     data_op_data installInfo;
 } install_cias_data;
 
@@ -317,13 +320,16 @@ static void action_install_cias_loading_update(ui_view* view, void* data, float*
     }
 }
 
-static void action_install_cias_internal(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData, const char* message, bool delete) {
+// Install data with every callback set and empty contents; NULL after showing the error.
+static install_cias_data* action_install_cias_create(linked_list* items, list_item* selected, bool delete) {
     install_cias_data* data = (install_cias_data*) calloc(1, sizeof(install_cias_data));
     if(data == NULL) {
         error_display(NULL, NULL, "Failed to allocate install CIAs data.");
 
-        return;
+        return NULL;
     }
+
+    linked_list_init(&data->contents);
 
     data->items = items;
 
@@ -333,7 +339,7 @@ static void action_install_cias_internal(linked_list* items, list_item* selected
         error_display_res(NULL, NULL, targetCreateRes, "Failed to create target file item.");
 
         action_install_cias_free_data(data);
-        return;
+        return NULL;
     }
 
     data->target = (file_info*) data->targetItem->data;
@@ -368,7 +374,14 @@ static void action_install_cias_internal(linked_list* items, list_item* selected
 
     data->installInfo.finished = true;
 
-    linked_list_init(&data->contents);
+    return data;
+}
+
+static void action_install_cias_internal(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData, const char* message, bool delete) {
+    install_cias_data* data = action_install_cias_create(items, selected, delete);
+    if(data == NULL) {
+        return;
+    }
 
     install_cias_loading_data* loadingData = (install_cias_loading_data*) calloc(1, sizeof(install_cias_loading_data));
     if(loadingData == NULL) {
@@ -403,6 +416,58 @@ static void action_install_cias_internal(linked_list* items, list_item* selected
     }
 
     info_display("Loading", "Press B to cancel.", true, loadingData, action_install_cias_loading_update, action_install_cias_loading_draw_top);
+}
+
+// Installs the CIA rows of a list whose meta is already loaded, so there is no loading pass.
+static void action_install_cias_rows(linked_list* items, list_item* selected, bool delete) {
+    install_cias_data* data = action_install_cias_create(items, selected, delete);
+    if(data == NULL) {
+        return;
+    }
+
+    linked_list_iter iter;
+    linked_list_iterate(items, &iter);
+    while(linked_list_iter_has_next(&iter)) {
+        list_item* item = (list_item*) linked_list_iter_next(&iter);
+        file_info* info = (file_info*) item->data;
+        if(!info->isCia || !info->ciaInfo.loaded) {
+            continue;
+        }
+
+        list_item* copy = NULL;
+        Result res = task_copy_file_item(&copy, item);
+        if(R_SUCCEEDED(res) && !linked_list_add(&data->contents, copy)) {
+            task_free_file(copy);
+            res = R_APP_OUT_OF_MEMORY;
+        }
+
+        if(R_FAILED(res)) {
+            error_display_res(NULL, NULL, res, "Failed to create CIA list.");
+
+            action_install_cias_free_data(data);
+            return;
+        }
+    }
+
+    u32 total = linked_list_size(&data->contents);
+    if(total == 0) {
+        action_install_cias_free_data(data);
+        return;
+    }
+
+    data->installInfo.total = total;
+    data->installInfo.processed = total;
+
+    snprintf(data->message, sizeof(data->message), "%s all %lu CIA%s?", delete ? "Install and delete" : "Install", total, total == 1 ? "" : "s");
+    prompt_display_yes_no("Confirmation", data->message, COLOR_TEXT, data, action_install_cias_draw_top, action_install_cias_onresponse);
+}
+
+void action_install_cias_all(linked_list* items, list_item* selected) {
+    action_install_cias_rows(items, selected, false);
+}
+
+void action_install_cias_all_delete(linked_list* items, list_item* selected) {
+    action_install_cias_rows(items, selected, true);
 }
 
 void action_install_cia(linked_list* items, list_item* selected) {

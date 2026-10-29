@@ -37,7 +37,7 @@ int task_compare_files(void* userData, const void* p1, const void* p2) {
     }
 }
 
-static void task_populate_files_retrieve_meta(file_info* fileInfo) {
+void task_load_file_meta(file_info* fileInfo) {
     FS_Path* fileFsPath = fs_make_path_utf8(fileInfo->path);
     if(fileFsPath != NULL) {
         Handle fileHandle;
@@ -151,7 +151,7 @@ Result task_create_file_item(list_item** out, FS_Archive archive, const char* pa
                 }
 
                 if(meta) {
-                    task_populate_files_retrieve_meta(fileInfo);
+                    task_load_file_meta(fileInfo);
                 }
             }
 
@@ -169,6 +169,26 @@ Result task_create_file_item(list_item** out, FS_Archive archive, const char* pa
     }
 
     return res;
+}
+
+Result task_copy_file_item(list_item** out, const list_item* src) {
+    list_item* item = (list_item*) calloc(1, sizeof(list_item));
+    file_info* fileInfo = (file_info*) calloc(1, sizeof(file_info));
+    if(item == NULL || fileInfo == NULL) {
+        free(item);
+        free(fileInfo);
+
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    *item = *src;
+    *fileInfo = *(const file_info*) src->data;
+    // The icon stays with the source; the copy shows its meta text without it.
+    fileInfo->ciaInfo.meta.texture = 0;
+    item->data = fileInfo;
+
+    *out = item;
+    return 0;
 }
 
 static int task_populate_files_compare_directory_entries(const void* e1, const void* e2) {
@@ -294,7 +314,7 @@ static void task_populate_files_thread(void* arg) {
             list_item* item = (list_item*) linked_list_iter_next(&iter);
             file_info* fileInfo = (file_info*) item->data;
 
-            task_populate_files_retrieve_meta(fileInfo);
+            task_load_file_meta(fileInfo);
             data->metaLoaded++;
         }
     }
@@ -312,7 +332,7 @@ void task_free_file(list_item* item) {
 
     if(item->data != NULL) {
         file_info* fileInfo = (file_info*) item->data;
-        if(fileInfo->isCia && fileInfo->ciaInfo.hasMeta) {
+        if(fileInfo->isCia && fileInfo->ciaInfo.hasMeta && fileInfo->ciaInfo.meta.texture != 0) {
             screen_unload_texture(fileInfo->ciaInfo.meta.texture);
         }
 

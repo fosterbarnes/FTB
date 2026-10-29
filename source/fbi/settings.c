@@ -190,6 +190,12 @@ static settings_entry date_day_first_entry = {
         "Date in the top bar: month first (10/27/26) or day first (27/10/26)."
 };
 
+static settings_entry cia_folders_entry = {
+        ciafolders_open,
+        "Folders the CIA Installer scans, subfolders included.\n"
+        "Stored in sdmc:/ftb/ciaFolders.cfg."
+};
+
 static settings_entry about_entry = {
         about_open,
         "Build type, install location, data folder, credits, and licenses."
@@ -199,6 +205,7 @@ static list_item title_cache_item = {"", COLOR_TEXT, &title_cache_entry};
 static list_item clear_title_cache_item = {"Clear title cache", COLOR_TEXT, &clear_title_cache_entry};
 static list_item clock24h_item = {"", COLOR_TEXT, &clock24h_entry};
 static list_item date_day_first_item = {"", COLOR_TEXT, &date_day_first_entry};
+static list_item cia_folders_item = {"CIA folders", COLOR_TEXT, &cia_folders_entry};
 static list_item about_item = {"About", COLOR_TEXT, &about_entry};
 
 static void settings_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
@@ -236,6 +243,7 @@ static void settings_update(ui_view* view, void* data, linked_list* items, list_
         linked_list_add(items, &clear_title_cache_item);
         linked_list_add(items, &clock24h_item);
         linked_list_add(items, &date_day_first_item);
+        linked_list_add(items, &cia_folders_item);
         linked_list_add(items, &about_item);
     }
 

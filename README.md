@@ -27,24 +27,17 @@
 
 ## Features
 
-### CIA Installer
-- Lists every CIA in your CIA folders (subfolders included), so there is no file browsing.
-- Finds a `cia`, `.cia`, or `cias` folder on the SD card the first time you open it, or lets you pick one.
-- Install, install and delete, or delete one CIA, or install all of them at once.
-- Add or remove CIA folders from the installer (Select) or in Settings.
+Needs [Luma3DS](https://github.com/LumaTeam/Luma3DS). Installs next to FBI. Full docs are in the
+[wiki](https://github.com/fosterbarnes/FTB/wiki).
 
-### Built-in FTP server
-Transfer files to and from the SD card over Wi-Fi (powered by ftpd).
+- **[CIA Installer](https://github.com/fosterbarnes/FTB/wiki/CIA-Installer):** every CIA in your CIA folders in one list, no file browsing.
+- **[Title Manager](https://github.com/fosterbarnes/FTB/wiki/Title-Manager):** grid, list, or icon list on either screen, sorting, section jumps, and a cache that makes it open fast.
+- **[FTP Server](https://github.com/fosterbarnes/FTB/wiki/FTP-Server):** transfer files to and from the SD card over Wi-Fi (powered by ftpd).
+- **[Remote Install](https://github.com/fosterbarnes/FTB/wiki/Remote-Install):** install from a URL, a QR code, or a PC on your network.
+- **[System Changes](https://github.com/fosterbarnes/FTB/wiki/System-Changes) lock:** system titles, tickets, saves, and NAND stay safe unless you turn it off.
+- **[Themes](https://github.com/fosterbarnes/FTB/wiki/Theming):** dark by default; FBI themes work.
+- **[In-app updates](https://github.com/fosterbarnes/FTB/wiki/Install#updating)** and every FBI screen under [FBI Legacy](https://github.com/fosterbarnes/FTB/wiki/FBI-Legacy).
 
-### New Title Manager
-- Loads faster by keeping a cached title list on the SD card.
-- Three layouts: Grid, List (top), and List (bottom). The grid has adjustable zoom.
-- Sort by name or title ID, ascending or descending.
-- Optional section headers: one per letter (name) or per title type (title ID).
-- Touch buttons for sort, layout, and grid zoom; X sorts and L/R page through the list.
-- Remembers your layout and sort choices between launches.
-
-### More coming soon!
 This project is in active development.
 
 

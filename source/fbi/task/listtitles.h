@@ -1,7 +1,5 @@
 #pragma once
 
-#include "titlecategory.h"
-
 typedef struct linked_list_s linked_list;
 typedef struct list_item_s list_item;
 
@@ -13,7 +11,6 @@ typedef struct title_info_s {
     u64 installedSize;
     bool twl;
     bool hasMeta;
-    title_category category;
     meta_info meta;
 } title_info;
 
@@ -35,8 +32,6 @@ typedef struct populate_titles_data_s {
 
     void* userData;
     bool (*filter)(void* data, u64 titleId, FS_MediaType mediaType);
-    // Runs after a title loads, so a hidden title still counts toward a complete cache pass.
-    bool (*visible)(void* data, title_category category);
     int (*compare)(void* data, const void* p1, const void* p2);
     title_cache_mode cacheMode;
 

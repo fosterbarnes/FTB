@@ -40,7 +40,9 @@ typedef struct data_op_data_s {
 
     u32 bufferSize;
 
-    Result (*openDst)(void* data, u32 index, void* initialReadBlock, u64 size, u32* handle);
+    // initialReadBlock holds the item's first initialReadSize bytes (NULL and 0 for empty copies);
+    // size is the item's total size (0 when a download's length is unknown).
+    Result (*openDst)(void* data, u32 index, void* initialReadBlock, u32 initialReadSize, u64 size, u32* handle);
     Result (*closeDst)(void* data, u32 index, bool succeeded, u32 handle);
 
     Result (*writeDst)(void* data, u32 handle, u32* bytesWritten, void* buffer, u64 offset, u32 size);

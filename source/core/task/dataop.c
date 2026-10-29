@@ -82,7 +82,7 @@ static Result task_data_op_copy(data_op_data* data, u32 index) {
                 if(data->currTotal == 0) {
                     if(data->copyEmpty) {
                         u32 dstHandle = 0;
-                        if(R_SUCCEEDED(res = data->openDst(data->data, index, NULL, data->currTotal, &dstHandle))) {
+                        if(R_SUCCEEDED(res = data->openDst(data->data, index, NULL, 0, data->currTotal, &dstHandle))) {
                             res = data->closeDst(data->data, index, true, dstHandle);
                         }
                     } else {
@@ -105,10 +105,16 @@ static Result task_data_op_copy(data_op_data* data, u32 index) {
                                 break;
                             }
 
+                            // The source got shorter than its size said; reading on would spin forever.
+                            if(bytesRead == 0) {
+                                res = R_APP_BAD_DATA;
+                                break;
+                            }
+
                             if(firstRun) {
                                 firstRun = false;
 
-                                if(R_FAILED(res = data->openDst(data->data, index, buffer, data->currTotal, &dstHandle))) {
+                                if(R_FAILED(res = data->openDst(data->data, index, buffer, bytesRead, data->currTotal, &dstHandle))) {
                                     break;
                                 }
 
@@ -166,7 +172,7 @@ static Result task_data_op_download_callback(void* userData, void* buffer, size_
     if(downloadData->firstRun) {
         downloadData->firstRun = false;
 
-        Result res = data->openDst(data->data, downloadData->index, buffer, data->currTotal, &downloadData->dstHandle);
+        Result res = data->openDst(data->data, downloadData->index, buffer, size, data->currTotal, &downloadData->dstHandle);
         if(R_FAILED(res)) {
             return res;
         }
@@ -212,6 +218,11 @@ static Result task_data_op_download(data_op_data* data, u32 index) {
 
         data_op_download_data downloadData = {data, index, 0, true, 0};
         res = http_download_callback(url, data->bufferSize, &downloadData, task_data_op_download_callback, task_data_op_download_check_running, task_data_op_download_progress);
+
+        // An empty body never opened the destination, so nothing was installed.
+        if(R_SUCCEEDED(res) && downloadData.firstRun) {
+            res = R_APP_BAD_DATA;
+        }
 
         if(downloadData.dstHandle != 0) {
             Result closeDstRes = data->closeDst(data->data, index, res == 0, downloadData.dstHandle);

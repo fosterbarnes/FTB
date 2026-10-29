@@ -104,16 +104,12 @@ static Result action_install_tickets_read_src(void* data, u32 handle, u32* bytes
     return FSFILE_Read(handle, bytesRead, offset, buffer, size);
 }
 
-static Result action_install_tickets_open_dst(void* data, u32 index, void* initialReadBlock, u64 size, u32* handle) {
-    install_tickets_data* installData = (install_tickets_data*) data;
-
+static Result action_install_tickets_open_dst(void* data, u32 index, void* initialReadBlock, u32 initialReadSize, u64 size, u32* handle) {
     // The title ID comes from the ticket being installed (the first block holds all of it), so the
     // lock does not depend on the list's meta.
-    u32 blockSize = size < installData->installInfo.bufferSize ? (u32) size : installData->installInfo.bufferSize;
-
     u64 titleId = 0;
     Result res = 0;
-    if(R_FAILED(res = ticket_get_title_id(&titleId, (u8*) initialReadBlock, blockSize)) || R_FAILED(res = safety_check_title(titleId))) {
+    if(R_FAILED(res = ticket_get_title_id(&titleId, (u8*) initialReadBlock, initialReadSize)) || R_FAILED(res = safety_check_title(titleId))) {
         return res;
     }
 

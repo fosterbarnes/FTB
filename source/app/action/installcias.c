@@ -5,6 +5,7 @@
 #include <3ds.h>
 
 #include "action.h"
+#include "ciainstall.h"
 #include "../resources.h"
 #include "../safety.h"
 #include "../task/uitask.h"
@@ -20,9 +21,7 @@ typedef struct {
 
     bool delete;
 
-    // Title ID and seed need of the CIA being installed, read from its first block.
-    u64 currTitleId;
-    cia_seed seed;
+    cia_install install;
 
     // Confirmation text; the prompt keeps the pointer.
     char message[192];
@@ -113,82 +112,23 @@ static Result action_install_cias_read_src(void* data, u32 handle, u32* bytesRea
     return FSFILE_Read(handle, bytesRead, offset, buffer, size);
 }
 
-static Result action_install_cias_open_dst(void* data, u32 index, void* initialReadBlock, u64 size, u32* handle) {
+static Result action_install_cias_open_dst(void* data, u32 index, void* initialReadBlock, u32 initialReadSize, u64 size, u32* handle) {
     install_cias_data* installData = (install_cias_data*) data;
 
-    installData->currTitleId = 0;
-    installData->seed = CIA_SEED_UNKNOWN;
     installData->installInfo.stage = "Preparing";
 
     // The title ID comes from the CIA being installed, as for URL installs, so the lock also covers
     // CIAs whose list meta did not load. The first block holds the whole header and TMD start.
-    u32 blockSize = size < installData->installInfo.bufferSize ? (u32) size : installData->installInfo.bufferSize;
-
-    u64 titleId = 0;
-    Result res = 0;
-    if(R_FAILED(res = cia_get_title_id(&titleId, (u8*) initialReadBlock, blockSize)) || R_FAILED(res = safety_confirm_install(titleId, data, action_install_cias_draw_top))) {
-        return res;
-    }
-
-    FS_MediaType dest = fs_get_title_destination(titleId);
-
-    bool n3ds = false;
-    if(R_SUCCEEDED(APT_CheckNew3DS(&n3ds)) && !n3ds && ((titleId >> 28) & 0xF) == 2
-       && !prompt_wait_yes_no("Confirmation", "Title is intended for New 3DS systems.\nContinue?", COLOR_TEXT, data, action_install_cias_draw_top)) {
-        return R_APP_SKIPPED;
-    }
-
-    // Deleting the running app before it reinstalls itself causes issues.
-    u64 currTitleId = 0;
-    FS_MediaType currMediaType = MEDIATYPE_NAND;
-
-    if(envIsHomebrew() || R_FAILED(APT_GetAppletInfo((NS_APPID) envGetAptAppId(), &currTitleId, (u8*) &currMediaType, NULL, NULL, NULL)) || titleId != currTitleId || dest != currMediaType) {
-        AM_DeleteTitle(dest, titleId);
-        AM_DeleteTicket(titleId);
-
-        if(dest == MEDIATYPE_SD) {
-            AM_QueryAvailableExternalTitleDatabase(NULL);
-        }
-    }
-
-    if(R_SUCCEEDED(res = AM_StartCiaInstall(dest, handle))) {
-        installData->currTitleId = titleId;
-    }
-
-    return res;
+    return cia_install_begin(&installData->install, initialReadBlock, initialReadSize, data, action_install_cias_draw_top, handle);
 }
 
 static Result action_install_cias_close_dst(void* data, u32 index, bool succeeded, u32 handle) {
-    if(succeeded) {
-        install_cias_data* installData = (install_cias_data*) data;
+    install_cias_data* installData = (install_cias_data*) data;
 
-        installData->installInfo.stage = "Finishing install";
-
-        Result res = 0;
-        if(R_SUCCEEDED(res = AM_FinishCiaInstall(handle))) {
-            // Only seeded titles (or unreadable CIAs) need the seed lookup, which can mean a server request.
-            if(installData->seed != CIA_SEED_NO) {
-                installData->installInfo.stage = "Importing seed";
-                http_download_seed(installData->currTitleId);
-            }
-
-            if(safety_is_native_firm(installData->currTitleId)) {
-                installData->installInfo.stage = "Installing firmware";
-                res = AM_InstallFirm(installData->currTitleId);
-            }
-        }
-
-        return res;
-    } else {
-        return AM_CancelCIAInstall(handle);
-    }
+    return cia_install_end(&installData->install, &installData->installInfo, succeeded, handle);
 }
 
 static Result action_install_cias_write_dst(void* data, u32 handle, u32* bytesWritten, void* buffer, u64 offset, u32 size) {
-    if(offset == 0) {
-        ((install_cias_data*) data)->seed = cia_get_seed_state((u8*) buffer, size);
-    }
-
     return FSFILE_Write(handle, bytesWritten, offset, buffer, size, 0);
 }
 

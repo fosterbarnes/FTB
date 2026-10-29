@@ -127,7 +127,7 @@ static Result action_paste_contents_read_src(void* data, u32 handle, u32* bytesR
     return FSFILE_Read(handle, bytesRead, offset, buffer, size);
 }
 
-static Result action_paste_contents_open_dst(void* data, u32 index, void* initialReadBlock, u64 size, u32* handle) {
+static Result action_paste_contents_open_dst(void* data, u32 index, void* initialReadBlock, u32 initialReadSize, u64 size, u32* handle) {
     paste_contents_data* pasteData = (paste_contents_data*) data;
 
     Result res = 0;

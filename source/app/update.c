@@ -1,5 +1,7 @@
+#include <ctype.h>
 #include <malloc.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <3ds.h>
@@ -11,7 +13,35 @@
 #include "task/uitask.h"
 #include "../core/core.h"
 
+#define UPDATE_VERSION(major, minor, micro) (((u64) (major) << 32) | ((u64) (minor) << 16) | (u64) (micro))
+
 static bool update_installed = false;
+
+// "v<major>.<minor>.<micro>" (the v optional), packed by UPDATE_VERSION; false when malformed.
+static bool update_parse_version(const char* tag, u64* version) {
+    if(*tag == 'v') {
+        tag++;
+    }
+
+    u64 packed = 0;
+    for(u32 i = 0; i < 3; i++) {
+        if(!isdigit((unsigned char) *tag)) {
+            return false;
+        }
+
+        char* end = NULL;
+        unsigned long part = strtoul(tag, &end, 10);
+        if(part > 0xFFFF || *end != (i < 2 ? '.' : '\0')) {
+            return false;
+        }
+
+        packed = (packed << 16) | part;
+        tag = i < 2 ? end + 1 : end;
+    }
+
+    *version = packed;
+    return true;
+}
 
 static void update_finished_url(void* data, u32 index) {
     update_installed = true;
@@ -42,16 +72,10 @@ static void update_check_update(ui_view* view, void* data, float* progress, char
             json_t* tagName = json_object_get(json, "tag_name");
             json_t* assets = json_object_get(json, "assets");
 
-            if(json_is_string(tagName) && json_is_array(assets)) {
-                char versionString[16];
-                snprintf(versionString, sizeof(versionString), "%d.%d.%d", VERSION_MAJOR, VERSION_MINOR, VERSION_MICRO);
-
-                const char* latestVersion = json_string_value(tagName);
-                if(latestVersion[0] == 'v') {
-                    latestVersion++;
-                }
-
-                if(strcmp(latestVersion, versionString) != 0) {
+            u64 latestVersion = 0;
+            if(json_is_string(tagName) && json_is_array(assets) && update_parse_version(json_string_value(tagName), &latestVersion)) {
+                // Only newer versions: AM refuses to install an older title version.
+                if(latestVersion > UPDATE_VERSION(VERSION_MAJOR, VERSION_MINOR, VERSION_MICRO)) {
                     const char* url = NULL;
 
                     for(u32 i = 0; i < json_array_size(assets); i++) {

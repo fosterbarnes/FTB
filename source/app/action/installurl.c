@@ -5,6 +5,7 @@
 #include <3ds.h>
 
 #include "action.h"
+#include "ciainstall.h"
 #include "../resources.h"
 #include "../safety.h"
 #include "../task/uitask.h"
@@ -27,8 +28,7 @@ typedef struct {
     void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2, u32 index);
 
     content_type contentType;
-    u64 currTitleId;
-    cia_seed seed;
+    cia_install install;
     ticket_info ticketInfo;
     char currPath[FILE_PATH_MAX];
 
@@ -80,51 +80,27 @@ static Result action_install_url_get_src_url(void* data, u32 index, char* url, s
     return 0;
 }
 
-static Result action_install_url_open_dst(void* data, u32 index, void* initialReadBlock, u64 size, u32* handle) {
+static Result action_install_url_open_dst(void* data, u32 index, void* initialReadBlock, u32 initialReadSize, u64 size, u32* handle) {
     install_url_data* installData = (install_url_data*) data;
 
     Result res = 0;
 
     installData->contentType = CONTENT_CIA;
-    installData->currTitleId = 0;
-    installData->seed = CIA_SEED_UNKNOWN;
     installData->installInfo.stage = "Preparing";
     memset(&installData->ticketInfo, 0, sizeof(installData->ticketInfo));
     memset(&installData->currPath, 0, sizeof(installData->currPath));
 
+    // The magic checks below read 4 bytes.
+    if(initialReadSize < sizeof(u32)) {
+        return R_APP_BAD_DATA;
+    }
+
     if(*(u16*) initialReadBlock == 0x2020) {
         installData->contentType = CONTENT_CIA;
 
-        u64 titleId = 0;
-        if(R_SUCCEEDED(res = cia_get_title_id(&titleId, (u8*) initialReadBlock, installData->installInfo.bufferSize))
-           && R_SUCCEEDED(res = safety_confirm_install(titleId, data, action_install_url_draw_top))) {
-            FS_MediaType dest = fs_get_title_destination(titleId);
-
-            bool n3ds = false;
-            if(R_SUCCEEDED(APT_CheckNew3DS(&n3ds)) && !n3ds && ((titleId >> 28) & 0xF) == 2
-               && !prompt_wait_yes_no("Confirmation", "Title is intended for New 3DS systems.\nContinue?", COLOR_TEXT, data, action_install_url_draw_top)) {
-                return R_APP_SKIPPED;
-            }
-
-            // Deleting the running app before it reinstalls itself causes issues.
-            u64 currTitleId = 0;
-            FS_MediaType currMediaType = MEDIATYPE_NAND;
-
-            if(envIsHomebrew() || R_FAILED(APT_GetAppletInfo((NS_APPID) envGetAptAppId(), &currTitleId, (u8*) &currMediaType, NULL, NULL, NULL)) || titleId != currTitleId || dest != currMediaType) {
-                AM_DeleteTitle(dest, titleId);
-                AM_DeleteTicket(titleId);
-
-                if(dest == MEDIATYPE_SD) {
-                    AM_QueryAvailableExternalTitleDatabase(NULL);
-                }
-            }
-
-            if(R_SUCCEEDED(res = AM_StartCiaInstall(dest, handle))) {
-                installData->currTitleId = titleId;
-            }
-        }
+        res = cia_install_begin(&installData->install, initialReadBlock, initialReadSize, data, action_install_url_draw_top, handle);
     } else if(*(u16*) initialReadBlock == 0x0100) {
-        if(R_SUCCEEDED(res = ticket_get_title_id(&installData->ticketInfo.titleId, (u8*) initialReadBlock, installData->installInfo.bufferSize))
+        if(R_SUCCEEDED(res = ticket_get_title_id(&installData->ticketInfo.titleId, (u8*) initialReadBlock, initialReadSize))
            && R_SUCCEEDED(res = safety_check_title(installData->ticketInfo.titleId))) {
             installData->contentType = CONTENT_TICKET;
 
@@ -179,31 +155,16 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
 
     Result res = 0;
 
-    if(succeeded) {
-        if(installData->contentType == CONTENT_CIA) {
-            installData->installInfo.stage = "Finishing install";
-
-            if(R_SUCCEEDED(res = AM_FinishCiaInstall(handle))) {
-                // Only seeded titles (or unreadable CIAs) need the seed lookup, which can mean a server request.
-                if(installData->seed != CIA_SEED_NO) {
-                    installData->installInfo.stage = "Importing seed";
-                    http_download_seed(installData->currTitleId);
-                }
-
-                if(safety_is_native_firm(installData->currTitleId)) {
-                    installData->installInfo.stage = "Installing firmware";
-                    res = AM_InstallFirm(installData->currTitleId);
-                }
-            }
-        } else if(installData->contentType == CONTENT_TICKET) {
+    if(installData->contentType == CONTENT_CIA) {
+        res = cia_install_end(&installData->install, &installData->installInfo, succeeded, handle);
+    } else if(succeeded) {
+        if(installData->contentType == CONTENT_TICKET) {
             res = AMNET_InstallTicketFinish(handle);
         } else if(installData->contentType == CONTENT_3DSX_SMDH) {
             res = FSFILE_Close(handle);
         }
     } else {
-        if(installData->contentType == CONTENT_CIA) {
-            res = AM_CancelCIAInstall(handle);
-        } else if(installData->contentType == CONTENT_TICKET) {
+        if(installData->contentType == CONTENT_TICKET) {
             res = AMNET_InstallTicketAbort(handle);
         } else if(installData->contentType == CONTENT_3DSX_SMDH) {
             res = FSFILE_Close(handle);
@@ -230,12 +191,6 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
 }
 
 static Result action_install_url_write_dst(void* data, u32 handle, u32* bytesWritten, void* buffer, u64 offset, u32 size) {
-    install_url_data* installData = (install_url_data*) data;
-
-    if(offset == 0 && installData->contentType == CONTENT_CIA) {
-        installData->seed = cia_get_seed_state((u8*) buffer, size);
-    }
-
     return FSFILE_Write(handle, bytesWritten, offset, buffer, size, 0);
 }
 
@@ -373,7 +328,6 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
     data->drawTop = drawTop;
 
     data->contentType = CONTENT_CIA;
-    data->currTitleId = 0;
     memset(&data->ticketInfo, 0, sizeof(data->ticketInfo));
     memset(&data->currPath, 0, sizeof(data->currPath));
 

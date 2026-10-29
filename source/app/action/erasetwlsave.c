@@ -54,7 +54,7 @@ static Result action_erase_twl_save_read_src(void* data, u32 handle, u32* bytesR
     return 0;
 }
 
-static Result action_erase_twl_save_open_dst(void* data, u32 index, void* initialReadBlock, u64 size, u32* handle) {
+static Result action_erase_twl_save_open_dst(void* data, u32 index, void* initialReadBlock, u32 initialReadSize, u64 size, u32* handle) {
     return spi_init_card();
 }
 

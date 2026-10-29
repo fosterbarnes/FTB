@@ -39,7 +39,7 @@ static Result dumpnand_read_src(void* data, u32 handle, u32* bytesRead, void* bu
 // The dump being written, so a failed or cancelled one can be deleted. One dump runs at a time.
 static char dumpnand_path[FILE_PATH_MAX];
 
-static Result dumpnand_open_dst(void* data, u32 index, void* initialReadBlock, u64 size, u32* handle) {
+static Result dumpnand_open_dst(void* data, u32 index, void* initialReadBlock, u32 initialReadSize, u64 size, u32* handle) {
     // A full SD card would leave a cut-off image behind after a long dump.
     FS_ArchiveResource resource = {0};
     Result res = FSUSER_GetArchiveResource(&resource, SYSTEM_MEDIATYPE_SD);

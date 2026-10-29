@@ -23,7 +23,12 @@
 struct httpc_context_s {
     httpcContext httpc;
 
+    // The server has sent the whole body.
+    bool received;
+
+    // Compressed bodies: buffer holds received input the inflater has not used yet.
     bool compressed;
+    bool streamEnd;
     z_stream inflate;
     u8 buffer[32 * 1024];
     u32 bufferSize;
@@ -31,33 +36,37 @@ struct httpc_context_s {
 
 typedef struct httpc_context_s* httpc_context;
 
-static void httpc_resolve_redirect(char* oldUrl, const char* redirectTo, size_t size) {
-    if(size > 0) {
-        if(redirectTo[0] == '/') {
-            char* baseEnd = oldUrl;
+// Resolves a Location header against the URL it came from, in place: absolute URLs, //host/...,
+// /path, and paths relative to the current folder.
+static void httpc_resolve_redirect(char* url, const char* location, size_t size) {
+    char* scheme = strstr(url, "://");
+    char* host = scheme != NULL ? scheme + 3 : url;
+    char* path = host + strcspn(host, "/?#");
 
-            // Find the third slash to find the end of the URL's base; e.g. https://www.example.com/
-            u32 slashCount = 0;
-            while(*baseEnd != '\0' && (baseEnd = strchr(baseEnd + 1, '/')) != NULL) {
-                slashCount++;
-                if(slashCount == 3) {
-                    break;
-                }
+    char* keepEnd = url;
+    const char* separator = "";
+    if(location[0] == '/' && location[1] == '/') {
+        // Keeps "scheme:".
+        keepEnd = scheme != NULL ? scheme + 1 : url;
+    } else if(location[0] == '/') {
+        keepEnd = path;
+    } else if(location[strcspn(location, ":/?#")] != ':') {
+        // A relative path replaces everything after the current path's last slash.
+        char* pathEnd = path + strcspn(path, "?#");
+        keepEnd = path;
+        for(char* c = path; c < pathEnd; c++) {
+            if(*c == '/') {
+                keepEnd = c + 1;
             }
+        }
 
-            // If there are less than 3 slashes, assume the base URL ends at the end of the string; e.g. https://www.example.com
-            if(slashCount != 3) {
-                baseEnd = oldUrl + strlen(oldUrl);
-            }
-
-            size_t baseLen = baseEnd - oldUrl;
-            if(baseLen < size) {
-                string_copy(baseEnd, redirectTo, size - baseLen);
-            }
-        } else {
-            string_copy(oldUrl, redirectTo, size);
+        if(keepEnd == path) {
+            separator = "/";
         }
     }
+
+    size_t keepLen = keepEnd - url;
+    snprintf(url + keepLen, size - keepLen, "%s%s", separator, location);
 }
 
 static Result httpc_open(httpc_context* context, const char* url, bool userAgent) {
@@ -83,7 +92,7 @@ static Result httpc_open(httpc_context* context, const char* url, bool userAgent
                    && R_SUCCEEDED(res = httpcSetKeepAlive(&ctx->httpc, HTTPC_KEEPALIVE_ENABLED))
                    && R_SUCCEEDED(res = httpcBeginRequest(&ctx->httpc))
                    && R_SUCCEEDED(res = httpcGetResponseStatusCodeTimeout(&ctx->httpc, &response, HTTP_TIMEOUT_NS))) {
-                    if(response == 301 || response == 302 || response == 303) {
+                    if(response == 301 || response == 302 || response == 303 || response == 307 || response == 308) {
                         redirectCount++;
 
                         char redirectTo[1024];
@@ -102,14 +111,12 @@ static Result httpc_open(httpc_context* context, const char* url, bool userAgent
                                 bool gzip = strncmp(encoding, "gzip", sizeof(encoding)) == 0;
                                 bool deflate = strncmp(encoding, "deflate", sizeof(encoding)) == 0;
 
-                                ctx->compressed = gzip || deflate;
-
-                                if(ctx->compressed) {
+                                if(gzip || deflate) {
                                     memset(&ctx->inflate, 0, sizeof(ctx->inflate));
-                                    if(deflate) {
-                                        inflateInit(&ctx->inflate);
-                                    } else if(gzip) {
-                                        inflateInit2(&ctx->inflate, MAX_WBITS | 16);
+                                    if((deflate ? inflateInit(&ctx->inflate) : inflateInit2(&ctx->inflate, MAX_WBITS | 16)) == Z_OK) {
+                                        ctx->compressed = true;
+                                    } else {
+                                        res = R_APP_OUT_OF_MEMORY;
                                     }
                                 }
                             }
@@ -125,7 +132,7 @@ static Result httpc_open(httpc_context* context, const char* url, bool userAgent
             }
         }
 
-        if(R_SUCCEEDED(res) && redirectCount >= 32) {
+        if(R_SUCCEEDED(res) && !resolved) {
             res = R_APP_HTTP_TOO_MANY_REDIRECTS;
         }
 
@@ -162,9 +169,42 @@ static Result httpc_get_size(httpc_context context, u32* size) {
         return R_APP_INVALID_ARGUMENT;
     }
 
+    // The content length of a compressed body counts compressed bytes: report it as unknown (0).
+    if(context->compressed) {
+        *size = 0;
+        return 0;
+    }
+
     return httpcGetDownloadSizeState(&context->httpc, NULL, size);
 }
 
+// One receive into buffer; *received = bytes that arrived. Sets context->received once the body is
+// complete.
+static Result httpc_receive(httpc_context context, u8* buffer, u32 size, u32* received) {
+    Result res = 0;
+
+    u32 startPos = 0;
+    if(R_FAILED(res = httpcGetDownloadSizeState(&context->httpc, &startPos, NULL))) {
+        return res;
+    }
+
+    res = httpcReceiveDataTimeout(&context->httpc, buffer, size, HTTP_TIMEOUT_NS);
+    if(res == 0) {
+        context->received = true;
+    } else if(res != HTTPC_RESULTCODE_DOWNLOADPENDING) {
+        return res;
+    }
+
+    u32 endPos = 0;
+    if(R_FAILED(res = httpcGetDownloadSizeState(&context->httpc, &endPos, NULL))) {
+        return res;
+    }
+
+    *received = endPos - startPos;
+    return 0;
+}
+
+// Fills buffer unless the body ends first; *bytesRead is 0 once everything was read.
 static Result httpc_read(httpc_context context, u32* bytesRead, void* buffer, u32 size) {
     if(context == NULL || buffer == NULL) {
         return R_APP_INVALID_ARGUMENT;
@@ -172,62 +212,56 @@ static Result httpc_read(httpc_context context, u32* bytesRead, void* buffer, u3
 
     Result res = 0;
 
-    u32 startPos = 0;
-    if(R_SUCCEEDED(res = httpcGetDownloadSizeState(&context->httpc, &startPos, NULL))) {
-        res = HTTPC_RESULTCODE_DOWNLOADPENDING;
-
+    if(!context->compressed) {
         u32 outPos = 0;
-        if(context->compressed) {
-            u32 lastPos = context->bufferSize;
-            while(res == HTTPC_RESULTCODE_DOWNLOADPENDING && outPos < size) {
-                if((context->bufferSize > 0
-                    || R_SUCCEEDED(res = httpcReceiveDataTimeout(&context->httpc, &context->buffer[context->bufferSize], sizeof(context->buffer) - context->bufferSize, HTTP_TIMEOUT_NS))
-                    || res == HTTPC_RESULTCODE_DOWNLOADPENDING)) {
-                    Result posRes = 0;
-                    u32 currPos = 0;
-                    if(R_SUCCEEDED(posRes = httpcGetDownloadSizeState(&context->httpc, &currPos, NULL))) {
-                        context->bufferSize += currPos - lastPos;
-
-                        context->inflate.next_in = context->buffer;
-                        context->inflate.next_out = buffer + outPos;
-                        context->inflate.avail_in = context->bufferSize;
-                        context->inflate.avail_out = size - outPos;
-                        inflate(&context->inflate, Z_SYNC_FLUSH);
-
-                        memcpy(context->buffer, context->buffer + (context->bufferSize - context->inflate.avail_in), context->inflate.avail_in);
-                        context->bufferSize = context->inflate.avail_in;
-
-                        lastPos = currPos;
-                        outPos = size - context->inflate.avail_out;
-                    } else {
-                        res = posRes;
-                    }
-                }
+        while(outPos < size && !context->received) {
+            u32 received = 0;
+            if(R_FAILED(res = httpc_receive(context, (u8*) buffer + outPos, size - outPos, &received))) {
+                return res;
             }
-        } else {
-            while(res == HTTPC_RESULTCODE_DOWNLOADPENDING && outPos < size) {
-                if(R_SUCCEEDED(res = httpcReceiveDataTimeout(&context->httpc, &((u8*) buffer)[outPos], size - outPos, HTTP_TIMEOUT_NS)) || res == HTTPC_RESULTCODE_DOWNLOADPENDING) {
-                    Result posRes = 0;
-                    u32 currPos = 0;
-                    if(R_SUCCEEDED(posRes = httpcGetDownloadSizeState(&context->httpc, &currPos, NULL))) {
-                        outPos = currPos - startPos;
-                    } else {
-                        res = posRes;
-                    }
-                }
-            }
+
+            outPos += received;
         }
 
-        if(res == HTTPC_RESULTCODE_DOWNLOADPENDING) {
-            res = 0;
-        }
-
-        if(R_SUCCEEDED(res) && bytesRead != NULL) {
-            *bytesRead = outPos;
-        }
+        *bytesRead = outPos;
+        return 0;
     }
 
-    return res;
+    z_stream* stream = &context->inflate;
+    stream->next_out = (Bytef*) buffer;
+    stream->avail_out = size;
+
+    while(stream->avail_out > 0 && !context->streamEnd) {
+        if(context->bufferSize == 0) {
+            // The body ended before the compressed stream did.
+            if(context->received) {
+                return R_APP_BAD_DATA;
+            }
+
+            if(R_FAILED(res = httpc_receive(context, context->buffer, sizeof(context->buffer), &context->bufferSize))) {
+                return res;
+            }
+
+            continue;
+        }
+
+        stream->next_in = context->buffer;
+        stream->avail_in = context->bufferSize;
+
+        // Input and output are both non-empty here, so anything but progress is a corrupt stream.
+        int ret = inflate(stream, Z_SYNC_FLUSH);
+        if(ret == Z_STREAM_END) {
+            context->streamEnd = true;
+        } else if(ret != Z_OK) {
+            return R_APP_BAD_DATA;
+        }
+
+        memmove(context->buffer, stream->next_in, stream->avail_in);
+        context->bufferSize = stream->avail_in;
+    }
+
+    *bytesRead = size - stream->avail_out;
+    return 0;
 }
 
 #define R_HTTP_TLS_VERIFY_FAILED 0xD8A0A03C
@@ -298,11 +332,13 @@ Result http_download_callback(const char* url, u32 bufferSize, void* userData, R
                     progress(userData, dlSize, 0);
                 }
 
-                u32 total = 0;
+                // Reads until the body ends: dlSize is 0 when the length is unknown (chunked or
+                // compressed responses). A known length must match what arrived.
+                u64 total = 0;
                 u32 currSize = 0;
-                while(total < dlSize
-                      && (checkRunning == NULL || R_SUCCEEDED(res = checkRunning(userData)))
+                while((checkRunning == NULL || R_SUCCEEDED(res = checkRunning(userData)))
                       && R_SUCCEEDED(res = httpc_read(context, &currSize, buf, bufferSize))
+                      && currSize > 0
                       && R_SUCCEEDED(res = callback(userData, buf, currSize))) {
                     total += currSize;
 
@@ -310,6 +346,10 @@ Result http_download_callback(const char* url, u32 bufferSize, void* userData, R
                     if(progress != NULL) {
                         progress(userData, dlSize, total);
                     }
+                }
+
+                if(R_SUCCEEDED(res) && dlSize != 0 && total != dlSize) {
+                    res = R_APP_BAD_DATA;
                 }
             }
 

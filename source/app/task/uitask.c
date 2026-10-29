@@ -57,6 +57,16 @@ void task_draw_meta_info(ui_view* view, void* data, float x1, float y1, float x2
     screen_draw_string_wrap(info->publisher, metaTextX, publisherY, 0.5f, 0.5f, COLOR_TEXT, false, metaInfoBoxX + metaInfoBoxWidth - 8);
 }
 
+// Info text under the meta box: centered horizontally, starting just above the rect's middle.
+static void task_draw_info_text(const char* text, float x1, float y1, float x2, float y2) {
+    float infoWidth;
+    screen_get_string_size(&infoWidth, NULL, text, 0.5f, 0.5f);
+
+    float infoX = x1 + (x2 - x1 - infoWidth) / 2;
+    float infoY = y1 + (y2 - y1) / 2 - 8;
+    screen_draw_string(text, infoX, infoY, 0.5f, 0.5f, COLOR_TEXT, true);
+}
+
 void task_draw_ext_save_data_info(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     ext_save_data_info* info = (ext_save_data_info*) data;
 
@@ -72,71 +82,55 @@ void task_draw_ext_save_data_info(ui_view* view, void* data, float x1, float y1,
              info->extSaveDataId,
              info->shared ? "Yes" : "No");
 
-    float infoWidth;
-    screen_get_string_size(&infoWidth, NULL, infoText, 0.5f, 0.5f);
-
-    float infoX = x1 + (x2 - x1 - infoWidth) / 2;
-    float infoY = y1 + (y2 - y1) / 2 - 8;
-    screen_draw_string(infoText, infoX, infoY, 0.5f, 0.5f, COLOR_TEXT, true);
+    task_draw_info_text(infoText, x1, y1, x2, y2);
 }
+
+static const struct {
+    u32 attribute;
+    const char* name;
+} task_file_attributes[] = {
+    {FS_ATTRIBUTE_DIRECTORY, "Directory"},
+    {FS_ATTRIBUTE_HIDDEN, "Hidden"},
+    {FS_ATTRIBUTE_ARCHIVE, "Archive"},
+    {FS_ATTRIBUTE_READ_ONLY, "Read Only"},
+};
 
 void task_draw_file_info(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     file_info* info = (file_info*) data;
 
     char infoText[512];
-    size_t infoTextPos = 0;
+    size_t pos = 0;
+    char line[256];
 
     if(strlen(info->name) > 48) {
-        infoTextPos += snprintf(infoText + infoTextPos, sizeof(infoText) - infoTextPos, "Name: %.45s...\n", info->name);
+        snprintf(line, sizeof(line), "Name: %.45s...\n", info->name);
     } else {
-        infoTextPos += snprintf(infoText + infoTextPos, sizeof(infoText) - infoTextPos, "Name: %.48s\n", info->name);
+        snprintf(line, sizeof(line), "Name: %.48s\n", info->name);
     }
 
-    infoTextPos += snprintf(infoText + infoTextPos, sizeof(infoText) - infoTextPos, "Attributes: ");
+    string_append(infoText, sizeof(infoText), &pos, line);
+    string_append(infoText, sizeof(infoText), &pos, "Attributes: ");
 
-    if(info->attributes & (FS_ATTRIBUTE_DIRECTORY | FS_ATTRIBUTE_HIDDEN | FS_ATTRIBUTE_ARCHIVE | FS_ATTRIBUTE_READ_ONLY)) {
-        bool needsSeparator = false;
-
-        if(info->attributes & FS_ATTRIBUTE_DIRECTORY) {
-            infoTextPos += snprintf(infoText + infoTextPos, sizeof(infoText) - infoTextPos, "Directory");
-            needsSeparator = true;
-        }
-
-        if(info->attributes & FS_ATTRIBUTE_HIDDEN) {
-            if(needsSeparator) {
-                infoTextPos += snprintf(infoText + infoTextPos, sizeof(infoText) - infoTextPos, ", ");
+    size_t attributesStart = pos;
+    for(u32 i = 0; i < sizeof(task_file_attributes) / sizeof(task_file_attributes[0]); i++) {
+        if(info->attributes & task_file_attributes[i].attribute) {
+            if(pos > attributesStart) {
+                string_append(infoText, sizeof(infoText), &pos, ", ");
             }
 
-            infoTextPos += snprintf(infoText + infoTextPos, sizeof(infoText) - infoTextPos, "Hidden");
-            needsSeparator = true;
+            string_append(infoText, sizeof(infoText), &pos, task_file_attributes[i].name);
         }
-
-        if(info->attributes & FS_ATTRIBUTE_ARCHIVE) {
-            if(needsSeparator) {
-                infoTextPos += snprintf(infoText + infoTextPos, sizeof(infoText) - infoTextPos, ", ");
-            }
-
-            infoTextPos += snprintf(infoText + infoTextPos, sizeof(infoText) - infoTextPos, "Archive");
-            needsSeparator = true;
-        }
-
-        if(info->attributes & FS_ATTRIBUTE_READ_ONLY) {
-            if(needsSeparator) {
-                infoTextPos += snprintf(infoText + infoTextPos, sizeof(infoText) - infoTextPos, ", ");
-            }
-
-            infoTextPos += snprintf(infoText + infoTextPos, sizeof(infoText) - infoTextPos, "Read Only");
-            needsSeparator = true;
-        }
-    } else {
-        infoTextPos += snprintf(infoText + infoTextPos, sizeof(infoText) - infoTextPos, "None");
     }
 
-    infoTextPos += snprintf(infoText + infoTextPos, sizeof(infoText) - infoTextPos, "\n");
+    if(pos == attributesStart) {
+        string_append(infoText, sizeof(infoText), &pos, "None");
+    }
+
+    string_append(infoText, sizeof(infoText), &pos, "\n");
 
     if(!(info->attributes & FS_ATTRIBUTE_DIRECTORY)) {
-        infoTextPos += snprintf(infoText + infoTextPos, sizeof(infoText) - infoTextPos, "Size: %.2f %s\n",
-                                ui_get_display_size(info->size), ui_get_display_size_units(info->size));
+        snprintf(line, sizeof(line), "Size: %.2f %s\n", ui_get_display_size(info->size), ui_get_display_size_units(info->size));
+        string_append(infoText, sizeof(infoText), &pos, line);
 
         if(info->isCia && info->ciaInfo.loaded) {
             char regionString[64];
@@ -149,48 +143,46 @@ void task_draw_file_info(ui_view* view, void* data, float x1, float y1, float x2
                 snprintf(regionString, sizeof(regionString), "Unknown");
             }
 
-            infoTextPos += snprintf(infoText + infoTextPos, sizeof(infoText) - infoTextPos,
-                                    "Title ID: %016llX\n"
-                                            "Version: %hu (%d.%d.%d)\n"
-                                            "Region: %s\n"
-                                            "Installed Size: %.2f %s",
-                                    info->ciaInfo.titleId,
-                                    info->ciaInfo.version, (info->ciaInfo.version >> 10) & 0x3F, (info->ciaInfo.version >> 4) & 0x3F, info->ciaInfo.version & 0xF,
-                                    regionString,
-                                    ui_get_display_size(info->ciaInfo.installedSize),
-                                    ui_get_display_size_units(info->ciaInfo.installedSize));
+            char version[16];
+            ui_format_version(version, sizeof(version), info->ciaInfo.version);
+
+            snprintf(line, sizeof(line),
+                     "Title ID: %016llX\n"
+                             "Version: %hu (%s)\n"
+                             "Region: %s\n"
+                             "Installed Size: %.2f %s",
+                     info->ciaInfo.titleId,
+                     info->ciaInfo.version, version,
+                     regionString,
+                     ui_get_display_size(info->ciaInfo.installedSize),
+                     ui_get_display_size_units(info->ciaInfo.installedSize));
+            string_append(infoText, sizeof(infoText), &pos, line);
         } else if(info->isTicket && info->ticketInfo.loaded) {
-            infoTextPos += snprintf(infoText + infoTextPos, sizeof(infoText) - infoTextPos, "Ticket ID: %016llX", info->ticketInfo.titleId);
+            snprintf(line, sizeof(line), "Ticket ID: %016llX", info->ticketInfo.titleId);
+            string_append(infoText, sizeof(infoText), &pos, line);
         }
     }
 
-    float infoWidth;
-    screen_get_string_size(&infoWidth, NULL, infoText, 0.5f, 0.5f);
-
-    float infoX = x1 + (x2 - x1 - infoWidth) / 2;
-    float infoY = y1 + (y2 - y1) / 2 - 8;
-    screen_draw_string(infoText, infoX, infoY, 0.5f, 0.5f, COLOR_TEXT, true);
+    task_draw_info_text(infoText, x1, y1, x2, y2);
 }
 
 void task_draw_pending_title_info(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     pending_title_info* info = (pending_title_info*) data;
+
+    char version[16];
+    ui_format_version(version, sizeof(version), info->version);
 
     char infoText[512];
 
     snprintf(infoText, sizeof(infoText),
              "Pending Title ID: %016llX\n"
                      "Media Type: %s\n"
-                     "Version: %hu (%d.%d.%d)",
+                     "Version: %hu (%s)",
              info->titleId,
-             info->mediaType == MEDIATYPE_NAND ? "NAND" : info->mediaType == MEDIATYPE_SD ? "SD" : "Game Card",
-             info->version, (info->version >> 10) & 0x3F, (info->version >> 4) & 0x3F, info->version & 0xF);
+             fs_media_type_name(info->mediaType),
+             info->version, version);
 
-    float infoWidth;
-    screen_get_string_size(&infoWidth, NULL, infoText, 0.5f, 0.5f);
-
-    float infoX = x1 + (x2 - x1 - infoWidth) / 2;
-    float infoY = y1 + (y2 - y1) / 2 - 8;
-    screen_draw_string(infoText, infoX, infoY, 0.5f, 0.5f, COLOR_TEXT, true);
+    task_draw_info_text(infoText, x1, y1, x2, y2);
 }
 
 void task_draw_system_save_data_info(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -200,12 +192,7 @@ void task_draw_system_save_data_info(ui_view* view, void* data, float x1, float 
 
     snprintf(infoText, sizeof(infoText), "System Save Data ID: %08lX", info->systemSaveDataId);
 
-    float infoWidth;
-    screen_get_string_size(&infoWidth, NULL, infoText, 0.5f, 0.5f);
-
-    float infoX = x1 + (x2 - x1 - infoWidth) / 2;
-    float infoY = y1 + (y2 - y1) / 2 - 8;
-    screen_draw_string(infoText, infoX, infoY, 0.5f, 0.5f, COLOR_TEXT, true);
+    task_draw_info_text(infoText, x1, y1, x2, y2);
 }
 
 void task_draw_ticket_info(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
@@ -216,12 +203,7 @@ void task_draw_ticket_info(ui_view* view, void* data, float x1, float y1, float 
 
         snprintf(infoText, sizeof(infoText), "Title ID: %016llX", info->titleId);
 
-        float infoWidth;
-        screen_get_string_size(&infoWidth, NULL, infoText, 0.5f, 0.5f);
-
-        float infoX = x1 + (x2 - x1 - infoWidth) / 2;
-        float infoY = y1 + (y2 - y1) / 2 - 8;
-        screen_draw_string(infoText, infoX, infoY, 0.5f, 0.5f, COLOR_TEXT, true);
+        task_draw_info_text(infoText, x1, y1, x2, y2);
     }
 }
 
@@ -238,28 +220,26 @@ void task_draw_title_info(ui_view* view, void* data, float x1, float y1, float x
         snprintf(regionString, sizeof(regionString), "Unknown");
     }
 
+    char version[16];
+    ui_format_version(version, sizeof(version), info->version);
+
     char infoText[512];
 
     snprintf(infoText, sizeof(infoText),
              "Title ID: %016llX\n"
                      "Media Type: %s\n"
-                     "Version: %hu (%d.%d.%d)\n"
+                     "Version: %hu (%s)\n"
                      "Product Code: %s\n"
                      "Region: %s\n"
                      "Size: %.2f %s",
              info->titleId,
-             info->mediaType == MEDIATYPE_NAND ? "NAND" : info->mediaType == MEDIATYPE_SD ? "SD" : "Game Card",
-             info->version, (info->version >> 10) & 0x3F, (info->version >> 4) & 0x3F, info->version & 0xF,
+             fs_media_type_name(info->mediaType),
+             info->version, version,
              info->productCode,
              regionString,
              ui_get_display_size(info->installedSize), ui_get_display_size_units(info->installedSize));
 
-    float infoWidth;
-    screen_get_string_size(&infoWidth, NULL, infoText, 0.5f, 0.5f);
-
-    float infoX = x1 + (x2 - x1 - infoWidth) / 2;
-    float infoY = y1 + (y2 - y1) / 2 - 8;
-    screen_draw_string(infoText, infoX, infoY, 0.5f, 0.5f, COLOR_TEXT, true);
+    task_draw_info_text(infoText, x1, y1, x2, y2);
 }
 
 // Loading strip at the bottom of the rect: animated dots and stage on the left, count on the

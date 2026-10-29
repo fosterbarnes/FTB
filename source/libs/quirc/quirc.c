@@ -84,8 +84,10 @@ static const char *const error_table[] = {
 
 const char *quirc_strerror(quirc_decode_error_t err)
 {
-	if (err >= 0 && err < sizeof(error_table) / sizeof(error_table[0]))
-		return error_table[err];
+	int index = (int)err;
+
+	if (index >= 0 && index < (int)(sizeof(error_table) / sizeof(error_table[0])))
+		return error_table[index];
 
 	return "Unknown error";
 }

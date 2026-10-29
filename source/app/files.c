@@ -11,30 +11,46 @@
 #include "task/uitask.h"
 #include "../core/core.h"
 
-static list_item rename_opt = {"Rename", COLOR_TEXT, action_rename};
-static list_item copy = {"Copy", COLOR_TEXT, NULL};
-static list_item paste = {"Paste", COLOR_TEXT, action_paste_contents};
+// Every action row's data is a files_action; its kind picks how the row runs.
+typedef enum {
+    FILES_ACTION_RUN, // run(items, selected)
+    FILES_ACTION_RUN_FILTERED, // runFiltered(items, selected, ...): only rows the Options filters show
+    FILES_ACTION_COPY, // clipboard: the selected file or folder
+    FILES_ACTION_COPY_CONTENTS // clipboard: the selected folder's contents
+} files_action_kind;
 
-static list_item delete_file = {"Delete", COLOR_TEXT, action_delete_file};
+typedef struct {
+    files_action_kind kind;
+    void (*run)(linked_list* items, list_item* selected);
+    void (*runFiltered)(linked_list* items, list_item* selected, bool (*filter)(void* data, const char* name, u32 attributes), void* filterData);
+} files_action;
 
-static list_item install_cia = {"Install CIA", COLOR_TEXT, action_install_cia};
-static list_item install_and_delete_cia = {"Install and delete CIA", COLOR_TEXT, action_install_cia_delete};
+#define FILES_ACTION_ITEM(label, ...) {.name = label, .color = COLOR_TEXT, .data = &(files_action) {__VA_ARGS__}}
 
-static list_item install_ticket = {"Install ticket", COLOR_TEXT, action_install_ticket};
-static list_item install_and_delete_ticket = {"Install and delete ticket", COLOR_TEXT, action_install_ticket_delete};
+static list_item rename_opt = FILES_ACTION_ITEM("Rename", .kind = FILES_ACTION_RUN, .run = action_rename);
+static list_item copy = FILES_ACTION_ITEM("Copy", .kind = FILES_ACTION_COPY);
+static list_item paste = FILES_ACTION_ITEM("Paste", .kind = FILES_ACTION_RUN, .run = action_paste_contents);
 
-static list_item delete_dir = {"Delete", COLOR_TEXT, action_delete_dir};
-static list_item copy_all_contents = {"Copy all contents", COLOR_TEXT, NULL};
-static list_item delete_all_contents = {"Delete all contents", COLOR_TEXT, action_delete_dir_contents};
-static list_item new_folder = {"New folder", COLOR_TEXT, action_new_folder};
+static list_item delete_file = FILES_ACTION_ITEM("Delete", .kind = FILES_ACTION_RUN, .run = action_delete_file);
 
-static list_item install_all_cias = {"Install all CIAs", COLOR_TEXT, action_install_cias};
-static list_item install_and_delete_all_cias = {"Install and delete all CIAs", COLOR_TEXT, action_install_cias_delete};
-static list_item delete_all_cias = {"Delete all CIAs", COLOR_TEXT, action_delete_dir_cias};
+static list_item install_cia = FILES_ACTION_ITEM("Install CIA", .kind = FILES_ACTION_RUN, .run = action_install_cia);
+static list_item install_and_delete_cia = FILES_ACTION_ITEM("Install and delete CIA", .kind = FILES_ACTION_RUN, .run = action_install_cia_delete);
 
-static list_item install_all_tickets = {"Install all tickets", COLOR_TEXT, action_install_tickets};
-static list_item install_and_delete_all_tickets = {"Install and delete all tickets", COLOR_TEXT, action_install_tickets_delete};
-static list_item delete_all_tickets = {"Delete all tickets", COLOR_TEXT, action_delete_dir_tickets};
+static list_item install_ticket = FILES_ACTION_ITEM("Install ticket", .kind = FILES_ACTION_RUN, .run = action_install_ticket);
+static list_item install_and_delete_ticket = FILES_ACTION_ITEM("Install and delete ticket", .kind = FILES_ACTION_RUN, .run = action_install_ticket_delete);
+
+static list_item delete_dir = FILES_ACTION_ITEM("Delete", .kind = FILES_ACTION_RUN, .run = action_delete_dir);
+static list_item copy_all_contents = FILES_ACTION_ITEM("Copy all contents", .kind = FILES_ACTION_COPY_CONTENTS);
+static list_item delete_all_contents = FILES_ACTION_ITEM("Delete all contents", .kind = FILES_ACTION_RUN, .run = action_delete_dir_contents);
+static list_item new_folder = FILES_ACTION_ITEM("New folder", .kind = FILES_ACTION_RUN, .run = action_new_folder);
+
+static list_item install_all_cias = FILES_ACTION_ITEM("Install all CIAs", .kind = FILES_ACTION_RUN_FILTERED, .runFiltered = action_install_cias);
+static list_item install_and_delete_all_cias = FILES_ACTION_ITEM("Install and delete all CIAs", .kind = FILES_ACTION_RUN_FILTERED, .runFiltered = action_install_cias_delete);
+static list_item delete_all_cias = FILES_ACTION_ITEM("Delete all CIAs", .kind = FILES_ACTION_RUN, .run = action_delete_dir_cias);
+
+static list_item install_all_tickets = FILES_ACTION_ITEM("Install all tickets", .kind = FILES_ACTION_RUN_FILTERED, .runFiltered = action_install_tickets);
+static list_item install_and_delete_all_tickets = FILES_ACTION_ITEM("Install and delete all tickets", .kind = FILES_ACTION_RUN_FILTERED, .runFiltered = action_install_tickets_delete);
+static list_item delete_all_tickets = FILES_ACTION_ITEM("Delete all tickets", .kind = FILES_ACTION_RUN, .run = action_delete_dir_tickets);
 
 typedef struct {
     populate_files_data populateData;
@@ -111,29 +127,33 @@ static void files_action_update(ui_view* view, void* data, linked_list* items, l
         return;
     }
 
-    if(selected != NULL && (selected->data != NULL || selected == &copy || selected == &copy_all_contents) && (selectedTouched || (hidKeysDown() & KEY_A))) {
-        void* action = selected->data;
+    if(selected != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
+        const files_action* action = (const files_action*) selected->data;
 
         ui_pop();
         list_destroy(view);
 
-        if(selected == &copy || selected == &copy_all_contents) {
-            file_info* info = (file_info*) actionData->selected->data;
+        switch(action->kind) {
+            case FILES_ACTION_COPY:
+            case FILES_ACTION_COPY_CONTENTS: {
+                file_info* info = (file_info*) actionData->selected->data;
+                bool contents = action->kind == FILES_ACTION_COPY_CONTENTS;
 
-            Result res = 0;
-            if(R_SUCCEEDED(res = clipboard_set_contents(actionData->parent->archive, info->path, selected == &copy_all_contents))) {
-                prompt_display_notify("Success", selected == &copy_all_contents ? "Current directory contents copied to clipboard." : (info->attributes & FS_ATTRIBUTE_DIRECTORY) ? "Current directory copied to clipboard." : "File copied to clipboard.", COLOR_TEXT, info, task_draw_file_info, NULL);
-            } else {
-                error_display_res(info, task_draw_file_info, res, "Failed to copy to clipboard.");
+                Result res = 0;
+                if(R_SUCCEEDED(res = clipboard_set_contents(actionData->parent->archive, info->path, contents))) {
+                    prompt_display_notify("Success", contents ? "Current directory contents copied to clipboard." : (info->attributes & FS_ATTRIBUTE_DIRECTORY) ? "Current directory copied to clipboard." : "File copied to clipboard.", COLOR_TEXT, info, task_draw_file_info, NULL);
+                } else {
+                    error_display_res(info, task_draw_file_info, res, "Failed to copy to clipboard.");
+                }
+
+                break;
             }
-        } else if(selected == &install_all_cias || selected == &install_and_delete_all_cias || selected == &install_all_tickets || selected == &install_and_delete_all_tickets) {
-            void (*filteredAction)(linked_list*, list_item*, bool (*)(void*, const char*, u32), void*) = action;
-
-            filteredAction(actionData->items, actionData->selected, files_filter, actionData->parent);
-        } else {
-            void (*normalAction)(linked_list*, list_item*) = action;
-
-            normalAction(actionData->items, actionData->selected);
+            case FILES_ACTION_RUN_FILTERED:
+                action->runFiltered(actionData->items, actionData->selected, files_filter, actionData->parent);
+                break;
+            case FILES_ACTION_RUN:
+                action->run(actionData->items, actionData->selected);
+                break;
         }
 
         free(data);
@@ -386,9 +406,10 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
     if(selected != NULL && selected->data != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
         file_info* fileInfo = (file_info*) selected->data;
 
-        if((fileInfo->attributes & FS_ATTRIBUTE_DIRECTORY) && strncmp(selected->name, "<current directory>", LIST_ITEM_NAME_MAX) != 0) {
+        if((fileInfo->attributes & FS_ATTRIBUTE_DIRECTORY) && !fileInfo->isBase) {
             files_navigate(listData, items, fileInfo->path);
-        } else {
+        } else if(task_is_finished(&listData->populateData.state)) {
+            // Actions remove rows, so they wait until population no longer inserts into the list.
             files_action_open(items, selected, listData);
             return;
         }

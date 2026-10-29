@@ -127,10 +127,12 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
                 string_get_file_name(name, filename, FILE_NAME_MAX);
 
                 snprintf(dir, FILE_PATH_MAX, "/3ds/%s/", name);
-                snprintf(installData->currPath, FILE_PATH_MAX, "/3ds/%s/%s.%s", name, name, *(u32*) initialReadBlock == 0x58534433 ? "3dsx" : "smdh");
+                if(snprintf(installData->currPath, FILE_PATH_MAX, "/3ds/%s/%s.%s", name, name, *(u32*) initialReadBlock == 0x58534433 ? "3dsx" : "smdh") >= FILE_PATH_MAX) {
+                    res = R_APP_OUT_OF_RANGE; // a cut path would write to the wrong file
+                }
             }
 
-            if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/3ds/")) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, dir))) {
+            if(R_SUCCEEDED(res) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/3ds/")) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, dir))) {
                 FS_Path* path = fs_make_path_utf8(installData->currPath);
                 if(path != NULL) {
                     res = FSUSER_OpenFileDirectly(handle, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), *path, FS_OPEN_WRITE | FS_OPEN_CREATE, 0);

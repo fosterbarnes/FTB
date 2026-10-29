@@ -21,7 +21,11 @@ static void action_import_secure_value_update(ui_view* view, void* data, float* 
         if(R_SUCCEEDED(res = FSUSER_OpenFileDirectly(&fileHandle, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), *fsPath, FS_OPEN_READ, 0))) {
             u32 bytesRead = 0;
             u64 value = 0;
-            if(R_SUCCEEDED(res = FSFILE_Read(fileHandle, &bytesRead, 0, &value, sizeof(u64)))) {
+            if(R_SUCCEEDED(res = FSFILE_Read(fileHandle, &bytesRead, 0, &value, sizeof(u64))) && bytesRead != sizeof(u64)) {
+                res = R_APP_BAD_DATA; // a short file would set a zero or partial value
+            }
+
+            if(R_SUCCEEDED(res)) {
                 res = FSUSER_SetSaveDataSecureValue(value, SECUREVALUE_SLOT_SD, (u32) ((info->titleId >> 8) & 0xFFFFF), (u8) (info->titleId & 0xFF));
             }
 

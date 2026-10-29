@@ -349,15 +349,16 @@ static void ftp_settings_reset(ui_view* view, ftp_data* data) {
     ftpd_get_default_settings(&data->edit);
 }
 
-static list_item ftp_setting_user = {"", COLOR_TEXT, ftp_settings_edit_user};
-static list_item ftp_setting_pass = {"", COLOR_TEXT, ftp_settings_edit_pass};
-static list_item ftp_setting_hostname = {"", COLOR_TEXT, ftp_settings_edit_hostname};
-static list_item ftp_setting_port = {"", COLOR_TEXT, ftp_settings_edit_port};
-static list_item ftp_setting_deflate = {"", COLOR_TEXT, ftp_settings_edit_deflate};
-static list_item ftp_setting_mtime = {"", COLOR_TEXT, ftp_settings_toggle_mtime};
-static list_item ftp_setting_apply = {"Apply", COLOR_TEXT, ftp_settings_apply};
-static list_item ftp_setting_save = {"Save", COLOR_TEXT, ftp_settings_save};
-static list_item ftp_setting_reset = {"Reset to Defaults", COLOR_TEXT, ftp_settings_reset};
+// Empty names are filled in from the current settings.
+static list_item ftp_setting_user = {.color = COLOR_TEXT, .data = ftp_settings_edit_user};
+static list_item ftp_setting_pass = {.color = COLOR_TEXT, .data = ftp_settings_edit_pass};
+static list_item ftp_setting_hostname = {.color = COLOR_TEXT, .data = ftp_settings_edit_hostname};
+static list_item ftp_setting_port = {.color = COLOR_TEXT, .data = ftp_settings_edit_port};
+static list_item ftp_setting_deflate = {.color = COLOR_TEXT, .data = ftp_settings_edit_deflate};
+static list_item ftp_setting_mtime = {.color = COLOR_TEXT, .data = ftp_settings_toggle_mtime};
+static list_item ftp_setting_apply = {.name = "Apply", .color = COLOR_TEXT, .data = ftp_settings_apply};
+static list_item ftp_setting_save = {.name = "Save", .color = COLOR_TEXT, .data = ftp_settings_save};
+static list_item ftp_setting_reset = {.name = "Reset to Defaults", .color = COLOR_TEXT, .data = ftp_settings_reset};
 
 static void ftp_settings_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     ftp_data* ftpData = (ftp_data*) data;
@@ -425,9 +426,9 @@ static void ftp_menu_about(ui_view* view, ftp_data* data) {
     prompt_display_notify("About", data->aboutText, COLOR_TEXT, data, ftp_draw_top, NULL);
 }
 
-static list_item ftp_menu_item_settings = {"Settings", COLOR_TEXT, ftp_menu_settings};
-static list_item ftp_menu_item_upload_log = {"Upload Log", COLOR_TEXT, ftp_menu_upload_log};
-static list_item ftp_menu_item_about = {"About", COLOR_TEXT, ftp_menu_about};
+static list_item ftp_menu_item_settings = {.name = "Settings", .color = COLOR_TEXT, .data = ftp_menu_settings};
+static list_item ftp_menu_item_upload_log = {.name = "Upload Log", .color = COLOR_TEXT, .data = ftp_menu_upload_log};
+static list_item ftp_menu_item_about = {.name = "About", .color = COLOR_TEXT, .data = ftp_menu_about};
 
 static void ftp_menu_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     if(hidKeysDown() & (KEY_B | KEY_Y)) {

@@ -15,105 +15,76 @@
 #include "screens.h"
 #include "task/uitask.h"
 
-#define CURRENT_KPROCESS (*(void**) 0xFFFF9004)
-
-#define KPROCESS_PID_OFFSET_OLD (0xB4)
-#define KPROCESS_PID_OFFSET_NEW (0xBC)
-
-static bool backdoor_ran = false;
-static bool n3ds = false;
-static u32 old_pid = 0;
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wreturn-type"
-static __attribute__((naked)) Result svcGlobalBackdoor(s32 (*callback)()) {
-    asm volatile(
-            "svc 0x30\n"
-            "bx lr"
-    );
-}
-#pragma GCC diagnostic pop
-
-static s32 patch_pid_kernel() {
-    u32 *pidPtr = (u32*) (CURRENT_KPROCESS + (n3ds ? KPROCESS_PID_OFFSET_NEW : KPROCESS_PID_OFFSET_OLD));
-
-    old_pid = *pidPtr;
-    *pidPtr = 0;
-
-    backdoor_ran = true;
-    return 0;
-}
-
-static s32 restore_pid_kernel() {
-    u32 *pidPtr = (u32*) (CURRENT_KPROCESS + (n3ds ? KPROCESS_PID_OFFSET_NEW : KPROCESS_PID_OFFSET_OLD));
-
-    *pidPtr = old_pid;
-
-    backdoor_ran = true;
-    return 0;
-}
-
-static bool attempt_patch_pid() {
-    backdoor_ran = false;
-    APT_CheckNew3DS(&n3ds);
-
-    svcGlobalBackdoor(patch_pid_kernel);
-    srvExit();
-    srvInit();
-    svcGlobalBackdoor(restore_pid_kernel);
-
-    return backdoor_ran;
-}
-
-static void (*exit_funcs[16])()= {NULL};
-static u32 exit_func_count = 0;
+#define SOC_BUFFER_SIZE 0x100000
 
 static void* soc_buffer = NULL;
 
-void cleanup_services() {
-    for(u32 i = 0; i < exit_func_count; i++) {
-        if(exit_funcs[i] != NULL) {
-            exit_funcs[i]();
-            exit_funcs[i] = NULL;
-        }
+static Result services_httpc_init(void) {
+    return httpcInit(0);
+}
+
+static Result services_soc_init(void) {
+    soc_buffer = memalign(0x1000, SOC_BUFFER_SIZE);
+    if(soc_buffer == NULL) {
+        return R_APP_OUT_OF_MEMORY;
     }
 
-    exit_func_count = 0;
-
-    if(soc_buffer != NULL) {
+    Result res = socInit(soc_buffer, SOC_BUFFER_SIZE);
+    if(R_FAILED(res)) {
         free(soc_buffer);
         soc_buffer = NULL;
     }
-}
-
-#define INIT_SERVICE(initStatement, exitFunc) (R_SUCCEEDED(res = (initStatement)) && (exit_funcs[exit_func_count++] = (exitFunc)))
-
-Result init_services() {
-    Result res = 0;
-
-    soc_buffer = memalign(0x1000, 0x100000);
-    if(soc_buffer != NULL) {
-        Handle tempAM = 0;
-        if(R_SUCCEEDED(res = srvGetServiceHandle(&tempAM, "am:net"))) {
-            svcCloseHandle(tempAM);
-
-            if(INIT_SERVICE(amInit(), amExit)
-               && INIT_SERVICE(cfguInit(), cfguExit)
-               && INIT_SERVICE(acInit(), acExit)
-               && INIT_SERVICE(ptmuInit(), ptmuExit)
-               && INIT_SERVICE(pxiDevInit(), pxiDevExit)
-               && INIT_SERVICE(httpcInit(0), httpcExit)
-               && INIT_SERVICE(socInit(soc_buffer, 0x100000), (void (*)()) socExit));
-        }
-    } else {
-        res = R_APP_OUT_OF_MEMORY;
-    }
-
-    if(R_FAILED(res)) {
-        cleanup_services();
-    }
 
     return res;
+}
+
+static void services_soc_exit(void) {
+    socExit();
+
+    free(soc_buffer);
+    soc_buffer = NULL;
+}
+
+// Started in order and stopped in reverse; services_started counts the ones running.
+static const struct {
+    Result (*init)(void);
+    void (*exit)(void);
+} services[] = {
+    {amInit, amExit},
+    {cfguInit, cfguExit},
+    {acInit, acExit},
+    {ptmuInit, ptmuExit},
+    {pxiDevInit, pxiDevExit},
+    {services_httpc_init, httpcExit},
+    {services_soc_init, services_soc_exit},
+};
+
+static u32 services_started = 0;
+
+static void cleanup_services() {
+    while(services_started > 0) {
+        services[--services_started].exit();
+    }
+}
+
+// am:net is only reachable with Luma3DS's service access patches.
+static Result init_services() {
+    Handle tempAM = 0;
+    Result res = srvGetServiceHandle(&tempAM, "am:net");
+    if(R_FAILED(res)) {
+        return res;
+    }
+
+    svcCloseHandle(tempAM);
+
+    for(; services_started < sizeof(services) / sizeof(services[0]); services_started++) {
+        if(R_FAILED(res = services[services_started].init())) {
+            cleanup_services();
+            return res;
+        }
+    }
+
+    return 0;
 }
 
 static u32 old_time_limit = UINT32_MAX;
@@ -127,17 +98,10 @@ void init() {
         return;
     }
 
-    if(R_FAILED(init_services())) {
-        if(!attempt_patch_pid()) {
-            error_panic("Kernel backdoor not installed.\nPlease run a kernel exploit and try again.");
-            return;
-        }
-
-        Result initRes = init_services();
-        if(R_FAILED(initRes)) {
-            error_panic("Failed to initialize services: %08lX", initRes);
-            return;
-        }
+    Result servicesRes = init_services();
+    if(R_FAILED(servicesRes)) {
+        error_panic("FTB needs Luma3DS. Failed to start system services: 0x%08lX", servicesRes);
+        return;
     }
 
     osSetSpeedupEnable(true);

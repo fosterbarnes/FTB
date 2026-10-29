@@ -13,28 +13,28 @@
 // Credits from README.md "Credit" and LICENSE.txt. Item data is the detail prompt text, kept to
 // short lines because prompts do not wrap.
 static list_item about_items[] = {
-        {"FTB: fosterbarnes", COLOR_TEXT,
+        {.name = "FTB: fosterbarnes", .color = COLOR_TEXT, .data =
          "Dark-themed fork of FBI 2.6.1\n"
          "with a built-in FTP server.\n"
          "Logo by fosterbarnes.\n"
          "github.com/fosterbarnes/FTB"},
-        {"FBI: Steveice10", COLOR_TEXT,
+        {.name = "FBI: Steveice10", .color = COLOR_TEXT, .data =
          "The 3DS title manager FTB is forked from.\n"
          "Copyright (C) 2015-2019 Steveice10, MIT\n"
          "github.com/Steveice10/FBI"},
-        {"FTP server: ftpd", COLOR_TEXT,
+        {.name = "FTP server: ftpd", .color = COLOR_TEXT, .data =
          "Michael Theall, Dave Murphy, TuxSH\n"
          "GPL v3 or later\n"
          "github.com/mtheall/ftpd"},
-        {"SPI protocol: TuxSH", COLOR_TEXT,
+        {.name = "SPI protocol: TuxSH", .color = COLOR_TEXT, .data =
          "Save chip access for DS cards.\n"
          "github.com/TuxSH/TWLSaveTool"},
-        {"Original banner", COLOR_TEXT,
+        {.name = "Original banner", .color = COLOR_TEXT, .data =
          "Original FBI banner by\n"
          "OctopusRift, Apache Thunder, PabloMK7"},
-        {"Original logo: PabloMK7", COLOR_TEXT,
+        {.name = "Original logo: PabloMK7", .color = COLOR_TEXT, .data =
          "Original FBI logo by PabloMK7"},
-        {"Libraries", COLOR_TEXT,
+        {.name = "Libraries", .color = COLOR_TEXT, .data =
          "libctru, citro3d: zlib license\n"
          "curl: curl license\n"
          "mbedTLS: Apache 2.0\n"
@@ -42,7 +42,7 @@ static list_item about_items[] = {
          "zlib: zlib license\n"
          "quirc: ISC (Daniel Beer)\n"
          "stb_image: public domain"},
-        {"License", COLOR_TEXT,
+        {.name = "License", .color = COLOR_TEXT, .data =
          "FBI and FTB source: MIT\n"
          "ftpd is GPL v3 or later, so FTB\n"
          "binaries are GPL v3 or later.\n"

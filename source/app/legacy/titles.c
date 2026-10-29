@@ -11,18 +11,18 @@
 #include "../task/uitask.h"
 #include "../../core/core.h"
 
-static list_item launch_title = {"Launch Title", COLOR_TEXT, action_launch_title};
-static list_item delete_title = {"Delete Title", COLOR_TEXT, action_delete_title};
-static list_item delete_title_ticket = {"Delete Title And Ticket", COLOR_TEXT, action_delete_title_ticket};
-static list_item extract_smdh = {"Extract SMDH", COLOR_TEXT, action_extract_smdh};
-static list_item import_seed = {"Import Seed", COLOR_TEXT, action_import_seed};
-static list_item browse_save_data = {"Browse Save Data", COLOR_TEXT, action_browse_title_save_data};
-static list_item import_save_data = {"Import Save Data", COLOR_TEXT, action_import_twl_save};
-static list_item export_save_data = {"Export Save Data", COLOR_TEXT, action_export_twl_save};
-static list_item erase_save_data = {"Erase Save Data", COLOR_TEXT, action_erase_twl_save};
-static list_item import_secure_value = {"Import Secure Value", COLOR_TEXT, action_import_secure_value};
-static list_item export_secure_value = {"Export Secure Value", COLOR_TEXT, action_export_secure_value};
-static list_item delete_secure_value = {"Delete Secure Value", COLOR_TEXT, action_delete_secure_value};
+static list_item launch_title = {.name = "Launch Title", .color = COLOR_TEXT, .data = action_launch_title};
+static list_item delete_title = {.name = "Delete Title", .color = COLOR_TEXT, .data = action_delete_title};
+static list_item delete_title_ticket = {.name = "Delete Title And Ticket", .color = COLOR_TEXT, .data = action_delete_title_ticket};
+static list_item extract_smdh = {.name = "Extract SMDH", .color = COLOR_TEXT, .data = action_extract_smdh};
+static list_item import_seed = {.name = "Import Seed", .color = COLOR_TEXT, .data = action_import_seed};
+static list_item browse_save_data = {.name = "Browse Save Data", .color = COLOR_TEXT, .data = action_browse_title_save_data};
+static list_item import_save_data = {.name = "Import Save Data", .color = COLOR_TEXT, .data = action_import_twl_save};
+static list_item export_save_data = {.name = "Export Save Data", .color = COLOR_TEXT, .data = action_export_twl_save};
+static list_item erase_save_data = {.name = "Erase Save Data", .color = COLOR_TEXT, .data = action_erase_twl_save};
+static list_item import_secure_value = {.name = "Import Secure Value", .color = COLOR_TEXT, .data = action_import_secure_value};
+static list_item export_secure_value = {.name = "Export Secure Value", .color = COLOR_TEXT, .data = action_export_secure_value};
+static list_item delete_secure_value = {.name = "Delete Secure Value", .color = COLOR_TEXT, .data = action_delete_secure_value};
 
 typedef struct {
     populate_titles_data populateData;

@@ -31,7 +31,8 @@ static void action_paste_contents_draw_top(ui_view* view, void* data, float x1, 
     }
 }
 
-static void action_paste_contents_get_dst_path(paste_contents_data* data, u32 index, char* dstPath) {
+// R_APP_OUT_OF_RANGE when the path does not fit: a cut path could replace or delete another file.
+static Result action_paste_contents_get_dst_path(paste_contents_data* data, u32 index, char* dstPath) {
     char baseSrcPath[FILE_PATH_MAX];
     if(clipboard_is_contents_only()) {
         string_copy(baseSrcPath, clipboard_get_path(), FILE_PATH_MAX);
@@ -46,7 +47,8 @@ static void action_paste_contents_get_dst_path(paste_contents_data* data, u32 in
         string_get_parent_path(baseDstPath, data->target->path, FILE_PATH_MAX);
     }
 
-    snprintf(dstPath, FILE_PATH_MAX, "%s%s", baseDstPath, ((file_info*) ((list_item*) linked_list_get(&data->contents, index))->data)->path + strlen(baseSrcPath));
+    const char* relativePath = ((file_info*) ((list_item*) linked_list_get(&data->contents, index))->data)->path + strlen(baseSrcPath);
+    return snprintf(dstPath, FILE_PATH_MAX, "%s%s", baseDstPath, relativePath) < FILE_PATH_MAX ? 0 : R_APP_OUT_OF_RANGE;
 }
 
 static Result action_paste_contents_is_src_directory(void* data, u32 index, bool* isDirectory) {
@@ -64,7 +66,9 @@ static Result action_paste_contents_make_dst_directory(void* data, u32 index) {
     u32 attributes = ((file_info*) ((list_item*) linked_list_get(&pasteData->contents, index))->data)->attributes;
 
     char dstPath[FILE_PATH_MAX];
-    action_paste_contents_get_dst_path(pasteData, index, dstPath);
+    if(R_FAILED(res = action_paste_contents_get_dst_path(pasteData, index, dstPath))) {
+        return res;
+    }
 
     FS_Path* fsPath = fs_make_path_utf8(dstPath);
     if(fsPath != NULL) {
@@ -133,7 +137,9 @@ static Result action_paste_contents_open_dst(void* data, u32 index, void* initia
     Result res = 0;
 
     char dstPath[FILE_PATH_MAX];
-    action_paste_contents_get_dst_path(pasteData, index, dstPath);
+    if(R_FAILED(res = action_paste_contents_get_dst_path(pasteData, index, dstPath))) {
+        return res;
+    }
 
     FS_Path* fsPath = fs_make_path_utf8(dstPath);
     if(fsPath != NULL) {
@@ -173,10 +179,9 @@ static Result action_paste_contents_close_dst(void* data, u32 index, bool succee
 
     Result res = 0;
 
-    if(R_SUCCEEDED(res = FSFILE_Close(handle))) {
-        char dstPath[FILE_PATH_MAX];
-        action_paste_contents_get_dst_path(pasteData, index, dstPath);
-
+    // open_dst built the same path, so it fits here too.
+    char dstPath[FILE_PATH_MAX];
+    if(R_SUCCEEDED(res = FSFILE_Close(handle)) && R_SUCCEEDED(res = action_paste_contents_get_dst_path(pasteData, index, dstPath))) {
         // A cancelled or failed copy leaves a truncated file; remove it so it never passes for a
         // complete one (a cut-off CIA, for example).
         if(!succeeded) {

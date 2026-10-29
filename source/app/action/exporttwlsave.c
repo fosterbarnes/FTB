@@ -66,7 +66,12 @@ static Result action_export_twl_save_open_dst(void* data, u32 index, void* initi
 
             FS_Path* fsPath = fs_make_path_utf8(path);
             if(fsPath != NULL) {
-                res = FSUSER_OpenFileDirectly(handle, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), *fsPath, FS_OPEN_WRITE | FS_OPEN_CREATE, 0);
+                // An older, larger export of the same game would otherwise keep its tail.
+                if(R_SUCCEEDED(res = FSUSER_OpenFileDirectly(handle, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), *fsPath, FS_OPEN_WRITE | FS_OPEN_CREATE, 0))
+                   && R_FAILED(res = FSFILE_SetSize(*handle, size))) {
+                    FSFILE_Close(*handle);
+                    *handle = 0; // dataop closes a nonzero handle again
+                }
 
                 fs_free_path_utf8(fsPath);
             } else {

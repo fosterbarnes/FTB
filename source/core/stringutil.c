@@ -28,6 +28,22 @@ void string_copy(char* dst, const char* src, size_t size) {
     }
 }
 
+void string_append(char* out, size_t size, size_t* pos, const char* text) {
+    if(*pos >= size) {
+        return;
+    }
+
+    size_t len = strlen(text);
+    size_t room = size - *pos - 1;
+    if(len > room) {
+        len = room;
+    }
+
+    memcpy(out + *pos, text, len);
+    *pos += len;
+    out[*pos] = '\0';
+}
+
 void string_get_file_name(char* out, const char* file, u32 size) {
     const char* end = file + strlen(file);
     const char* curr = file - 1;

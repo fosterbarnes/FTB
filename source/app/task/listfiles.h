@@ -25,6 +25,8 @@ typedef struct file_info_s {
     char name[FILE_NAME_MAX];
     char path[FILE_PATH_MAX];
     u32 attributes;
+    // The listed folder or file itself ("<current directory>" / "<current file>" row), sorted first.
+    bool isBase;
 
     // Files only
     u64 size;

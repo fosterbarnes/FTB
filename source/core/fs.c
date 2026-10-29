@@ -275,6 +275,17 @@ FS_MediaType fs_get_title_destination(u64 titleId) {
     return platform == 0x0003 || (platform == 0x0004 && ((category & 0x8011) != 0 || (category == 0x0000 && variation == 0x02))) ? MEDIATYPE_NAND : MEDIATYPE_SD;
 }
 
+const char* fs_media_type_name(FS_MediaType mediaType) {
+    switch(mediaType) {
+        case MEDIATYPE_NAND:
+            return "NAND";
+        case MEDIATYPE_SD:
+            return "SD";
+        default:
+            return "Game Card";
+    }
+}
+
 bool fs_filter_cias(void* data, const char* name, u32 attributes) {
     if(data != NULL) {
         fs_filter_data* filterData = (fs_filter_data*) data;

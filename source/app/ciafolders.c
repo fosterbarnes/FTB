@@ -13,7 +13,6 @@
 #include "../core/core.h"
 
 #define CIA_FOLDERS_PATH PATHS_CIA_FOLDERS
-#define CIA_FOLDERS_TEXT_MARGIN 10
 
 static char folders[CIA_FOLDERS_MAX][FILE_PATH_MAX];
 static u32 folderCount;
@@ -151,7 +150,7 @@ typedef struct {
     char path[FILE_PATH_MAX];
 } ciafolders_row;
 
-static list_item add_folder_item = {"Add folder", COLOR_TEXT, NULL};
+static list_item add_folder_item = {.name = "Add folder", .color = COLOR_TEXT};
 
 static char removePath[FILE_PATH_MAX];
 static char removeMessage[FILE_PATH_MAX + 48];
@@ -182,7 +181,12 @@ static void ciafolders_build_rows(linked_list* items) {
 
         bool exists = sdOpen && fs_is_dir(archive, folders[i]);
         string_copy(row->path, folders[i], FILE_PATH_MAX);
-        snprintf(row->item.name, LIST_ITEM_NAME_MAX, exists ? "%s" : "%s (missing)", folders[i]);
+        size_t pos = 0;
+        string_append(row->item.name, LIST_ITEM_NAME_MAX, &pos, folders[i]);
+        if(!exists) {
+            string_append(row->item.name, LIST_ITEM_NAME_MAX, &pos, " (missing)");
+        }
+
         row->item.color = exists ? COLOR_TEXT : COLOR_DISABLED;
         row->item.data = row->path;
 
@@ -214,14 +218,7 @@ static void ciafolders_draw_top(ui_view* view, void* data, float x1, float y1, f
         snprintf(text, sizeof(text), "%s\nScanned with its subfolders.", (const char*) selected->data);
     }
 
-    float wrapWidth = x2 - x1 - CIA_FOLDERS_TEXT_MARGIN * 2;
-
-    float width = 0;
-    float height = 0;
-    screen_get_string_size_wrap(&width, &height, text, 0.5f, 0.5f, wrapWidth);
-
-    float x = x1 + (x2 - x1 - width) / 2;
-    screen_draw_string_wrap(text, x, y1 + (y2 - y1 - height) / 2, 0.5f, 0.5f, COLOR_TEXT, true, x + wrapWidth);
+    ui_draw_centered_text(text, x1, y1, x2, y2);
 }
 
 static void ciafolders_notify_failure(const char* message) {

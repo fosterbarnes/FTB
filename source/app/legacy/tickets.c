@@ -9,8 +9,8 @@
 #include "../task/uitask.h"
 #include "../../core/core.h"
 
-static list_item delete_ticket = {"Delete Ticket", COLOR_TEXT, action_delete_ticket};
-static list_item delete_unused_tickets = {"Delete Unused Tickets", COLOR_TEXT, action_delete_tickets_unused};
+static list_item delete_ticket = {.name = "Delete Ticket", .color = COLOR_TEXT, .data = action_delete_ticket};
+static list_item delete_unused_tickets = {.name = "Delete Unused Tickets", .color = COLOR_TEXT, .data = action_delete_tickets_unused};
 
 typedef struct {
     populate_tickets_data populateData;
@@ -111,7 +111,8 @@ static void tickets_update(ui_view* view, void* data, linked_list* items, list_i
         listData->populateData.state.result = 0;
     }
 
-    if(selected != NULL && selected->data != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
+    // Actions remove rows, so they wait until population no longer inserts into the list.
+    if(selected != NULL && selected->data != NULL && task_is_finished(&listData->populateData.state) && (selectedTouched || (hidKeysDown() & KEY_A))) {
         tickets_action_open(items, selected);
         return;
     }

@@ -11,30 +11,30 @@
 
 static void mainmenu_legacy_open();
 
-static list_item cia_installer = {"CIA Installer", COLOR_TEXT, ciainstaller_open};
-static list_item titles = {"Title Manager", COLOR_TEXT, titlemanager_open};
-static list_item ftp_server = {"FTP Server", COLOR_TEXT, ftp_open};
+static list_item cia_installer = {.name = "CIA Installer", .color = COLOR_TEXT, .data = ciainstaller_open};
+static list_item titles = {.name = "Title Manager", .color = COLOR_TEXT, .data = titlemanager_open};
+static list_item ftp_server = {.name = "FTP Server", .color = COLOR_TEXT, .data = ftp_open};
 // Same screen as FBI Legacy > SD until the SD File Browser gets its own features.
-static list_item file_browser = {"SD File Browser", COLOR_TEXT, files_open_sd};
-static list_item remote_install = {"Remote Install", COLOR_TEXT, remoteinstall_open};
+static list_item file_browser = {.name = "SD File Browser", .color = COLOR_TEXT, .data = files_open_sd};
+static list_item remote_install = {.name = "Remote Install", .color = COLOR_TEXT, .data = remoteinstall_open};
 // Sets FBI Legacy, Update, and Settings apart from the main tools.
-static list_item spacer = {"", COLOR_TEXT, NULL, true};
-static list_item fbi_legacy = {"FBI Legacy", COLOR_TEXT, mainmenu_legacy_open};
-static list_item update = {"Update", COLOR_TEXT, update_open};
-static list_item settings = {"Settings", COLOR_TEXT, settings_open};
+static list_item spacer = {.color = COLOR_TEXT, .spacer = true};
+static list_item fbi_legacy = {.name = "FBI Legacy", .color = COLOR_TEXT, .data = mainmenu_legacy_open};
+static list_item update = {.name = "Update", .color = COLOR_TEXT, .data = update_open};
+static list_item settings = {.name = "Settings", .color = COLOR_TEXT, .data = settings_open};
 
 // FBI Legacy submenu.
-static list_item sd = {"SD", COLOR_TEXT, files_open_sd};
-static list_item titles_legacy = {"Titles", COLOR_TEXT, titles_legacy_open};
-static list_item ctr_nand = {"CTR NAND", COLOR_TEXT, files_open_ctr_nand};
-static list_item twl_nand = {"TWL NAND", COLOR_TEXT, files_open_twl_nand};
-static list_item twl_photo = {"TWL Photo", COLOR_TEXT, files_open_twl_photo};
-static list_item twl_sound = {"TWL Sound", COLOR_TEXT, files_open_twl_sound};
-static list_item dump_nand = {"Dump NAND", COLOR_TEXT, dumpnand_open};
-static list_item pending_titles = {"Pending Titles", COLOR_TEXT, pendingtitles_open};
-static list_item tickets = {"Tickets", COLOR_TEXT, tickets_open};
-static list_item ext_save_data = {"Ext Save Data", COLOR_TEXT, extsavedata_open};
-static list_item system_save_data = {"System Save Data", COLOR_TEXT, systemsavedata_open};
+static list_item sd = {.name = "SD", .color = COLOR_TEXT, .data = files_open_sd};
+static list_item titles_legacy = {.name = "Titles", .color = COLOR_TEXT, .data = titles_legacy_open};
+static list_item ctr_nand = {.name = "CTR NAND", .color = COLOR_TEXT, .data = files_open_ctr_nand};
+static list_item twl_nand = {.name = "TWL NAND", .color = COLOR_TEXT, .data = files_open_twl_nand};
+static list_item twl_photo = {.name = "TWL Photo", .color = COLOR_TEXT, .data = files_open_twl_photo};
+static list_item twl_sound = {.name = "TWL Sound", .color = COLOR_TEXT, .data = files_open_twl_sound};
+static list_item dump_nand = {.name = "Dump NAND", .color = COLOR_TEXT, .data = dumpnand_open};
+static list_item pending_titles = {.name = "Pending Titles", .color = COLOR_TEXT, .data = pendingtitles_open};
+static list_item tickets = {.name = "Tickets", .color = COLOR_TEXT, .data = tickets_open};
+static list_item ext_save_data = {.name = "Ext Save Data", .color = COLOR_TEXT, .data = extsavedata_open};
+static list_item system_save_data = {.name = "System Save Data", .color = COLOR_TEXT, .data = systemsavedata_open};
 
 static void mainmenu_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
     u32 logoWidth;

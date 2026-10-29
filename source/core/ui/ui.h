@@ -43,10 +43,14 @@ bool ui_update();
 // Three accent squares of edge dot at (x, y), one lit at a time; gaps are dot - 1.
 void ui_draw_loading_dots(float x, float y, float dot);
 float ui_get_loading_dots_width(float dot);
+// Text centered in the rect, lines centered and wrapped 10 px inside each side.
+void ui_draw_centered_text(const char* text, float x1, float y1, float x2, float y2);
 
 const char* ui_get_display_eta(u32 seconds);
 double ui_get_display_size(u64 size);
 const char* ui_get_display_size_units(u64 size);
+// Title version as "major.minor.micro" (6, 6, and 4 bits).
+void ui_format_version(char* out, size_t size, u16 version);
 
 #include "error.h"
 #include "info.h"

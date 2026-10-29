@@ -113,11 +113,14 @@ static void titlemanager_item_detail(list_item* item, char* out, size_t size) {
         return;
     }
 
-    snprintf(out, size, "%s\n%s, %.2f %s, v%d.%d.%d",
+    char version[16];
+    ui_format_version(version, sizeof(version), info->version);
+
+    snprintf(out, size, "%s\n%s, %.2f %s, v%s",
              string_is_empty(info->meta.publisher) ? "Unknown publisher" : info->meta.publisher,
-             info->mediaType == MEDIATYPE_NAND ? "NAND" : info->mediaType == MEDIATYPE_SD ? "SD" : "Game Card",
+             fs_media_type_name(info->mediaType),
              ui_get_display_size(info->installedSize), ui_get_display_size_units(info->installedSize),
-             (info->version >> 10) & 0x3F, (info->version >> 4) & 0x3F, info->version & 0xF);
+             version);
 }
 
 // Grid and Icon list zoom separately; the other layouts have no zoom and use the grid's.

@@ -37,6 +37,8 @@ int fs_make_3dsx_path(char* out, const char* name, size_t size);
 int fs_make_smdh_path(char* out, const char* name, size_t size);
 
 FS_MediaType fs_get_title_destination(u64 titleId);
+// "NAND", "SD", or "Game Card".
+const char* fs_media_type_name(FS_MediaType mediaType);
 
 bool fs_filter_cias(void* data, const char* name, u32 attributes);
 bool fs_filter_tickets(void* data, const char* name, u32 attributes);

@@ -10,9 +10,9 @@
 #include "../task/uitask.h"
 #include "../../core/core.h"
 
-static list_item browse_user_save_data = {"Browse User Save Data", COLOR_TEXT, action_browse_user_ext_save_data};
-static list_item browse_spotpass_save_data = {"Browse SpotPass Save Data", COLOR_TEXT, action_browse_boss_ext_save_data};
-static list_item delete_save_data = {"Delete Save Data", COLOR_TEXT, action_delete_ext_save_data};
+static list_item browse_user_save_data = {.name = "Browse User Save Data", .color = COLOR_TEXT, .data = action_browse_user_ext_save_data};
+static list_item browse_spotpass_save_data = {.name = "Browse SpotPass Save Data", .color = COLOR_TEXT, .data = action_browse_boss_ext_save_data};
+static list_item delete_save_data = {.name = "Delete Save Data", .color = COLOR_TEXT, .data = action_delete_ext_save_data};
 
 typedef struct {
     populate_ext_save_data_data populateData;
@@ -190,7 +190,8 @@ static void extsavedata_update(ui_view* view, void* data, linked_list* items, li
         listData->populateData.state.result = 0;
     }
 
-    if(selected != NULL && selected->data != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
+    // Actions remove rows, so they wait until population no longer inserts into the list.
+    if(selected != NULL && selected->data != NULL && task_is_finished(&listData->populateData.state) && (selectedTouched || (hidKeysDown() & KEY_A))) {
         extsavedata_action_open(items, selected);
         return;
     }

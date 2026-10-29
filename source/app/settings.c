@@ -11,7 +11,6 @@
 #include "../core/core.h"
 
 #define SETTINGS_PATH PATHS_SETTINGS
-#define SETTINGS_TEXT_MARGIN 10
 
 static ftb_settings settings = {
         .titleCache = true,
@@ -218,29 +217,20 @@ static settings_entry about_entry = {
         "Build type, install location, data folder, credits, and licenses."
 };
 
-static list_item title_cache_item = {"", COLOR_TEXT, &title_cache_entry};
-static list_item clear_title_cache_item = {"Clear title cache", COLOR_TEXT, &clear_title_cache_entry};
-static list_item clock24h_item = {"", COLOR_TEXT, &clock24h_entry};
-static list_item date_day_first_item = {"", COLOR_TEXT, &date_day_first_entry};
-static list_item cia_folders_item = {"CIA folders", COLOR_TEXT, &cia_folders_entry};
+static list_item title_cache_item = {.color = COLOR_TEXT, .data = &title_cache_entry};
+static list_item clear_title_cache_item = {.name = "Clear title cache", .color = COLOR_TEXT, .data = &clear_title_cache_entry};
+static list_item clock24h_item = {.color = COLOR_TEXT, .data = &clock24h_entry};
+static list_item date_day_first_item = {.color = COLOR_TEXT, .data = &date_day_first_entry};
+static list_item cia_folders_item = {.name = "CIA folders", .color = COLOR_TEXT, .data = &cia_folders_entry};
 static list_item system_changes_item = {.color = COLOR_WARNING, .data = &system_changes_entry};
-static list_item about_item = {"About", COLOR_TEXT, &about_entry};
+static list_item about_item = {.name = "About", .color = COLOR_TEXT, .data = &about_entry};
 
 static void settings_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
     if(selected == NULL || selected->data == NULL) {
         return;
     }
 
-    const char* text = ((settings_entry*) selected->data)->description;
-    float wrapWidth = x2 - x1 - SETTINGS_TEXT_MARGIN * 2;
-
-    float width = 0;
-    float height = 0;
-    screen_get_string_size_wrap(&width, &height, text, 0.5f, 0.5f, wrapWidth);
-
-    float x = x1 + (x2 - x1 - width) / 2;
-    float y = y1 + (y2 - y1 - height) / 2;
-    screen_draw_string_wrap(text, x, y, 0.5f, 0.5f, COLOR_TEXT, true, x + wrapWidth);
+    ui_draw_centered_text(((settings_entry*) selected->data)->description, x1, y1, x2, y2);
 }
 
 static void settings_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {

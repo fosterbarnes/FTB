@@ -117,7 +117,7 @@ void screen_init() {
 
     Result progSetVshRes = shaderProgramSetVsh(&program, &dvlb->DVLE[0]);
     if(R_FAILED(progSetVshRes)) {
-        error_panic("Failed to set up vertex shader: 0x%08lX", progInitRes);
+        error_panic("Failed to set up vertex shader: 0x%08lX", progSetVshRes);
         return;
     }
 

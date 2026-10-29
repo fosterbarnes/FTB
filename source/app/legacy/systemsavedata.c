@@ -9,8 +9,8 @@
 #include "../task/uitask.h"
 #include "../../core/core.h"
 
-static list_item browse_save_data = {"Browse Save Data", COLOR_TEXT, action_browse_system_save_data};
-static list_item delete_save_data = {"Delete Save Data", COLOR_TEXT, action_delete_system_save_data};
+static list_item browse_save_data = {.name = "Browse Save Data", .color = COLOR_TEXT, .data = action_browse_system_save_data};
+static list_item delete_save_data = {.name = "Delete Save Data", .color = COLOR_TEXT, .data = action_delete_system_save_data};
 
 typedef struct {
     populate_system_save_data_data populateData;
@@ -111,7 +111,8 @@ static void systemsavedata_update(ui_view* view, void* data, linked_list* items,
         listData->populateData.state.result = 0;
     }
 
-    if(selected != NULL && selected->data != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
+    // Actions remove rows, so they wait until population no longer inserts into the list.
+    if(selected != NULL && selected->data != NULL && task_is_finished(&listData->populateData.state) && (selectedTouched || (hidKeysDown() & KEY_A))) {
         systemsavedata_action_open(items, selected);
         return;
     }

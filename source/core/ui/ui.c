@@ -8,6 +8,7 @@
 #include "ui.h"
 #include "../error.h"
 #include "../screen.h"
+#include "../stringutil.h"
 #include "../data/smdh.h"
 #include "../../app/resources.h"
 #include "../../app/settings.h"
@@ -220,55 +221,29 @@ static void ui_draw_top(ui_view* ui) {
     screen_draw_string(timeText, topScreenTopBarX + (topScreenTopBarWidth - timeTextWidth) / 2, topScreenTopBarY + (topScreenTopBarHeight - timeTextHeight) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
 
     if(osGetTime() >= ui_free_space_last_update + 1000) {
-        char* currBuffer = ui_free_space_buffer;
-        FS_ArchiveResource resource = {0};
+        static const struct {
+            FS_SystemMediaType mediaType;
+            const char* label;
+        } media[] = {
+            {SYSTEM_MEDIATYPE_SD, "SD"},
+            {SYSTEM_MEDIATYPE_CTR_NAND, "CTR NAND"},
+            {SYSTEM_MEDIATYPE_TWL_NAND, "TWL NAND"},
+            {SYSTEM_MEDIATYPE_TWL_PHOTO, "TWL Photo"},
+        };
 
-        if(R_SUCCEEDED(FSUSER_GetArchiveResource(&resource, SYSTEM_MEDIATYPE_SD)) && currBuffer < ui_free_space_buffer + sizeof(ui_free_space_buffer)) {
-            if(currBuffer != ui_free_space_buffer) {
-                snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), ", ");
-                currBuffer += strlen(currBuffer);
+        // Media that fail to report are left out; if all fail, the last text stays.
+        size_t pos = 0;
+        for(u32 i = 0; i < sizeof(media) / sizeof(media[0]); i++) {
+            FS_ArchiveResource resource = {0};
+            if(R_FAILED(FSUSER_GetArchiveResource(&resource, media[i].mediaType))) {
+                continue;
             }
 
             u64 size = (u64) resource.freeClusters * (u64) resource.clusterSize;
-            snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), "SD: %.1f %s",
-                     ui_get_display_size(size), ui_get_display_size_units(size));
-            currBuffer += strlen(currBuffer);
-        }
 
-        if(R_SUCCEEDED(FSUSER_GetArchiveResource(&resource, SYSTEM_MEDIATYPE_CTR_NAND)) && currBuffer < ui_free_space_buffer + sizeof(ui_free_space_buffer)) {
-            if(currBuffer != ui_free_space_buffer) {
-                snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), ", ");
-                currBuffer += strlen(currBuffer);
-            }
-
-            u64 size = (u64) resource.freeClusters * (u64) resource.clusterSize;
-            snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), "CTR NAND: %.1f %s",
-                     ui_get_display_size(size), ui_get_display_size_units(size));
-            currBuffer += strlen(currBuffer);
-        }
-
-        if(R_SUCCEEDED(FSUSER_GetArchiveResource(&resource, SYSTEM_MEDIATYPE_TWL_NAND)) && currBuffer < ui_free_space_buffer + sizeof(ui_free_space_buffer)) {
-            if(currBuffer != ui_free_space_buffer) {
-                snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), ", ");
-                currBuffer += strlen(currBuffer);
-            }
-
-            u64 size = (u64) resource.freeClusters * (u64) resource.clusterSize;
-            snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), "TWL NAND: %.1f %s",
-                     ui_get_display_size(size), ui_get_display_size_units(size));
-            currBuffer += strlen(currBuffer);
-        }
-
-        if(R_SUCCEEDED(FSUSER_GetArchiveResource(&resource, SYSTEM_MEDIATYPE_TWL_PHOTO)) && currBuffer < ui_free_space_buffer + sizeof(ui_free_space_buffer)) {
-            if(currBuffer != ui_free_space_buffer) {
-                snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), ", ");
-                currBuffer += strlen(currBuffer);
-            }
-
-            u64 size = (u64) resource.freeClusters * (u64) resource.clusterSize;
-            snprintf(currBuffer, sizeof(ui_free_space_buffer) - (currBuffer - ui_free_space_buffer), "TWL Photo: %.1f %s",
-                     ui_get_display_size(size), ui_get_display_size_units(size));
-            currBuffer += strlen(currBuffer);
+            char entry[48];
+            snprintf(entry, sizeof(entry), "%s%s: %.1f %s", pos > 0 ? ", " : "", media[i].label, ui_get_display_size(size), ui_get_display_size_units(size));
+            string_append(ui_free_space_buffer, sizeof(ui_free_space_buffer), &pos, entry);
         }
 
         ui_free_space_last_update = osGetTime();
@@ -501,4 +476,21 @@ const char* ui_get_display_size_units(u64 size) {
     }
 
     return "B";
+}
+
+#define UI_TEXT_MARGIN 10
+
+void ui_draw_centered_text(const char* text, float x1, float y1, float x2, float y2) {
+    float wrapWidth = x2 - x1 - UI_TEXT_MARGIN * 2;
+
+    float width = 0;
+    float height = 0;
+    screen_get_string_size_wrap(&width, &height, text, 0.5f, 0.5f, wrapWidth);
+
+    float x = x1 + (x2 - x1 - width) / 2;
+    screen_draw_string_wrap(text, x, y1 + (y2 - y1 - height) / 2, 0.5f, 0.5f, COLOR_TEXT, true, x + wrapWidth);
+}
+
+void ui_format_version(char* out, size_t size, u16 version) {
+    snprintf(out, size, "%d.%d.%d", (version >> 10) & 0x3F, (version >> 4) & 0x3F, version & 0xF);
 }

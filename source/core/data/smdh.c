@@ -5,6 +5,7 @@
 
 #include "language.h"
 #include "smdh.h"
+#include "../stringutil.h"
 
 #define SMDH_NUM_REGIONS 7
 #define SMDH_ALL_REGIONS 0x7F
@@ -30,14 +31,15 @@ void smdh_region_to_string(char* out, u32 region, size_t size) {
         snprintf(out, size, "Region Free");
     } else {
         size_t pos = 0;
+        string_append(out, size, &pos, ""); // terminated even when no known bit is set
 
         for(u32 i = 0; i < SMDH_NUM_REGIONS; i++) {
             if(region & (1 << i)) {
                 if(pos > 0) {
-                    pos += snprintf(out + pos, size - pos, ", ");
+                    string_append(out, size, &pos, ", ");
                 }
 
-                pos += snprintf(out + pos, size - pos, smdh_region_strings[i]);
+                string_append(out, size, &pos, smdh_region_strings[i]);
             }
         }
     }

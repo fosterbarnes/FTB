@@ -15,7 +15,7 @@
 #include "action/action.h"
 #include "task/uitask.h"
 #include "../core/core.h"
-#include "../libs/quirc/quirc_internal.h"
+#include "../libs/quirc/quirc.h"
 
 static bool remoteinstall_get_last_urls(char* out, size_t size) {
     if(out == NULL || size == 0) {
@@ -507,11 +507,11 @@ static void remoteinstall_forget_last_request() {
     }
 }
 
-static list_item receive_urls_network = {"Receive URLs over the network", COLOR_TEXT, remoteinstall_receive_urls_network};
-static list_item scan_qr_code = {"Scan QR Code", COLOR_TEXT, remoteinstall_scan_qr_code};
-static list_item manually_enter_urls = {"Manually enter URLs", COLOR_TEXT, remoteinstall_manually_enter_urls};
-static list_item repeat_last_request = {"Repeat last request", COLOR_TEXT, remoteinstall_repeat_last_request};
-static list_item forget_last_request = {"Forget last request", COLOR_TEXT, remoteinstall_forget_last_request};
+static list_item receive_urls_network = {.name = "Receive URLs over the network", .color = COLOR_TEXT, .data = remoteinstall_receive_urls_network};
+static list_item scan_qr_code = {.name = "Scan QR Code", .color = COLOR_TEXT, .data = remoteinstall_scan_qr_code};
+static list_item manually_enter_urls = {.name = "Manually enter URLs", .color = COLOR_TEXT, .data = remoteinstall_manually_enter_urls};
+static list_item repeat_last_request = {.name = "Repeat last request", .color = COLOR_TEXT, .data = remoteinstall_repeat_last_request};
+static list_item forget_last_request = {.name = "Forget last request", .color = COLOR_TEXT, .data = remoteinstall_forget_last_request};
 
 static void remoteinstall_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     if(hidKeysDown() & KEY_B) {

@@ -457,7 +457,7 @@ Result http_download_json(const char* url, json_t** json, size_t maxSize) {
 
     Result res = 0;
 
-    char* text = (char*) calloc(sizeof(char), maxSize);
+    char* text = (char*) calloc(maxSize, sizeof(char));
     if(text != NULL) {
         // The last byte stays the terminator; a response that fills the rest was cut off.
         u32 textSize = 0;

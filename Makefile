@@ -19,7 +19,8 @@ BUILD_FLAGS_CXX := -std=gnu++20 -DNDEBUG -DNO_IPV6
 # .version/version (bump with .scripts/bumpVersion.ps1).
 VERSION_PARTS := $(subst ., ,$(firstword $(file < .version/version)))
 
-BUILD_FLAGS := -Wno-format-truncation
+# C warnings on top of make_base's -Wall; the C sources build with none of them.
+BUILD_FLAGS_CC := -Wextra -Wno-unused-parameter -Wno-sign-compare -Wformat=2 -Wimplicit-fallthrough
 
 VERSION_MAJOR := $(word 1, $(VERSION_PARTS))
 VERSION_MINOR := $(word 2, $(VERSION_PARTS))

@@ -29,14 +29,7 @@ static void folderpicker_draw_top(ui_view* view, void* data, float x1, float y1,
         return;
     }
 
-    const char* path = ((file_info*) selected->data)->path;
-
-    float width = 0;
-    float height = 0;
-    screen_get_string_size_wrap(&width, &height, path, 0.5f, 0.5f, x2 - x1 - 20);
-
-    float x = x1 + (x2 - x1 - width) / 2;
-    screen_draw_string_wrap(path, x, y1 + (y2 - y1 - height) / 2, 0.5f, 0.5f, COLOR_TEXT, true, x + x2 - x1 - 20);
+    ui_draw_centered_text(((file_info*) selected->data)->path, x1, y1, x2, y2);
 }
 
 static void folderpicker_navigate_up(folderpicker_data* pickerData) {
@@ -81,7 +74,7 @@ static void folderpicker_update(ui_view* view, void* data, linked_list* items, l
 
     bool pick = (hidKeysDown() & KEY_Y) != 0;
     if(selected != NULL && selected->data != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
-        if(strcmp(selected->name, "<current directory>") == 0) {
+        if(((file_info*) selected->data)->isBase) {
             pick = true;
         } else {
             string_copy(pickerData->currDir, ((file_info*) selected->data)->path, FILE_PATH_MAX);

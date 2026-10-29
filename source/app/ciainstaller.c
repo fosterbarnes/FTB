@@ -31,21 +31,14 @@ typedef struct {
     list_item* selected;
 } ciainstaller_action_data;
 
-static list_item install_cia = {"Install CIA", COLOR_TEXT, action_install_cia};
-static list_item install_and_delete_cia = {"Install and delete CIA", COLOR_TEXT, action_install_cia_delete};
-static list_item delete_cia = {"Delete", COLOR_TEXT, action_delete_file};
-static list_item install_all_cias = {"Install all CIAs", COLOR_TEXT, action_install_cias_all};
-static list_item install_and_delete_all_cias = {"Install and delete all CIAs", COLOR_TEXT, action_install_cias_all_delete};
+static list_item install_cia = {.name = "Install CIA", .color = COLOR_TEXT, .data = action_install_cia};
+static list_item install_and_delete_cia = {.name = "Install and delete CIA", .color = COLOR_TEXT, .data = action_install_cia_delete};
+static list_item delete_cia = {.name = "Delete", .color = COLOR_TEXT, .data = action_delete_file};
+static list_item install_all_cias = {.name = "Install all CIAs", .color = COLOR_TEXT, .data = action_install_cias_all};
+static list_item install_and_delete_all_cias = {.name = "Install and delete all CIAs", .color = COLOR_TEXT, .data = action_install_cias_all_delete};
 
 static bool ciainstaller_is_all_row(list_item* item) {
     return (((file_info*) item->data)->attributes & FS_ATTRIBUTE_DIRECTORY) != 0;
-}
-
-static void ciainstaller_draw_text(const char* text, float x1, float y1, float x2, float y2) {
-    float width = 0;
-    float height = 0;
-    screen_get_string_size(&width, &height, text, 0.5f, 0.5f);
-    screen_draw_string(text, x1 + (x2 - x1 - width) / 2, y1 + (y2 - y1 - height) / 2, 0.5f, 0.5f, COLOR_TEXT, true);
 }
 
 // The all row: count and total size of the CIA rows in items.
@@ -70,7 +63,7 @@ static void ciainstaller_draw_all_info(linked_list* items, float x1, float y1, f
         snprintf(text, sizeof(text), "%lu CIA%s\n%.2f %s", count, count == 1 ? "" : "s", ui_get_display_size(size), ui_get_display_size_units(size));
     }
 
-    ciainstaller_draw_text(text, x1, y1, x2, y2);
+    ui_draw_centered_text(text, x1, y1, x2, y2);
 }
 
 static void ciainstaller_action_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
@@ -147,7 +140,7 @@ static void ciainstaller_draw_top(ui_view* view, void* data, float x1, float y1,
             task_draw_file_info(view, selected->data, x1, y1, x2, y2);
         }
     } else if(finished) {
-        ciainstaller_draw_text(ciafolders_count() == 0 ? "No CIA folders." : "No CIAs found.", x1, y1, x2, y2);
+        ui_draw_centered_text(ciafolders_count() == 0 ? "No CIA folders." : "No CIAs found.", x1, y1, x2, y2);
     }
 
     if(!finished) {
@@ -263,11 +256,11 @@ static void ciainstaller_open_list() {
 
 static char detected[CIA_DETECT_MAX][FILE_PATH_MAX];
 static u32 detectedCount;
-static char setupMessage[FILE_PATH_MAX + 48];
+static char setupMessage[FILE_PATH_MAX + 64];
 
 static list_item detected_items[CIA_DETECT_MAX];
-static list_item use_all_item = {"Use all", COLOR_TEXT, NULL};
-static list_item choose_other_item = {"Choose another folder", COLOR_TEXT, NULL};
+static list_item use_all_item = {.name = "Use all", .color = COLOR_TEXT};
+static list_item choose_other_item = {.name = "Choose another folder", .color = COLOR_TEXT};
 
 // Adds the folders, then opens the list (with a notice on top when one was not added).
 static void ciainstaller_use_folders(const char (*paths)[FILE_PATH_MAX], u32 count) {
@@ -347,7 +340,7 @@ static void ciainstaller_choose_update(ui_view* view, void* data, linked_list* i
 }
 
 static void ciainstaller_choose_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
-    ciainstaller_draw_text("Choose the folder the CIA Installer scans.\nMore can be added later in Settings.", x1, y1, x2, y2);
+    ui_draw_centered_text("Choose the folder the CIA Installer scans.\nMore can be added later in Settings.", x1, y1, x2, y2);
 }
 
 // Finds the SD root folders named like ciainstaller_detect_names, as "/<name>/" in on-disk case.

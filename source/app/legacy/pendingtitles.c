@@ -9,8 +9,8 @@
 #include "../task/uitask.h"
 #include "../../core/core.h"
 
-static list_item delete_pending_title = {"Delete Pending Title", COLOR_TEXT, action_delete_pending_title};
-static list_item delete_all_pending_titles = {"Delete All Pending Titles", COLOR_TEXT, action_delete_all_pending_titles};
+static list_item delete_pending_title = {.name = "Delete Pending Title", .color = COLOR_TEXT, .data = action_delete_pending_title};
+static list_item delete_all_pending_titles = {.name = "Delete All Pending Titles", .color = COLOR_TEXT, .data = action_delete_all_pending_titles};
 
 typedef struct {
     populate_pending_titles_data populateData;
@@ -111,7 +111,8 @@ static void pendingtitles_update(ui_view* view, void* data, linked_list* items, 
         listData->populateData.state.result = 0;
     }
 
-    if(selected != NULL && selected->data != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
+    // Actions remove rows, so they wait until population no longer inserts into the list.
+    if(selected != NULL && selected->data != NULL && task_is_finished(&listData->populateData.state) && (selectedTouched || (hidKeysDown() & KEY_A))) {
         pendingtitles_action_open(items, selected);
         return;
     }

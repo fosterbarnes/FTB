@@ -324,7 +324,7 @@ static void list_validate(list_data* listData, float by1, float by2) {
 
     u32 size = linked_list_size(&listData->items);
 
-    if(size == 0 || listData->selectedIndex < 0) {
+    if(size == 0) {
         listData->selectedIndex = 0;
         listData->selectedItem = NULL;
         listData->scrollPos = 0;

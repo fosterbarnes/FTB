@@ -114,13 +114,14 @@ static void prompt_button_to_string(char* out, size_t size, u32 button) {
     }
 
     size_t pos = 0;
-    for(u8 bit = 0; bit < 32 && pos < size; bit++) {
-        if(button & (1 << bit)) {
+    string_append(out, size, &pos, ""); // terminated even when no bit is set
+    for(u8 bit = 0; bit < 32; bit++) {
+        if(button & (1u << bit)) {
             if(pos > 0) {
-                pos += snprintf(out + pos, size - pos, "/");
+                string_append(out, size, &pos, "/");
             }
 
-            pos += snprintf(out + pos, size - pos, button_strings[bit]);
+            string_append(out, size, &pos, button_strings[bit]);
         }
     }
 }
@@ -166,12 +167,13 @@ ui_view* prompt_display_multi_choice(const char* name, const char* text, u32 col
     promptData->text = text;
     promptData->color = color;
 
-    for(u32 i = 0; i < numOptions && i < PROMPT_OPTIONS_MAX; i++) {
+    u32 count = numOptions < PROMPT_OPTIONS_MAX ? numOptions : PROMPT_OPTIONS_MAX;
+    for(u32 i = 0; i < count; i++) {
         string_copy(promptData->options[i], options[i], PROMPT_OPTION_TEXT_MAX);
         promptData->optionButtons[i] = optionButtons[i];
     }
 
-    promptData->numOptions = numOptions;
+    promptData->numOptions = count;
     promptData->data = data;
     promptData->drawTop = drawTop;
     promptData->onResponse = onResponse;

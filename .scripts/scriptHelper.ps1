@@ -1,5 +1,4 @@
 #requires -Version 7.0
-#. "$PSScriptRoot\scriptHelper.ps1"
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Path $PSScriptRoot -Parent

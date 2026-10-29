@@ -8,7 +8,7 @@
 #include "ui.h"
 #include "../screen.h"
 #include "../linkedlist.h"
-#include "../../fbi/resources.h"
+#include "../../app/resources.h"
 
 // Touch fling: velocities in px/ms, decay tuned to about 0.95 per 60 fps frame.
 #define FRAME_MS (1000.0f / 60.0f)

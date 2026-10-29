@@ -1,6 +1,6 @@
 #pragma once
 
-// C interface to the ftpd server port, used by FTB's FTP screen (source/fbi/ftp.c).
+// C interface to the ftpd server port, used by FTB's FTP screen (source/app/ftp.c).
 
 #include <stdbool.h>
 #include <stddef.h>

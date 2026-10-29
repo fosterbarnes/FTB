@@ -12,7 +12,7 @@
 #include "../core/task/task.h"
 #include "../core/ui/ui.h"
 #include "../ftpd/ftpd.h"
-#include "section.h"
+#include "screens.h"
 #include "task/uitask.h"
 
 #define CURRENT_KPROCESS (*(void**) 0xFFFF9004)

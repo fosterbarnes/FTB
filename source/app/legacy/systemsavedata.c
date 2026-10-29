@@ -3,11 +3,11 @@
 
 #include <3ds.h>
 
-#include "resources.h"
-#include "section.h"
-#include "action/action.h"
-#include "task/uitask.h"
-#include "../core/core.h"
+#include "../resources.h"
+#include "../screens.h"
+#include "../action/action.h"
+#include "../task/uitask.h"
+#include "../../core/core.h"
 
 static list_item browse_save_data = {"Browse Save Data", COLOR_TEXT, action_browse_system_save_data};
 static list_item delete_save_data = {"Delete Save Data", COLOR_TEXT, action_delete_system_save_data};

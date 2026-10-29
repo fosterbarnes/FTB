@@ -1,7 +1,7 @@
 #include <3ds.h>
 
 #include "action.h"
-#include "../section.h"
+#include "../screens.h"
 #include "../task/uitask.h"
 #include "../../core/core.h"
 

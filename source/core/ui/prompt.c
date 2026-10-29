@@ -9,7 +9,7 @@
 #include "ui.h"
 #include "../screen.h"
 #include "../stringutil.h"
-#include "../../fbi/resources.h"
+#include "../../app/resources.h"
 
 typedef struct {
     const char* text;

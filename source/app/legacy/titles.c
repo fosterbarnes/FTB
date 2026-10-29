@@ -4,12 +4,12 @@
 
 #include <3ds.h>
 
-#include "resources.h"
-#include "section.h"
-#include "settings.h"
-#include "action/action.h"
-#include "task/uitask.h"
-#include "../core/core.h"
+#include "../resources.h"
+#include "../screens.h"
+#include "../settings.h"
+#include "../action/action.h"
+#include "../task/uitask.h"
+#include "../../core/core.h"
 
 static list_item launch_title = {"Launch Title", COLOR_TEXT, action_launch_title};
 static list_item delete_title = {"Delete Title", COLOR_TEXT, action_delete_title};

@@ -8,7 +8,7 @@
     <th>CIA QR Code (Remote Install)</th>
   </tr>
   <tr>
-    <td align="center"><img src="./.res/QR.svg" width="230" vspace="15"></td>
+    <td align="center"><img src="./.res/ciaQr.svg" width="230" vspace="15"></td>
   </tr>
 </table>
 
@@ -16,10 +16,10 @@
 <table border="0">
 <tbody>
 <tr>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.29/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.29/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.29/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.29/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.30/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.30/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.30/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.30/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
 </tr>
 </tbody>
 </table>
@@ -56,22 +56,22 @@ This project is in active development.
     <th>Title Manager </th> 
   </tr>
   <tr>
-    <td align="center"><img src="./.res/scr/1.png" width="400" vspace="15"></td>
-    <td align="center"><img src="./.res/scr/2.png" width="400" vspace="15"></td>
+    <td align="center"><img src="./.res/screenshots/home.png" width="400" vspace="15"></td>
+    <td align="center"><img src="./.res/screenshots/titleManager.png" width="400" vspace="15"></td>
   </tr>
   <tr>
     <th>FTP Server</th>
     <th>Progress Bar</th>
   </tr>
   <tr>
-    <td align="center"><img src="./.res/scr/3.png" width="400" vspace="15"></td>
-    <td align="center"><img src="./.res/scr/4.png" width="400" vspace="15"></td>
+    <td align="center"><img src="./.res/screenshots/ftpServer.png" width="400" vspace="15"></td>
+    <td align="center"><img src="./.res/screenshots/progress.png" width="400" vspace="15"></td>
   </tr>
   <tr>
     <th colspan="2">SD Browser</th>
   </tr>
   <tr>
-    <td colspan="2" align="center"><img src="./.res/scr/5.png" width="400" vspace="15"></td>
+    <td colspan="2" align="center"><img src="./.res/screenshots/sdBrowser.png" width="400" vspace="15"></td>
   </tr>
 </table>
 

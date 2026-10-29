@@ -1,0 +1,21 @@
+# The index stores text as LF; checkout picks the platform line ending unless pinned below.
+* text=auto
+
+# Windows shells need CRLF and bash needs LF. Version files and romfs configs stay LF as the
+# scripts write them, so every clone builds the same CIA bytes.
+*.ps1 eol=crlf
+*.bat eol=crlf
+*.cmd eol=crlf
+*.sh eol=lf
+.version/* eol=lf
+romfs/*.cfg eol=lf
+
+*.png binary
+*.wav binary
+*.cgfx binary
+*.lz binary
+*.bin binary
+*.cia binary
+*.3dsx binary
+*.3ds binary
+*.zip binary

@@ -10,7 +10,7 @@
 #include "prompt.h"
 #include "../error.h"
 #include "../screen.h"
-#include "../../fbi/resources.h"
+#include "../../app/resources.h"
 
 static const char* level_to_string(Result res) {
     switch(R_LEVEL(res)) {

@@ -3,11 +3,11 @@
 
 #include <3ds.h>
 
-#include "resources.h"
-#include "section.h"
-#include "action/action.h"
-#include "task/uitask.h"
-#include "../core/core.h"
+#include "../resources.h"
+#include "../screens.h"
+#include "../action/action.h"
+#include "../task/uitask.h"
+#include "../../core/core.h"
 
 static list_item delete_ticket = {"Delete Ticket", COLOR_TEXT, action_delete_ticket};
 static list_item delete_unused_tickets = {"Delete Unused Tickets", COLOR_TEXT, action_delete_tickets_unused};

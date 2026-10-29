@@ -5,10 +5,10 @@
 
 #include <3ds.h>
 
-#include "resources.h"
-#include "section.h"
-#include "task/uitask.h"
-#include "../core/core.h"
+#include "../resources.h"
+#include "../screens.h"
+#include "../task/uitask.h"
+#include "../../core/core.h"
 
 static Result dumpnand_is_src_directory(void* data, u32 index, bool* isDirectory) {
     *isDirectory = false;

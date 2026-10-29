@@ -5,7 +5,7 @@
 #include <3ds.h>
 
 #include "resources.h"
-#include "section.h"
+#include "screens.h"
 #include "settings.h"
 #include "task/uitask.h"
 #include "../core/core.h"

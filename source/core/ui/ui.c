@@ -9,8 +9,8 @@
 #include "../error.h"
 #include "../screen.h"
 #include "../data/smdh.h"
-#include "../../fbi/resources.h"
-#include "../../fbi/settings.h"
+#include "../../app/resources.h"
+#include "../../app/settings.h"
 
 #define MAX_UI_VIEWS 16
 

@@ -8,7 +8,7 @@
 #include "ui.h"
 #include "../screen.h"
 #include "../task/dataop.h"
-#include "../../fbi/resources.h"
+#include "../../app/resources.h"
 
 #define INFO_BAR_WIDTH 280
 #define INFO_ITEM_BAR_HEIGHT 8

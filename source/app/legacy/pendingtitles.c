@@ -3,11 +3,11 @@
 
 #include <3ds.h>
 
-#include "resources.h"
-#include "section.h"
-#include "action/action.h"
-#include "task/uitask.h"
-#include "../core/core.h"
+#include "../resources.h"
+#include "../screens.h"
+#include "../action/action.h"
+#include "../task/uitask.h"
+#include "../../core/core.h"
 
 static list_item delete_pending_title = {"Delete Pending Title", COLOR_TEXT, action_delete_pending_title};
 static list_item delete_all_pending_titles = {"Delete All Pending Titles", COLOR_TEXT, action_delete_all_pending_titles};

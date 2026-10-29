@@ -9,7 +9,7 @@
 #include "ciafolders.h"
 #include "folderpicker.h"
 #include "resources.h"
-#include "section.h"
+#include "screens.h"
 #include "../core/core.h"
 
 #define CIA_FOLDERS_PATH "sdmc:/ftb/ciaFolders.cfg"

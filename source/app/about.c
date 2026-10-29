@@ -3,7 +3,7 @@
 #include <3ds.h>
 
 #include "resources.h"
-#include "section.h"
+#include "screens.h"
 #include "../core/core.h"
 
 #define ABOUT_MARGIN 10

@@ -24,9 +24,9 @@ $unbumped = getUnbumpedCodeChanges
 $bumpFix = "Code changed but the version is still $current. Run .scripts\bumpVersion.ps1, update this " +
     "session's buildNotes.md heading and Version bullet, then rerun agentPush.ps1 -Context."
 
-# 'on', 'off' or 'exists'. An existing release is never redone: pushRelease.ps1 would force-move its
-# tag to the new commit and then fail to create the release. A failed lookup counts as missing, so
-# pushRelease.ps1 reports the real problem.
+# 'on', 'off' or 'exists'. An existing release is never redone: its tag sits on an older commit and
+# pushRelease.ps1 never moves tags. A failed lookup counts as missing, so pushRelease.ps1 reports
+# the real problem.
 $releasePlan = 'off'
 if ($Release -or (Get-Variable agentPushRelease -ValueOnly -ErrorAction Ignore)) {
     gh release view $releaseTag --repo $ghRepo *> $null

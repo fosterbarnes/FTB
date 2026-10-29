@@ -6,7 +6,7 @@
 #include <jansson.h>
 
 #include "resources.h"
-#include "section.h"
+#include "screens.h"
 #include "action/action.h"
 #include "task/uitask.h"
 #include "../core/core.h"

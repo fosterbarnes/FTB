@@ -5,8 +5,8 @@
 #include <3ds.h>
 
 #include "action.h"
+#include "ticketinstall.h"
 #include "../resources.h"
-#include "../safety.h"
 #include "../task/uitask.h"
 #include "../../core/core.h"
 
@@ -20,6 +20,7 @@ typedef struct {
 
     bool delete;
 
+    ticket_install ticket;
     data_op_data installInfo;
 } install_tickets_data;
 
@@ -107,22 +108,11 @@ static Result action_install_tickets_read_src(void* data, u32 handle, u32* bytes
 static Result action_install_tickets_open_dst(void* data, u32 index, void* initialReadBlock, u32 initialReadSize, u64 size, u32* handle) {
     // The title ID comes from the ticket being installed (the first block holds all of it), so the
     // lock does not depend on the list's meta.
-    u64 titleId = 0;
-    Result res = 0;
-    if(R_FAILED(res = ticket_get_title_id(&titleId, (u8*) initialReadBlock, initialReadSize)) || R_FAILED(res = safety_check_title(titleId))) {
-        return res;
-    }
-
-    AM_DeleteTicket(titleId);
-    return AMNET_InstallTicketBegin(handle);
+    return ticket_install_begin(&((install_tickets_data*) data)->ticket, initialReadBlock, initialReadSize, handle);
 }
 
 static Result action_install_tickets_close_dst(void* data, u32 index, bool succeeded, u32 handle) {
-    if(succeeded) {
-        return AMNET_InstallTicketFinish(handle);
-    } else {
-        return AMNET_InstallTicketAbort(handle);
-    }
+    return ticket_install_end(&((install_tickets_data*) data)->ticket, succeeded, handle);
 }
 
 static Result action_install_tickets_write_dst(void* data, u32 handle, u32* bytesWritten, void* buffer, u64 offset, u32 size) {

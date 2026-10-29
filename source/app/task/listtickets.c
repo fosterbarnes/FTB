@@ -64,7 +64,11 @@ static Result task_populate_tickets_thread(void* arg) {
 
                             task_populate_tickets_update_use(item);
 
-                            linked_list_add(data->items, item);
+                            if(!linked_list_add(data->items, item)) {
+                                task_free_ticket(item);
+
+                                res = R_APP_OUT_OF_MEMORY;
+                            }
                         } else {
                             free(item);
 

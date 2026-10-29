@@ -8,7 +8,7 @@
 #include "../resources.h"
 #include "../../core/core.h"
 
-#define MAX_SYSTEM_SAVE_DATA 512
+#define SYSTEM_SAVE_DATA_IDS_START 512
 
 static int task_populate_system_save_data_compare_ids(const void* e1, const void* e2) {
     u32 id1 = *(u32*) e1;
@@ -17,14 +17,38 @@ static int task_populate_system_save_data_compare_ids(const void* e1, const void
     return id1 > id2 ? 1 : id1 < id2 ? -1 : 0;
 }
 
+// FS reports only how many IDs it wrote, so a full buffer may mean more: grow it and ask again.
+static Result task_populate_system_save_data_ids(u32** outIds, u32* outCount) {
+    for(u32 capacity = SYSTEM_SAVE_DATA_IDS_START; ; capacity *= 2) {
+        u32* ids = (u32*) calloc(capacity, sizeof(u32));
+        if(ids == NULL) {
+            return R_APP_OUT_OF_MEMORY;
+        }
+
+        u32 count = 0;
+        Result res = FSUSER_EnumerateSystemSaveData(&count, capacity * sizeof(u32), ids);
+        if(R_SUCCEEDED(res) && count < capacity) {
+            *outIds = ids;
+            *outCount = count;
+            return 0;
+        }
+
+        free(ids);
+
+        if(R_FAILED(res)) {
+            return res;
+        }
+    }
+}
+
 static Result task_populate_system_save_data_thread(void* arg) {
     populate_system_save_data_data* data = (populate_system_save_data_data*) arg;
 
     Result res = 0;
 
     u32 systemSaveDataCount = 0;
-    u32 systemSaveDataIds[MAX_SYSTEM_SAVE_DATA];
-    if(R_SUCCEEDED(res = FSUSER_EnumerateSystemSaveData(&systemSaveDataCount, MAX_SYSTEM_SAVE_DATA * sizeof(u32), systemSaveDataIds))) {
+    u32* systemSaveDataIds = NULL;
+    if(R_SUCCEEDED(res = task_populate_system_save_data_ids(&systemSaveDataIds, &systemSaveDataCount))) {
         qsort(systemSaveDataIds, systemSaveDataCount, sizeof(u32), task_populate_system_save_data_compare_ids);
 
         for(u32 i = 0; i < systemSaveDataCount && R_SUCCEEDED(res); i++) {
@@ -42,7 +66,11 @@ static Result task_populate_system_save_data_thread(void* arg) {
                     item->color = COLOR_TEXT;
                     item->data = systemSaveDataInfo;
 
-                    linked_list_add(data->items, item);
+                    if(!linked_list_add(data->items, item)) {
+                        task_free_system_save_data(item);
+
+                        res = R_APP_OUT_OF_MEMORY;
+                    }
                 } else {
                     free(item);
 
@@ -52,6 +80,8 @@ static Result task_populate_system_save_data_thread(void* arg) {
                 res = R_APP_OUT_OF_MEMORY;
             }
         }
+
+        free(systemSaveDataIds);
     }
 
     return res;

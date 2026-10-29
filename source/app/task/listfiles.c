@@ -233,7 +233,12 @@ static Result task_populate_files_thread(void* arg) {
         linked_list queue;
         linked_list_init(&queue);
 
-        linked_list_add(&queue, baseItem);
+        if(!linked_list_add(&queue, baseItem)) {
+            task_free_file(baseItem);
+            baseItem = NULL;
+
+            res = R_APP_OUT_OF_MEMORY;
+        }
 
         bool quit = false;
         while(!quit && R_SUCCEEDED(res) && linked_list_size(&queue) > 0) {
@@ -242,8 +247,11 @@ static Result task_populate_files_thread(void* arg) {
             file_info* curr = (file_info*) currItem->data;
             linked_list_remove_at(&queue, tail);
 
-            if(data->includeBase || currItem != baseItem) {
-                linked_list_add(data->items, currItem);
+            if((data->includeBase || currItem != baseItem) && !linked_list_add(data->items, currItem)) {
+                task_free_file(currItem);
+
+                res = R_APP_OUT_OF_MEMORY;
+                break;
             }
 
             if(curr->attributes & FS_ATTRIBUTE_DIRECTORY) {
@@ -267,10 +275,11 @@ static Result task_populate_files_thread(void* arg) {
 
                             list_item* item = NULL;
                             if(R_SUCCEEDED(res = task_create_entry_item(&item, curr->archive, path, entries[i].attributes))) {
-                                if(data->recursive && (((file_info*) item->data)->attributes & FS_ATTRIBUTE_DIRECTORY)) {
-                                    linked_list_add(&queue, item);
-                                } else {
-                                    linked_list_add(data->items, item);
+                                bool queued = data->recursive && (((file_info*) item->data)->attributes & FS_ATTRIBUTE_DIRECTORY);
+                                if(!linked_list_add(queued ? &queue : data->items, item)) {
+                                    task_free_file(item);
+
+                                    res = R_APP_OUT_OF_MEMORY;
                                 }
                             }
                         }
@@ -281,6 +290,8 @@ static Result task_populate_files_thread(void* arg) {
             }
         }
 
+        // Folders still queued after a cancel or failure belong to no list.
+        task_clear_files(&queue);
         linked_list_destroy(&queue);
 
         if(!data->includeBase) {

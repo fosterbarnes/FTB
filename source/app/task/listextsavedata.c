@@ -10,7 +10,7 @@
 #include "../resources.h"
 #include "../../core/core.h"
 
-#define MAX_EXT_SAVE_DATA 512
+#define EXT_SAVE_DATA_IDS_START 512
 
 static int task_populate_ext_save_data_compare_ids(const void* e1, const void* e2) {
     u64 id1 = *(u64*) e1;
@@ -19,12 +19,37 @@ static int task_populate_ext_save_data_compare_ids(const void* e1, const void* e
     return id1 > id2 ? 1 : id1 < id2 ? -1 : 0;
 }
 
+// FS takes the buffer size in bytes and reports only how many IDs it wrote, so a full buffer may
+// mean more: grow it and ask again. (FBI passed 512 bytes, which stopped the list at 64.)
+static Result task_populate_ext_save_data_ids(u64** outIds, u32* outCount, FS_MediaType mediaType) {
+    for(u32 capacity = EXT_SAVE_DATA_IDS_START; ; capacity *= 2) {
+        u64* ids = (u64*) calloc(capacity, sizeof(u64));
+        if(ids == NULL) {
+            return R_APP_OUT_OF_MEMORY;
+        }
+
+        u32 count = 0;
+        Result res = FSUSER_EnumerateExtSaveData(&count, capacity * sizeof(u64), mediaType, sizeof(u64), mediaType == MEDIATYPE_NAND, (u8*) ids);
+        if(R_SUCCEEDED(res) && count < capacity) {
+            *outIds = ids;
+            *outCount = count;
+            return 0;
+        }
+
+        free(ids);
+
+        if(R_FAILED(res)) {
+            return res;
+        }
+    }
+}
+
 static Result task_populate_ext_save_data_from(populate_ext_save_data_data* data, FS_MediaType mediaType) {
     Result res = 0;
 
     u32 extSaveDataCount = 0;
-    u64 extSaveDataIds[MAX_EXT_SAVE_DATA];
-    if(R_SUCCEEDED(res = FSUSER_EnumerateExtSaveData(&extSaveDataCount, MAX_EXT_SAVE_DATA, mediaType, 8, mediaType == MEDIATYPE_NAND, (u8*) extSaveDataIds))) {
+    u64* extSaveDataIds = NULL;
+    if(R_SUCCEEDED(res = task_populate_ext_save_data_ids(&extSaveDataIds, &extSaveDataCount, mediaType))) {
         qsort(extSaveDataIds, extSaveDataCount, sizeof(u64), task_populate_ext_save_data_compare_ids);
 
         for(u32 i = 0; i < extSaveDataCount && R_SUCCEEDED(res); i++) {
@@ -78,7 +103,11 @@ static Result task_populate_ext_save_data_from(populate_ext_save_data_data* data
 
                         item->data = extSaveDataInfo;
 
-                        linked_list_add_sorted(data->items, item, data->userData, data->compare);
+                        if(!linked_list_add_sorted(data->items, item, data->userData, data->compare)) {
+                            task_free_ext_save_data(item);
+
+                            res = R_APP_OUT_OF_MEMORY;
+                        }
                     } else {
                         free(item);
 
@@ -89,6 +118,8 @@ static Result task_populate_ext_save_data_from(populate_ext_save_data_data* data
                 }
             }
         }
+
+        free(extSaveDataIds);
     }
 
     return res;

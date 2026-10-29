@@ -6,8 +6,8 @@
 
 #include "action.h"
 #include "ciainstall.h"
+#include "ticketinstall.h"
 #include "../resources.h"
-#include "../safety.h"
 #include "../task/uitask.h"
 #include "../../core/core.h"
 
@@ -29,7 +29,7 @@ typedef struct {
 
     content_type contentType;
     cia_install install;
-    ticket_info ticketInfo;
+    ticket_install ticket;
     char currPath[FILE_PATH_MAX];
 
     data_op_data installInfo;
@@ -87,7 +87,6 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
 
     installData->contentType = CONTENT_CIA;
     installData->installInfo.stage = "Preparing";
-    memset(&installData->ticketInfo, 0, sizeof(installData->ticketInfo));
     memset(&installData->currPath, 0, sizeof(installData->currPath));
 
     // The magic checks below read 4 bytes.
@@ -100,16 +99,9 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
 
         res = cia_install_begin(&installData->install, initialReadBlock, initialReadSize, data, action_install_url_draw_top, handle);
     } else if(*(u16*) initialReadBlock == 0x0100) {
-        if(R_SUCCEEDED(res = ticket_get_title_id(&installData->ticketInfo.titleId, (u8*) initialReadBlock, initialReadSize))
-           && R_SUCCEEDED(res = safety_check_title(installData->ticketInfo.titleId))) {
-            installData->contentType = CONTENT_TICKET;
+        installData->contentType = CONTENT_TICKET;
 
-            installData->ticketInfo.inUse = false;
-            installData->ticketInfo.loaded = true;
-
-            AM_DeleteTicket(installData->ticketInfo.titleId);
-            res = AMNET_InstallTicketBegin(handle);
-        }
+        res = ticket_install_begin(&installData->ticket, initialReadBlock, initialReadSize, handle);
     } else if(*(u32*) initialReadBlock == 0x58534433 /* 3DSX */ || *(u32*) initialReadBlock == 0x48444D53 /* SMDH */) {
         installData->contentType = CONTENT_3DSX_SMDH;
 
@@ -159,16 +151,14 @@ static Result action_install_url_close_dst(void* data, u32 index, bool succeeded
 
     if(installData->contentType == CONTENT_CIA) {
         res = cia_install_end(&installData->install, &installData->installInfo, succeeded, handle);
+    } else if(installData->contentType == CONTENT_TICKET) {
+        res = ticket_install_end(&installData->ticket, succeeded, handle);
     } else if(succeeded) {
-        if(installData->contentType == CONTENT_TICKET) {
-            res = AMNET_InstallTicketFinish(handle);
-        } else if(installData->contentType == CONTENT_3DSX_SMDH) {
+        if(installData->contentType == CONTENT_3DSX_SMDH) {
             res = FSFILE_Close(handle);
         }
     } else {
-        if(installData->contentType == CONTENT_TICKET) {
-            res = AMNET_InstallTicketAbort(handle);
-        } else if(installData->contentType == CONTENT_3DSX_SMDH) {
+        if(installData->contentType == CONTENT_3DSX_SMDH) {
             res = FSFILE_Close(handle);
 
             FS_Archive sdmcArchive = 0;
@@ -330,7 +320,6 @@ void action_install_url(const char* confirmMessage, const char* urls, const char
     data->drawTop = drawTop;
 
     data->contentType = CONTENT_CIA;
-    memset(&data->ticketInfo, 0, sizeof(data->ticketInfo));
     memset(&data->currPath, 0, sizeof(data->currPath));
 
     data->installInfo.data = data;

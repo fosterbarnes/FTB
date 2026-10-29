@@ -50,7 +50,11 @@ static Result task_populate_pending_titles_from(populate_pending_titles_data* da
 
                                     item->data = pendingTitleInfo;
 
-                                    linked_list_add(data->items, item);
+                                    if(!linked_list_add(data->items, item)) {
+                                        task_free_pending_title(item);
+
+                                        res = R_APP_OUT_OF_MEMORY;
+                                    }
                                 } else {
                                     free(item);
 

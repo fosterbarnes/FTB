@@ -35,7 +35,10 @@ static void action_extract_smdh_update(ui_view* view, void* data, float* progres
                             Handle smdhHandle = 0;
                             if(R_SUCCEEDED(res = FSUSER_OpenFile(&smdhHandle, sdmcArchive, *fsPath, FS_OPEN_WRITE | FS_OPEN_CREATE, 0))) {
                                 u32 bytesWritten = 0;
-                                res = FSFILE_Write(smdhHandle, &bytesWritten, 0, smdh, sizeof(SMDH), FS_WRITE_FLUSH | FS_WRITE_UPDATE_TIME);
+                                if(R_SUCCEEDED(res = FSFILE_Write(smdhHandle, &bytesWritten, 0, smdh, sizeof(SMDH), FS_WRITE_FLUSH | FS_WRITE_UPDATE_TIME)) && bytesWritten != sizeof(SMDH)) {
+                                    res = R_APP_NOT_ENOUGH_SPACE;
+                                }
+
                                 FSFILE_Close(smdhHandle);
                             }
 

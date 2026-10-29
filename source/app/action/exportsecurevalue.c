@@ -35,7 +35,10 @@ static void action_export_secure_value_update(ui_view* view, void* data, float* 
                     Handle fileHandle = 0;
                     if(R_SUCCEEDED(res = FSUSER_OpenFile(&fileHandle, sdmcArchive, *fsPath, FS_OPEN_WRITE | FS_OPEN_CREATE, 0))) {
                         u32 bytesWritten = 0;
-                        res = FSFILE_Write(fileHandle, &bytesWritten, 0, &value, sizeof(u64), FS_WRITE_FLUSH | FS_WRITE_UPDATE_TIME);
+                        if(R_SUCCEEDED(res = FSFILE_Write(fileHandle, &bytesWritten, 0, &value, sizeof(u64), FS_WRITE_FLUSH | FS_WRITE_UPDATE_TIME)) && bytesWritten != sizeof(u64)) {
+                            res = R_APP_NOT_ENOUGH_SPACE;
+                        }
+
                         FSFILE_Close(fileHandle);
                     }
 

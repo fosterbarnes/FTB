@@ -16,10 +16,10 @@
 <table border="0">
 <tbody>
 <tr>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.37/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.37/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.37/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.37/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.38/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.38/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.38/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.38/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
 </tr>
 </tbody>
 </table>
@@ -27,18 +27,15 @@
 
 ## Features
 
-Needs [Luma3DS](https://github.com/LumaTeam/Luma3DS). Installs next to FBI. Full docs are in the
+- **[CIA Installer](https://github.com/fosterbarnes/FTB/wiki/CIA-Installer):** Qucikly scans given folder(s) for .cia files. Faster than manually browsing to your .cia files under the old 'SD' menu.
+- **[Title Manager](https://github.com/fosterbarnes/FTB/wiki/Title-Manager):** All new layouts and UI. Icon grid, list, or icon list. Sorting options, section jumps, and a title cache that makes opening the full list pretty quick.
+- **[FTP Server](https://github.com/fosterbarnes/FTB/wiki/FTP-Server):** Easily transfer files to and from the SD card without leaving the app.
+- **[Remote Install](https://github.com/fosterbarnes/FTB/wiki/Remote-Install):** Install from a URL, a QR code, or a PC on your network. (Same as OG FBI at the moment)
+- **[Themes](https://github.com/fosterbarnes/FTB/wiki/Theming):** Dark by default; FBI themes are supported.
+- **[In-app updates](https://github.com/fosterbarnes/FTB/wiki/Install#updating)** Easily update ftb from inside the app. Auto installs and re-launches.
+
+Does not interfere or override any existing FBI installs. This project is in active development. Full docs are in the
 [wiki](https://github.com/fosterbarnes/FTB/wiki).
-
-- **[CIA Installer](https://github.com/fosterbarnes/FTB/wiki/CIA-Installer):** every CIA in your CIA folders in one list, no file browsing.
-- **[Title Manager](https://github.com/fosterbarnes/FTB/wiki/Title-Manager):** grid, list, or icon list on either screen, sorting, section jumps, and a cache that makes it open fast.
-- **[FTP Server](https://github.com/fosterbarnes/FTB/wiki/FTP-Server):** transfer files to and from the SD card over Wi-Fi (powered by ftpd).
-- **[Remote Install](https://github.com/fosterbarnes/FTB/wiki/Remote-Install):** install from a URL, a QR code, or a PC on your network.
-- **[System Changes](https://github.com/fosterbarnes/FTB/wiki/System-Changes) lock:** system titles, tickets, saves, and NAND stay safe unless you turn it off.
-- **[Themes](https://github.com/fosterbarnes/FTB/wiki/Theming):** dark by default; FBI themes work.
-- **[In-app updates](https://github.com/fosterbarnes/FTB/wiki/Install#updating)** and every FBI screen under [FBI Legacy](https://github.com/fosterbarnes/FTB/wiki/FBI-Legacy).
-
-This project is in active development.
 
 
 ## Screenshots

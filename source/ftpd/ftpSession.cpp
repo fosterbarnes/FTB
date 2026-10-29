@@ -24,7 +24,6 @@
 
 #include "ftpServer.h"
 #include "log.h"
-#include "mdns.h"
 #include "platform.h"
 
 #include <arpa/inet.h>
@@ -86,8 +85,8 @@ int compare (std::string_view const lhs_, std::string_view const rhs_)
 	auto const maxLen = std::min (lhs_.size (), rhs_.size ());
 	for (unsigned i = 0; i < maxLen; ++i)
 	{
-		auto const l = std::tolower (lhs_[i]);
-		auto const r = std::tolower (rhs_[i]);
+		auto const l = std::tolower (static_cast<unsigned char> (lhs_[i]));
+		auto const r = std::tolower (static_cast<unsigned char> (rhs_[i]));
 		if (l != r)
 			return l - r;
 	}
@@ -275,7 +274,7 @@ std::string buildPath (std::string_view const cwd_, std::string_view const args_
 	std::string path;
 
 	// absolute path
-	if (args_[0] == '/')
+	if (!args_.empty () && args_[0] == '/')
 		path = std::string (args_);
 	// relative path
 	else
@@ -299,6 +298,14 @@ std::string buildPath (std::string_view const cwd_, std::string_view const args_
 /// \param args_ Child component
 std::string buildResolvedPath (std::string_view const cwd_, std::string_view const args_)
 {
+	// FTB: an empty argument used to resolve to the current directory, so "RMD" or "RNFR" without a
+	// name acted on it
+	if (args_.empty ())
+	{
+		errno = EINVAL;
+		return {};
+	}
+
 	return resolvePath (buildPath (cwd_, args_));
 }
 
@@ -1817,7 +1824,7 @@ void FtpSession::readCommand (int const events_)
 		char const *const command = buffer;
 
 		char *args = buffer;
-		while (*args && !std::isspace (*args))
+		while (*args && !std::isspace (static_cast<unsigned char> (*args)))
 			++args;
 		if (*args)
 			*args++ = 0;
@@ -1924,7 +1931,8 @@ void FtpSession::sendResponse (char const *fmt_, ...)
 		return;
 	}
 
-	if (static_cast<std::size_t> (rc) > size)
+	// FTB: was > size; at rc == size vsnprintf replaced the last character with the terminator
+	if (static_cast<std::size_t> (rc) >= size)
 	{
 		error ("Not enough space for response\n");
 		closeCommand ();
@@ -2955,11 +2963,11 @@ void FtpSession::OPTS (char const *args_)
 		auto p = args_ + 7;
 
 		auto const nextWord = [] (char const *&p_) {
-			while (*p_ && std::isspace (*p_))
+			while (*p_ && std::isspace (static_cast<unsigned char> (*p_)))
 				++p_;
 
 			auto const start = p_;
-			while (*p_ && !std::isspace (*p_))
+			while (*p_ && !std::isspace (static_cast<unsigned char> (*p_)))
 				++p_;
 
 			auto const end = p_;
@@ -2977,7 +2985,7 @@ void FtpSession::OPTS (char const *args_)
 			if (opt.size () == 5 && ::strncasecmp (opt.data (), "LEVEL", 5) == 0)
 			{
 				auto const val = nextWord (p);
-				if (val.size () != 1 || !std::isdigit (val[0]))
+				if (val.size () != 1 || !std::isdigit (static_cast<unsigned char> (val[0])))
 				{
 					sendResponse ("501 %s\r\n", std::strerror (EINVAL));
 					return;
@@ -3174,7 +3182,7 @@ void FtpSession::PORT (char const *args_)
 	std::uint16_t port = 0;
 	for (auto p = portString; *p; ++p)
 	{
-		if (!std::isdigit (*p))
+		if (!std::isdigit (static_cast<unsigned char> (*p)))
 		{
 			if (p == portString || *p != '.' || val > 0xFF)
 			{
@@ -3207,6 +3215,15 @@ void FtpSession::PORT (char const *args_)
 
 	port <<= 8;
 	port += val;
+
+	// FTB: data connections go only to the client itself; another address would let a client make
+	// the 3DS connect to any host and port on the network (FTP bounce)
+	auto const &peer = static_cast<sockaddr_in const &> (m_commandSocket->peerName ());
+	if (addr.sin_addr.s_addr != peer.sin_addr.s_addr)
+	{
+		sendResponse ("501 %s\r\n", std::strerror (EACCES));
+		return;
+	}
 
 	addr.sin_family = AF_INET;
 	addr.sin_port   = htons (port);
@@ -3263,7 +3280,7 @@ void FtpSession::REST (char const *args_)
 	std::uint64_t pos = 0;
 	for (auto p = args_; *p; ++p)
 	{
-		if (!std::isdigit (*p) || UINT64_MAX / 10 < pos)
+		if (!std::isdigit (static_cast<unsigned char> (*p)) || UINT64_MAX / 10 < pos)
 		{
 			sendResponse ("504 %s\r\n", std::strerror (errno));
 			return;
@@ -3419,17 +3436,10 @@ void FtpSession::SITE (char const *args_)
 	{
 		sendResponse ("211-\r\n"
 		              " Show this help: SITE HELP\r\n"
-		              " Set username: SITE USER <NAME>\r\n"
-		              " Set password: SITE PASS <PASS>\r\n"
-		              " Set port: SITE PORT <PORT>\r\n"
 		              " Set deflate level: SITE DEFLATE <LEVEL>\r\n"
-#ifndef __NDS__
-		              " Set hostname: SITE HOST <HOSTNAME>\r\n"
-#endif
 #ifdef __3DS__
 		              " Set getMTime: SITE MTIME [0|1]\r\n"
 #endif
-		              " Save config: SITE SAVE\r\n"
 		              "211 End\r\n");
 		return;
 	}
@@ -3440,51 +3450,9 @@ void FtpSession::SITE (char const *args_)
 		return;
 	}
 
-	if (compare (command, "USER") == 0)
-	{
-		{
-#ifndef __NDS__
-			auto const lock = m_config.lockGuard ();
-#endif
-			m_config.setUser (std::string (arg));
-		}
-
-		sendResponse ("200 OK\r\n");
-		return;
-	}
-	else if (compare (command, "PASS") == 0)
-	{
-		{
-#ifndef __NDS__
-			auto const lock = m_config.lockGuard ();
-#endif
-			m_config.setPass (std::string (arg));
-		}
-
-		sendResponse ("200 OK\r\n");
-		return;
-	}
-	else if (compare (command, "PORT") == 0)
-	{
-		bool error = false;
-
-		{
-#ifndef __NDS__
-			auto const lock = m_config.lockGuard ();
-#endif
-			error = !m_config.setPort (arg);
-		}
-
-		if (error)
-		{
-			sendResponse ("550 %s\r\n", std::strerror (errno));
-			return;
-		}
-
-		sendResponse ("200 OK\r\n");
-		return;
-	}
-	else if (compare (command, "DEFLATE") == 0)
+	// FTB: SITE USER, PASS, PORT, HOST, and SAVE are gone (user decision 2026-10-29): login, port,
+	// and hostname change only on the 3DS (FTP Settings), so a client cannot lock the owner out
+	if (compare (command, "DEFLATE") == 0)
 	{
 		if (!m_config.setDeflateLevel (arg))
 		{
@@ -3495,21 +3463,6 @@ void FtpSession::SITE (char const *args_)
 		sendResponse ("200 OK\r\n");
 		return;
 	}
-#ifndef __NDS__
-	else if (compare (command, "HOST") == 0)
-	{
-		{
-			auto const lock = m_config.lockGuard ();
-			m_config.setHostname (std::string (arg));
-			mdns::setHostname (std::string (arg));
-		}
-
-		// FTB: upstream fell through to "550 Invalid command" after a successful change
-		sendResponse ("200 OK\r\n");
-		return;
-	}
-
-#endif
 #ifdef __3DS__
 	else if (compare (command, "MTIME") == 0)
 	{
@@ -3537,26 +3490,6 @@ void FtpSession::SITE (char const *args_)
 		return;
 	}
 #endif
-	else if (compare (command, "SAVE") == 0)
-	{
-		bool error;
-
-		{
-#ifndef __NDS__
-			auto const lock = m_config.lockGuard ();
-#endif
-			error = !m_config.save (FTPDCONFIG);
-		}
-
-		if (error)
-		{
-			sendResponse ("550 %s\r\n", std::strerror (errno));
-			return;
-		}
-
-		sendResponse ("200 OK\r\n");
-		return;
-	}
 
 	sendResponse ("550 Invalid command\r\n");
 }

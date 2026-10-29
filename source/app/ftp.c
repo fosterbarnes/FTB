@@ -35,6 +35,7 @@ typedef struct {
 
     bool online;
     char address[FTP_ADDRESS_MAX];
+    ftpd_settings current; // the server's settings, for the login shown on the status line
 
     ftpd_settings edit;
     char aboutText[512];
@@ -54,8 +55,10 @@ static u32 ftp_log_color(ftpd_log_level level) {
 }
 
 static void ftp_draw_log(ftp_data* data, float x1, float y1, float x2, float y2) {
-    char status[FTP_ADDRESS_MAX + 64];
-    snprintf(status, sizeof(status), "%s  %s", ftpd_version(), data->online ? data->address : "Waiting for WiFi...");
+    // Login: none means any client on the network can log in.
+    char status[FTP_ADDRESS_MAX + FTPD_SETTING_MAX + 64];
+    snprintf(status, sizeof(status), "%s  %s  Login: %s", ftpd_version(), data->online ? data->address : "Waiting for WiFi...",
+             data->current.user[0] != '\0' ? data->current.user : data->current.pass[0] != '\0' ? "password" : "none");
 
     float statusHeight = screen_get_font_height(0.5f);
     screen_draw_string(status, x1 + 2, y1 + 1, 0.5f, 0.5f, COLOR_TEXT, false);
@@ -402,12 +405,18 @@ static void ftp_menu_settings(ui_view* view, ftp_data* data) {
     list_display("FTP Settings", "A: Select, B: Cancel", data, ftp_settings_update, ftp_list_draw_top);
 }
 
+static void ftp_upload_log_onresponse(ui_view* view, void* data, u32 response) {
+    if(response == PROMPT_YES && !ftpd_upload_log()) {
+        prompt_display_notify("Failure", "A log upload is already running.", COLOR_TEXT, data, ftp_draw_top, NULL);
+    }
+}
+
+// The log holds client addresses and file paths, so the upload says where it goes first.
 static void ftp_menu_upload_log(ui_view* view, ftp_data* data) {
     ftp_close_list(view);
 
-    if(!ftpd_upload_log()) {
-        prompt_display_notify("Failure", "A log upload is already running.", COLOR_TEXT, data, ftp_draw_top, NULL);
-    }
+    prompt_display_yes_no("Confirmation", "Upload the FTP log to pastie.io?\nAnyone with the link can read it.\nThe link appears in the log.",
+                          COLOR_TEXT, data, ftp_draw_top, ftp_upload_log_onresponse);
 }
 
 static void ftp_menu_about(ui_view* view, ftp_data* data) {
@@ -521,6 +530,7 @@ static void ftp_update(ui_view* view, void* data, float bx1, float by1, float bx
     ftp_update_scroll(ftpData);
 
     ftpData->online = ftpd_address(ftpData->address, sizeof(ftpData->address));
+    ftpd_get_settings(&ftpData->current);
     ftpData->sessionCount = ftpd_sessions(ftpData->sessions, FTP_SESSIONS_MAX);
 }
 

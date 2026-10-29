@@ -109,7 +109,9 @@ void const *decode (void const *const buffer_, U &size_, T &out_, bool networkTo
 	if (!buffer_)
 		return nullptr;
 
-	if (size_ < 0 || static_cast<std::make_unsigned_t<T>> (size_) < sizeof (T))
+	// FTB: cast to the size's own unsigned type; casting to T's truncated it (256 bytes left read
+	// as 0 for a u8)
+	if (size_ < 0 || static_cast<std::make_unsigned_t<U>> (size_) < sizeof (T))
 		return nullptr;
 
 	std::memcpy (&out_, buffer_, sizeof (T));
@@ -190,7 +192,10 @@ void *encode (void *const buffer_, T &size_, std::string const &in_)
 	{
 		pos = in_.find ('.', prev);
 
-		auto const label = std::string_view (in_).substr (prev, pos);
+		// FTB: substr takes a length; passing pos made every label after the first run on (a
+		// hostname with a dot, such as "my.3ds", answered queries with a malformed name)
+		auto const label = std::string_view (in_).substr (
+		    prev, pos == std::string::npos ? std::string::npos : pos - prev);
 
 		// labels are limited to 63 bytes
 		if (label.size () >= size_ || label.size () > 0x3F)
@@ -277,50 +282,6 @@ struct QueryRecord
 		buffer_ = ::encode (buffer_, size_, qclass);
 
 		return buffer_;
-	}
-};
-
-struct ResourceRecord
-{
-	std::string rname{};
-	std::uint16_t rtype{};
-	std::uint16_t rclass{};
-	std::uint32_t rttl{};
-	std::uint16_t rlen{};
-	std::vector<std::uint8_t> rdata{};
-
-	template <std::integral T>
-	void const *decode (void const *buffer_, T &size_)
-	{
-		buffer_ = ::decode (buffer_, size_, rname);
-		buffer_ = ::decode (buffer_, size_, rtype);
-		buffer_ = ::decode (buffer_, size_, rclass);
-		buffer_ = ::decode (buffer_, size_, rttl);
-		buffer_ = ::decode (buffer_, size_, rlen);
-
-		return buffer_;
-	}
-
-	template <std::integral T>
-	void *encode (void *buffer_, T &size_)
-	{
-		if (rttl > std::numeric_limits<std::int32_t>::max ())
-			return nullptr;
-
-		buffer_ = ::encode (buffer_, size_, rname);
-		buffer_ = ::encode (buffer_, size_, rtype);
-		buffer_ = ::encode (buffer_, size_, rclass);
-		buffer_ = ::encode (buffer_, size_, rttl);
-		buffer_ = ::encode (buffer_, size_, rlen);
-
-		if (rlen > size_)
-			return nullptr;
-
-		rdata.resize (rlen);
-		std::memcpy (rdata.data (), buffer_, rlen);
-
-		size_ -= rlen;
-		return static_cast<std::uint8_t *> (buffer_) + rlen;
 	}
 };
 
@@ -536,12 +497,8 @@ void mdns::handleSocket (Socket *socket_, SockAddr const &addr_)
 	if ((flags >> 0) & 0xF)
 		return;
 
-	// std::vector<std::uint8_t> response (65536);
-	//	void *out      = response.data ();
-	//  auto available = response.size ();
-
-	std::vector<ResourceRecord> answers;
-
+	// FTB: only the questions matter; the unused answer-record parsing (it never skipped record data)
+	// is gone
 	bool announced = false;
 	for (unsigned i = 0; i < qdCount; ++i)
 	{
@@ -568,32 +525,8 @@ void mdns::handleSocket (Socket *socket_, SockAddr const &addr_)
 
 		if (!announced)
 		{
-			std::vector<std::uint8_t> data (sizeof (in_addr_t));
-			auto n = data.size ();
-			encode (data.data (),
-			    n,
-			    static_cast<sockaddr_in const &> (addr_).sin_addr.s_addr,
-			    false);
-
-			answers.emplace_back (ResourceRecord{// answer
-			    .rname  = record.qname,
-			    .rtype  = 1,
-			    .rclass = static_cast<std::uint16_t> (1 | (1 << 15)),
-			    .rttl   = MDNS_TTL,
-			    .rlen   = sizeof (in_addr_t),
-			    .rdata  = std::move (data)});
-
 			announce (socket_, &srcAddr, id, flags, record, addr_);
 			announced = true;
 		}
-	}
-
-	for (unsigned i = 0; i < anCount; ++i)
-	{
-		ResourceRecord record;
-		in = record.decode (in, bytes);
-
-		if (!in)
-			return;
 	}
 }

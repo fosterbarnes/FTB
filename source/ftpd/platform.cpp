@@ -26,10 +26,13 @@
 
 #include "log.h"
 
+// FTB: core/task/task.h (C) pulls in dataop.h, whose `delete` member is not valid C++
+extern "C" void task_sleep_block ();
+extern "C" void task_sleep_unblock ();
+
 #include <arpa/inet.h>
 
 #include <algorithm>
-#include <cassert>
 #include <mutex>
 
 namespace
@@ -159,7 +162,8 @@ void lockNetworkState ()
 		return;
 	}
 
-	aptSetSleepAllowed (false);
+	// FTB: through the shared sleep block, so a data op ending meanwhile cannot re-allow sleep
+	task_sleep_block ();
 	s_ndmuLocked = true;
 	info ("Wifi connected\n");
 }
@@ -180,7 +184,7 @@ void platform::stop ()
 	{
 		NDMU_UnlockState ();
 		NDMU_LeaveExclusiveState ();
-		aptSetSleepAllowed (true);
+		task_sleep_unblock ();
 		s_ndmuLocked = false;
 	}
 
@@ -294,8 +298,10 @@ public:
 		priority = std::clamp<s32> (priority, 0x18, 0x3F - 1) + 1;
 
 		// use appcore
+		// FTB: upstream only asserted, which NDEBUG compiles out; the FTP screen shows the log line
 		thread = threadCreate (&privateData_t::threadFunc, this, STACK_SIZE, priority, 0, false);
-		assert (thread);
+		if (!thread)
+			error ("Failed to start the server thread\n");
 	}
 
 	/// \brief FTB opens a new server per FTP screen, so each thread is joined and freed here

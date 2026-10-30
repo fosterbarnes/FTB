@@ -13,6 +13,9 @@ typedef struct {
     // Set by the caller: ask (red) before reinstalling a title that is already installed. Off is
     // FBI's behavior; Web Transfer links set it because their page cannot check them first.
     bool askInstalled;
+    // Set by the caller: install New 3DS titles on an Old 3DS without asking (trusted Web Transfer
+    // senders).
+    bool allowNew3ds;
 } cia_install;
 
 // From the CIA's first block: reads the title ID, checks the lock (red confirm for system titles),

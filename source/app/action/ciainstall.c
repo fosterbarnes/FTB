@@ -19,7 +19,7 @@ Result cia_install_begin(cia_install* install, void* block, u32 blockSize, void*
     }
 
     bool n3ds = false;
-    if(R_SUCCEEDED(APT_CheckNew3DS(&n3ds)) && !n3ds && ((titleId >> 28) & 0xF) == 2
+    if(!install->allowNew3ds && R_SUCCEEDED(APT_CheckNew3DS(&n3ds)) && !n3ds && ((titleId >> 28) & 0xF) == 2
        && !prompt_wait_yes_no("Confirmation", "Title is intended for New 3DS systems.\nContinue?", COLOR_TEXT, data, drawTop)) {
         return R_APP_SKIPPED;
     }

@@ -90,6 +90,9 @@ struct web_job_s {
     char folder[FILE_PATH_MAX]; // where saves go, ends in "/"
     bool replace;
     bool sensitive; // a save touches boot.firm, /luma/, or /Nintendo 3DS/
+    // "Allow all" or a remembered browser: no 3DS prompts but the red ones (sensitive saves, system
+    // titles) and failures.
+    bool trusted;
     u32 installs;
     u64 totalBytes;
     u64 saveBytes;
@@ -398,6 +401,12 @@ static bool webserver_remember_device(webserver* w, const char* key) {
 
     paths_ensure_data_dir();
     return fs_write_file_safe(PATHS_WEB_DEVICES, webserver_write_devices, w);
+}
+
+// "Allow all", or "Ask once" with a browser that was already remembered (this session's yes included).
+static bool webserver_is_trusted(const webserver* w, const web_request* request) {
+    u8 mode = settings_get()->webApproveDevices;
+    return mode == WEB_APPROVE_NONE || (mode == WEB_APPROVE_REMEMBER && request->device[0] != '\0' && webserver_is_remembered(w, request->device));
 }
 
 bool webserver_forget_devices() {
@@ -783,7 +792,7 @@ static void webserver_draw_item(ui_view* view, void* data, float x1, float y1, f
 }
 
 static bool webserver_confirm(web_state* state, web_job* job) {
-    if(settings_get()->webAutoAccept && !job->sensitive) {
+    if((settings_get()->webAutoAccept || job->trusted) && !job->sensitive) {
         return true;
     }
 
@@ -913,8 +922,10 @@ static Result webserver_open_dst(void* data, u32 index, void* initialReadBlock, 
         string_copy(fileName, item->name, FILE_NAME_MAX);
     }
 
-    // The page checks uploaded CIAs against installed titles before sending; links it cannot check.
-    job->content.cia.askInstalled = job->kind == WEB_JOB_LINKS;
+    // The page checks uploaded CIAs against installed titles before sending; links it cannot check,
+    // so the 3DS asks, unless the sender is trusted.
+    job->content.cia.askInstalled = job->kind == WEB_JOB_LINKS && !job->trusted;
+    job->content.cia.allowNew3ds = job->trusted;
 
     return content_install_begin(&job->content, fileName, "", initialReadBlock, initialReadSize, job, webserver_draw_item, handle);
 }
@@ -1152,6 +1163,11 @@ static void webserver_report(web_state* state, web_job* job, Result result) {
         return;
     }
 
+    // Trusted senders see the results in the browser; the log rows above stay on the 3DS.
+    if(job->trusted) {
+        return;
+    }
+
     // The prompt keeps the text pointer; one worker writes it.
     static char summary[128];
     char headline[64];
@@ -1186,6 +1202,8 @@ static web_job* webserver_serve_offer(webserver* w, const web_client* client, co
         webserver_respond_error(state, fd, status, error);
         return NULL;
     }
+
+    job->trusted = webserver_is_trusted(w, request);
 
     if(!webserver_confirm(state, job)) {
         webserver_log_declined(state, job);

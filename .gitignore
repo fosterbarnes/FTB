@@ -8,3 +8,4 @@ buildNotes.*
 .res/yapBot.json
 __pycache__/
 *.md
+3d Stuff/*

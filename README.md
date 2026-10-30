@@ -16,10 +16,10 @@
 <table border="0">
 <tbody>
 <tr>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.50/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.50/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.50/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.50/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.51/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.51/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.51/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.51/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
 </tr>
 </tbody>
 </table>
@@ -43,26 +43,44 @@ Does not interfere or override any existing FBI installs. This project is in act
 
 <table>
   <tr>
-    <th>Home</th>
-    <th>Title Manager </th> 
+    <th>Main Menu</th>
+    <th>Title Manager (List)</th>
   </tr>
   <tr>
-    <td align="center"><img src="./.res/screenshots/home.png" width="400" vspace="15"></td>
-    <td align="center"><img src="./.res/screenshots/titleManager.png" width="400" vspace="15"></td>
+    <td align="center"><img src="./.res/screenshots/mainMenu.png" width="400" vspace="15"></td>
+    <td align="center"><img src="./.res/screenshots/titleManagerList.png" width="400" vspace="15"></td>
   </tr>
   <tr>
+    <th>Title Manager (Top)</th>
+    <th>Title Manager (Grid)</th>
+  </tr>
+  <tr>
+    <td align="center"><img src="./.res/screenshots/titleManagerTop.png" width="400" vspace="15"></td>
+    <td align="center"><img src="./.res/screenshots/titleManagerGrid.png" width="400" vspace="15"></td>
+  </tr>
+  <tr>
+    <th>CIA Installer</th>
+    <th>SD Browser</th>
+  </tr>
+  <tr>
+    <td align="center"><img src="./.res/screenshots/ciaInstaller.png" width="400" vspace="15"></td>
+    <td align="center"><img src="./.res/screenshots/sdBrowser.png" width="400" vspace="15"></td>
+  </tr>
+  <tr>
+    <th>3DS Web Server</th>
     <th>FTP Server</th>
-    <th>Progress Bar</th>
   </tr>
   <tr>
+    <td align="center"><img src="./.res/screenshots/webServer.png" width="400" vspace="15"></td>
     <td align="center"><img src="./.res/screenshots/ftpServer.png" width="400" vspace="15"></td>
-    <td align="center"><img src="./.res/screenshots/progress.png" width="400" vspace="15"></td>
   </tr>
   <tr>
-    <th colspan="2">SD Browser</th>
+    <th>FBI Legacy</th>
+    <th>Settings</th>
   </tr>
   <tr>
-    <td colspan="2" align="center"><img src="./.res/screenshots/sdBrowser.png" width="400" vspace="15"></td>
+    <td align="center"><img src="./.res/screenshots/fbiLegacy.png" width="400" vspace="15"></td>
+    <td align="center"><img src="./.res/screenshots/settings.png" width="400" vspace="15"></td>
   </tr>
 </table>
 

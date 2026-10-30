@@ -59,20 +59,20 @@ Installs alongside FBI without changing or replacing it. This project is in acti
     <td align="center"><img src="./.res/screenshots/titleManagerList.png" width="400" vspace="15"></td>
   </tr>
   <tr>
-    <th>CIA Installer</th>
-    <th>SD Browser</th>
-  </tr>
-  <tr>
-    <td align="center"><img src="./.res/screenshots/ciaInstaller.png" width="400" vspace="15"></td>
-    <td align="center"><img src="./.res/screenshots/sdBrowser.png" width="400" vspace="15"></td>
-  </tr>
-  <tr>
     <th>3DS Web Server</th>
     <th>FTP Server</th>
   </tr>
   <tr>
     <td align="center"><img src="./.res/screenshots/webServer.png" width="400" vspace="15"></td>
     <td align="center"><img src="./.res/screenshots/ftpServer.png" width="400" vspace="15"></td>
+  </tr>
+  <tr>
+    <th>CIA Installer</th>
+    <th>SD Browser</th>
+  </tr>
+  <tr>
+    <td align="center"><img src="./.res/screenshots/ciaInstaller.png" width="400" vspace="15"></td>
+    <td align="center"><img src="./.res/screenshots/sdBrowser.png" width="400" vspace="15"></td>
   </tr>
   <tr>
     <th>FBI Legacy</th>

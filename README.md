@@ -18,10 +18,10 @@ A 3DS title manager, CIA installer, FTP server, and more. Built on [FBI](https:/
 <table border="0">
 <tbody>
 <tr>
-<td valign="top"><a href="https://github.com/fosterbarnes/ftb/releases/download/v0.0.55/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/ftb/releases/download/v0.0.55/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/ftb/releases/download/v0.0.55/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/ftb/releases/download/v0.0.55/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/ftb/releases/download/v0.0.56/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/ftb/releases/download/v0.0.56/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/ftb/releases/download/v0.0.56/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/ftb/releases/download/v0.0.56/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
 </tr>
 </tbody>
 </table>
@@ -51,11 +51,11 @@ Installs alongside FBI without changing or replacing it. This project is in acti
     <td align="center"><img src="./.res/screenshots/titleManagerList.png" width="400" vspace="15"></td>
   </tr>
   <tr>
-    <th>Title Manager (Top)</th>
+    <th>Title Manager (Icon List)</th>
     <th>Title Manager (Grid)</th>
   </tr>
   <tr>
-    <td align="center"><img src="./.res/screenshots/titleManagerTop.png" width="400" vspace="15"></td>
+    <td align="center"><img src="./.res/screenshots/titleManagerIconList.png" width="400" vspace="15"></td>
     <td align="center"><img src="./.res/screenshots/titleManagerGrid.png" width="400" vspace="15"></td>
   </tr>
   <tr>
@@ -84,7 +84,7 @@ Installs alongside FBI without changing or replacing it. This project is in acti
   </tr>
 </table>
 
-## What is ftb?
+## Why does this exist?
 
 [FBI](https://github.com/Steveice10/FBI) by Steveice10 was the standard title manager for modded
 3DS consoles, but it has been archived and no longer gets updates. ftb is a fork that keeps it

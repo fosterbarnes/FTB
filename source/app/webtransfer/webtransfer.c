@@ -20,7 +20,10 @@
 #define WEB_URL_MAX 32
 #define WEB_QR_VERSION_MAX 5 // "http://255.255.255.255:8080/" needs version 2 at low error correction
 #define WEB_QR_QUIET 2 // light modules around the code
-#define WEB_QR_SCALE 3
+#define WEB_QR_SCALE_MAX 5
+#define WEB_TEXT_MIN_WIDTH 180 // keeps the URL readable when the info panel is on the 320 px screen
+#define WEB_URL_SCALE 0.7f
+#define WEB_LINE_GAP 6
 #define WEB_MARGIN 12
 
 typedef struct {
@@ -114,45 +117,60 @@ static void webtransfer_update_address(webtransfer_data* data) {
 
 static void webtransfer_draw_idle(webtransfer_data* data, float x1, float y1, float x2, float y2) {
     if(data->shownIp == 0) {
-        ui_draw_centered_text("Waiting for WiFi...", x1, y1, x2, y2);
+        ui_draw_centered_text("Waiting for Wi-Fi...", x1, y1, x2, y2);
         return;
     }
 
-    char url[64];
-    snprintf(url, sizeof(url), "URL: %s", data->url[0] != '\0' ? data->url : "none, ports 80 and 8080 are in use");
+    if(data->url[0] == '\0') {
+        ui_draw_centered_text("Ports 80 and 8080 are in use.", x1, y1, x2, y2);
+        return;
+    }
 
-    const char* blocks[] = {
-            url,
-            "Open this address in a browser on your PC or phone (same Wi-Fi network) to send files and "
-            "links to this 3DS or download files from it.",
-            "Or scan the QR code with your phone's camera."
-    };
-
-    // No address: no steps. No QR code (no free texture): no scan step.
-    u32 blockCount = data->url[0] == '\0' ? 1 : data->qrSize == 0 ? 2 : 3;
-
+    // QR code on the left, as large as the height allows while leaving a readable text column.
     float textX = x1 + WEB_MARGIN;
     if(data->qrSize != 0) {
-        float qrPixels = data->qrSize * WEB_QR_SCALE;
-        screen_draw_texture(data->qrTexture, x1 + WEB_MARGIN, y1 + (y2 - y1 - qrPixels) / 2, qrPixels, qrPixels);
+        float room = y2 - y1 - WEB_MARGIN * 2;
+        float roomBeside = x2 - x1 - WEB_MARGIN * 3 - WEB_TEXT_MIN_WIDTH;
+        int scale = (int) (roomBeside < room ? roomBeside : room) / (int) data->qrSize;
+        scale = scale < 1 ? 1 : scale > WEB_QR_SCALE_MAX ? WEB_QR_SCALE_MAX : scale;
+
+        float qrPixels = data->qrSize * scale;
+        screen_draw_texture(data->qrTexture, textX, y1 + (y2 - y1 - qrPixels) / 2, qrPixels, qrPixels);
 
         textX += qrPixels + WEB_MARGIN;
     }
 
-    // Blocks are a blank line apart and centered on the screen as one group.
-    float wrapWidth = x2 - WEB_MARGIN - textX;
-    float gap = screen_get_font_height(0.5f);
-    float heights[3];
-    float total = gap * (blockCount - 1);
-    for(u32 i = 0; i < blockCount; i++) {
-        screen_get_string_size_wrap(NULL, &heights[i], blocks[i], 0.5f, 0.5f, wrapWidth);
-        total += heights[i];
+    // Hint, URL, scan hint: one group centered vertically. The URL shrinks to fit the column.
+    float textX2 = x2 - WEB_MARGIN;
+    float columnWidth = textX2 - textX;
+
+    float urlScale = WEB_URL_SCALE;
+    float urlWidth = 0;
+    screen_get_string_size(&urlWidth, NULL, data->url, urlScale, urlScale);
+    if(urlWidth > columnWidth) {
+        urlScale *= columnWidth / urlWidth;
     }
 
+    const char* hint = "On the same Wi-Fi, open";
+    const char* scan = data->qrSize != 0 ? "or scan the QR code." : NULL;
+
+    float hintHeight = 0;
+    float scanHeight = 0;
+    screen_get_string_size_wrap(NULL, &hintHeight, hint, 0.5f, 0.5f, columnWidth);
+    if(scan != NULL) {
+        screen_get_string_size_wrap(NULL, &scanHeight, scan, 0.5f, 0.5f, columnWidth);
+    }
+
+    float urlHeight = screen_get_font_height(urlScale);
+    float total = hintHeight + WEB_LINE_GAP + urlHeight + (scan != NULL ? WEB_LINE_GAP + scanHeight : 0);
+
     float y = y1 + (y2 - y1 - total) / 2;
-    for(u32 i = 0; i < blockCount; i++) {
-        screen_draw_string_wrap(blocks[i], textX, y, 0.5f, 0.5f, i == 0 ? COLOR_TEXT : COLOR_TEXT_DIM, false, x2 - WEB_MARGIN);
-        y += heights[i] + gap;
+    screen_draw_string_wrap(hint, textX, y, 0.5f, 0.5f, COLOR_TEXT_DIM, false, textX2);
+    y += hintHeight + WEB_LINE_GAP;
+    screen_draw_string(data->url, textX, y, urlScale, urlScale, COLOR_TEXT, false);
+    y += urlHeight + WEB_LINE_GAP;
+    if(scan != NULL) {
+        screen_draw_string_wrap(scan, textX, y, 0.5f, 0.5f, COLOR_TEXT_DIM, false, textX2);
     }
 }
 

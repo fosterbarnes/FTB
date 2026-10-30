@@ -10,7 +10,7 @@
 #define ABOUT_MARGIN 10
 #define ABOUT_LOGO_GAP 12
 #define ABOUT_TITLE_SCALE 0.75f
-#define ABOUT_SECRET_PRESSES 3
+#define ABOUT_SECRET_HOLD_MS 800
 
 // Credits from README.md "Credit" and LICENSE.txt. Item data is the detail prompt text, kept to
 // short lines because prompts do not wrap.
@@ -139,8 +139,8 @@ static void about_prompt_draw_top(ui_view* view, void* data, float x1, float y1,
     about_draw_panel(x1, y1, x2, y2);
 }
 
-// START presses in a row on the FTB row; any other key, or another row, starts over.
-static u32 about_start_presses = 0;
+// When the current START hold began on this screen; 0 = no hold being timed.
+static u64 about_start_held_since = 0;
 
 static void about_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
     u32 down = hidKeysDown();
@@ -151,20 +151,23 @@ static void about_update(ui_view* view, void* data, linked_list* items, list_ite
         return;
     }
 
-    if(down != 0) {
-        about_start_presses = down == KEY_START && selected == &about_items[0] ? about_start_presses + 1 : 0;
-        if(about_start_presses == ABOUT_SECRET_PRESSES) {
-            about_start_presses = 0;
-            screenshot_mode_toggle();
+    if(down & KEY_START) {
+        about_start_held_since = osGetTime();
+    } else if(!(hidKeysHeld() & KEY_START)) {
+        about_start_held_since = 0;
+    }
 
-            if(screenshot_mode_on()) {
-                prompt_display_notify("Screenshot mode", "On until FTB closes.\nSTART saves a screenshot to\nsdmc:/ftb/screenshots/.", COLOR_TEXT, NULL, about_prompt_draw_top, NULL);
-            } else {
-                prompt_display_notify("Screenshot mode", "Off. START exits FTB again.", COLOR_TEXT, NULL, about_prompt_draw_top, NULL);
-            }
+    if(about_start_held_since != 0 && osGetTime() - about_start_held_since >= ABOUT_SECRET_HOLD_MS) {
+        about_start_held_since = 0;
+        screenshot_mode_toggle();
 
-            return;
+        if(screenshot_mode_on()) {
+            prompt_display_notify("Screenshot mode", "On until FTB closes.\nSTART saves a screenshot to\nsdmc:/ftb/screenshots/.", COLOR_TEXT, NULL, about_prompt_draw_top, NULL);
+        } else {
+            prompt_display_notify("Screenshot mode", "Off. START exits FTB again.", COLOR_TEXT, NULL, about_prompt_draw_top, NULL);
         }
+
+        return;
     }
 
     if(selected != NULL && (selectedTouched || (hidKeysDown() & KEY_A))) {
@@ -180,7 +183,7 @@ static void about_update(ui_view* view, void* data, linked_list* items, list_ite
 }
 
 void about_open() {
-    about_start_presses = 0;
+    about_start_held_since = 0;
     about_build_text();
     list_display("About", "A: Details, B: Return", NULL, about_update, about_draw_top);
 }

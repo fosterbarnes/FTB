@@ -16,6 +16,10 @@
 #define SCREENSHOT_HEADER_SIZE 54
 
 static bool screenshot_mode = false;
+// Set by a toggle so the release of the toggling hold is not a shot.
+static bool screenshot_skip_release = false;
+// A shot waits one frame so that frame is drawn without the indicator.
+static bool screenshot_pending = false;
 
 typedef struct {
     const u8* top;
@@ -28,6 +32,11 @@ bool screenshot_mode_on() {
 
 void screenshot_mode_toggle() {
     screenshot_mode = !screenshot_mode;
+    screenshot_skip_release = true;
+}
+
+bool screenshot_indicator_on() {
+    return screenshot_mode && !screenshot_pending;
 }
 
 static void screenshot_put_u32(u8* out, u32 value) {
@@ -77,7 +86,7 @@ static bool screenshot_write(FILE* fd, void* data) {
     return true;
 }
 
-void screenshot_take() {
+static void screenshot_take() {
     u8* top = screen_capture(GFX_TOP);
     u8* bottom = top != NULL ? screen_capture(GFX_BOTTOM) : NULL;
     if(bottom == NULL) {
@@ -108,5 +117,23 @@ void screenshot_take() {
 
     if(!saved) {
         error_display(NULL, NULL, "Failed to save screenshot to\n" PATHS_SCREENSHOTS_DIR "/.");
+    }
+}
+
+void screenshot_update() {
+    if(screenshot_pending) {
+        screenshot_pending = false;
+        screenshot_take();
+        return;
+    }
+
+    if(!(hidKeysUp() & KEY_START)) {
+        return;
+    }
+
+    if(screenshot_skip_release) {
+        screenshot_skip_release = false;
+    } else if(screenshot_mode) {
+        screenshot_pending = true;
     }
 }

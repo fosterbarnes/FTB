@@ -207,16 +207,11 @@ int main(int argc, const char* argv[]) {
 
     mainmenu_open();
     while(aptMainLoop() && !restart_requested) {
-        // Screenshot mode must be on both before and after the frame's input, so the START press
-        // that toggles it never takes a shot.
-        bool screenshots = screenshot_mode_on();
         if(!ui_update()) {
             break;
         }
 
-        if(screenshots && screenshot_mode_on() && (hidKeysDown() & KEY_START)) {
-            screenshot_take();
-        }
+        screenshot_update();
     }
 
     cleanup();

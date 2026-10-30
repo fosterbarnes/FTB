@@ -11,6 +11,7 @@
 #include "../stringutil.h"
 #include "../data/smdh.h"
 #include "../../app/resources.h"
+#include "../../app/screenshot.h"
 #include "../../app/settings.h"
 
 #define MAX_UI_VIEWS 16
@@ -197,6 +198,12 @@ static void ui_draw_top(ui_view* ui) {
     float wifiX = topScreenTopBarX + topScreenTopBarWidth - 2 - batteryWidth - 4 - wifiWidth;
     float wifiY = topScreenTopBarY + (topScreenTopBarHeight - wifiHeight) / 2;
     screen_draw_texture(ui_wifi_icon, wifiX, wifiY, wifiWidth, wifiHeight);
+
+    // Screenshot mode marker: a small accent square left of the Wi-Fi icon.
+    if(screenshot_indicator_on()) {
+        float dot = 6;
+        screen_draw_texture(TEXTURE_PROGRESS_BAR_CONTENT, wifiX - 4 - dot, topScreenTopBarY + (topScreenTopBarHeight - dot) / 2, dot, dot);
+    }
 
     // Same 2 px margin as the battery on the right.
     if(ui->topBarText != NULL) {

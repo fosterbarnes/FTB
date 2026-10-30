@@ -44,19 +44,19 @@ Installs alongside FBI without changing or replacing it. This project is in acti
 <table>
   <tr>
     <th>Main Menu</th>
-    <th>Title Manager (List)</th>
-  </tr>
-  <tr>
-    <td align="center"><img src="./.res/screenshots/mainMenu.png" width="400" vspace="15"></td>
-    <td align="center"><img src="./.res/screenshots/titleManagerList.png" width="400" vspace="15"></td>
-  </tr>
-  <tr>
-    <th>Title Manager (Icon List)</th>
     <th>Title Manager (Grid)</th>
   </tr>
   <tr>
-    <td align="center"><img src="./.res/screenshots/titleManagerIconList.png" width="400" vspace="15"></td>
+    <td align="center"><img src="./.res/screenshots/mainMenu.png" width="400" vspace="15"></td>
     <td align="center"><img src="./.res/screenshots/titleManagerGrid.png" width="400" vspace="15"></td>
+  </tr>
+  <tr>
+    <th>Title Manager (Icon List)</th>
+    <th>Title Manager (List)</th>
+  </tr>
+  <tr>
+    <td align="center"><img src="./.res/screenshots/titleManagerIconList.png" width="400" vspace="15"></td>
+    <td align="center"><img src="./.res/screenshots/titleManagerList.png" width="400" vspace="15"></td>
   </tr>
   <tr>
     <th>CIA Installer</th>

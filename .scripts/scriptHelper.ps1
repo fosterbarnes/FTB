@@ -15,8 +15,10 @@ $buildNotes = "$repoRoot\buildNotes.txt"
 $buildNotesMd = "$repoRoot\buildNotes.md"
 $readme = "$repoRoot\README.md"
 $appPublisher = 'fosterbarnes'
-$appURL = "https://github.com/$appPublisher/$projectName"
-$ghRepo = "$appPublisher/$projectName"
+# GitHub's canonical repo name is lowercase (renamed 2026-10-30); $projectName stays the asset name.
+$repoName = 'ftb'
+$appURL = "https://github.com/$appPublisher/$repoName"
+$ghRepo = "$appPublisher/$repoName"
 $buttonURL = 'https://raw.githubusercontent.com/fosterbarnes/res/main/btn'
 # agentPush.ps1 publishes the GitHub release after every push (user decision 2026-10-27).
 $agentPushRelease = $true

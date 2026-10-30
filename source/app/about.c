@@ -21,7 +21,7 @@ static list_item about_items[] = {
          "Installer, FTP Server, 3DS Web Server,\n"
          "themes, and in-app updates.\n"
          "Logo by fosterbarnes.\n"
-         "github.com/fosterbarnes/FTB"},
+         "github.com/fosterbarnes/ftb"},
         {.name = "FBI: Steveice10", .color = COLOR_TEXT, .data =
          "The 3DS title manager FTB is forked from.\n"
          "Copyright (C) 2015-2019 Steveice10, MIT\n"
@@ -93,7 +93,7 @@ static void about_build_text() {
 
     snprintf(about_text, sizeof(about_text),
              "v%d.%d.%d\n"
-             "github.com/fosterbarnes/FTB\n"
+             "github.com/fosterbarnes/ftb\n"
              "\n"
              "Build: %s\n"
              "Install: %s\n"

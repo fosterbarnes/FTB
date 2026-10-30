@@ -429,7 +429,7 @@ static void ftp_menu_about(ui_view* view, ftp_data* data) {
              "\n"
              "Free software under the GNU GPL v3 or later,\n"
              "with ABSOLUTELY NO WARRANTY.\n"
-             "Source: github.com/fosterbarnes/FTB",
+             "Source: github.com/fosterbarnes/ftb",
              ftpd_version());
 
     prompt_display_notify("About", data->aboutText, COLOR_TEXT, data, ftp_draw_top, NULL);

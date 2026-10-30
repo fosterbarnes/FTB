@@ -94,7 +94,7 @@ static Result update_check_thread(void* arg) {
     Result res = 0;
 
     json_t* json = NULL;
-    if(R_SUCCEEDED(res = http_download_json("https://api.github.com/repos/fosterbarnes/FTB/releases/latest", &json, 64 * 1024))) {
+    if(R_SUCCEEDED(res = http_download_json("https://api.github.com/repos/fosterbarnes/ftb/releases/latest", &json, 64 * 1024))) {
         if(json_is_object(json)) {
             // Releases are tagged v<major>.<minor>.<micro> (.version/version); the title is free text.
             json_t* tagName = json_object_get(json, "tag_name");

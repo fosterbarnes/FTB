@@ -69,8 +69,8 @@ static bool web_tls_generate(web_tls* tls) {
         mbedtls_x509write_crt_set_subject_key(&writer, &tls->key);
         mbedtls_x509write_crt_set_issuer_key(&writer, &tls->key);
 
-        ok = mbedtls_x509write_crt_set_subject_name(&writer, "CN=FTB Web Transfer") == 0
-             && mbedtls_x509write_crt_set_issuer_name(&writer, "CN=FTB Web Transfer") == 0 && mbedtls_x509write_crt_set_serial(&writer, &serial) == 0
+        ok = mbedtls_x509write_crt_set_subject_name(&writer, "CN=FTB 3DS Web Server") == 0
+             && mbedtls_x509write_crt_set_issuer_name(&writer, "CN=FTB 3DS Web Server") == 0 && mbedtls_x509write_crt_set_serial(&writer, &serial) == 0
              && mbedtls_x509write_crt_set_validity(&writer, "20250101000000", "20491231235959") == 0
              && mbedtls_x509write_crt_pem(&writer, pem, sizeof(pem), mbedtls_ctr_drbg_random, &tls->drbg) == 0;
     }

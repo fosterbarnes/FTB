@@ -14,8 +14,10 @@
 // short lines because prompts do not wrap.
 static list_item about_items[] = {
         {.name = "FTB: fosterbarnes", .color = COLOR_TEXT, .data =
-         "Dark-themed fork of FBI 2.6.1\n"
-         "with a built-in FTP server.\n"
+         "Dark-themed fork of FBI 2.6.1.\n"
+         "Adds a new Title Manager, CIA\n"
+         "Installer, FTP Server, 3DS Web Server,\n"
+         "themes, and in-app updates.\n"
          "Logo by fosterbarnes.\n"
          "github.com/fosterbarnes/FTB"},
         {.name = "FBI: Steveice10", .color = COLOR_TEXT, .data =

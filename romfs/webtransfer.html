@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FTB Web Transfer</title>
+<title>FTB 3DS Web Server</title>
 <style>
 /* Tokens from ciaGoober theme/colors.xaml. */
 :root { --bg: #1B1B1B; --panel: #2A2A2A; --low: #222222; --hover: #404040; --pressed: #383838; --line: #3F3F3F; --lineStrong: #5E5E5E;
@@ -28,32 +28,26 @@ section { background: var(--panel); border-radius: 4px; padding: 12px; display: 
 .page { display: grid; gap: 12px; animation: pageIn 180ms ease-in-out; }
 @keyframes pageIn { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .tabs .indicator, .tabs button { transition: none; } .page { animation: none; } }
-input[type=text], textarea { width: 100%; background: var(--low); color: var(--text); border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; font: inherit; }
-input[type=text], textarea { font-family: Consolas, monospace; }
-textarea { min-height: 72px; resize: vertical; }
+textarea { width: 100%; min-height: 72px; resize: vertical; background: var(--low); color: var(--text); border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; font: inherit; font-family: Consolas, monospace; }
 button { background: var(--pressed); color: var(--text); border: 1px solid var(--line); border-radius: 3px; padding: 6px 12px; font: inherit; cursor: pointer; min-height: 32px; }
 button:hover:enabled { background: var(--hover); }
 button:disabled { opacity: 0.5; cursor: default; }
 button.primary { background: var(--accent); border-color: var(--accent); }
 button.primary:hover:enabled { background: var(--accentHover); }
 button.wide { width: 100%; }
-button.link { background: none; border: none; padding: 0; min-height: 0; color: var(--focus); text-decoration: underline; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.row { display: flex; gap: 6px; align-items: center; }
-.row > input { flex: 1; min-width: 0; }
-.split { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.row { display: flex; gap: 6px; }
+.row > button { flex: 1; }
 .dim { color: var(--dim); }
 .muted { color: var(--muted); }
 .warn { color: var(--warn); }
 .ok { color: var(--ok); }
 .bad { color: var(--bad); }
-.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
-.seg button { border: none; border-radius: 0; min-width: 80px; background: var(--low); }
-.seg button[aria-pressed=true] { background: var(--accent); }
-/* SD lists draw like an FTB list on the 3DS top screen (5:3, theme colors from genTheme.ps1). They fill the section width and
-   scale by --u (one 3DS pixel, never below 1 CSS px), so narrow pages keep a 240 px tall frame and full-size text. */
-.sd { container-type: inline-size; width: 100%; aspect-ratio: 5 / 3; min-height: 240px; display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; background: var(--bg); border: 4px solid #111; border-radius: 4px; }
-.sd > * { --u: max(1px, 100cqw / 400); }
+/* SD lists draw like an FTB list on the 3DS top screen (theme colors from genTheme.ps1), a little taller (4:3). They fill the
+   section width and scale by --u (a 3DS pixel at 480 px wide, never below 1 CSS px), so narrow pages keep full-size text. */
+.sd { container-type: inline-size; position: relative; width: 100%; aspect-ratio: 4 / 3; min-height: 300px; display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; background: var(--bg); border: 4px solid #111; border-radius: 4px; }
+.sd > * { --u: max(1px, 100cqw / 480); }
+.sd.over::after { content: attr(data-drop); position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; padding: 12px; text-align: center; font-weight: 600; background: rgba(82, 62, 110, 0.85); outline: 2px solid var(--accentBorder); outline-offset: -2px; pointer-events: none; }
 .sd .bar { background: var(--panel); display: flex; align-items: center; min-width: 0; height: calc(var(--u) * 22); padding: 0 calc(var(--u) * 6); font-size: calc(var(--u) * 13); white-space: nowrap; position: relative; z-index: 1; }
 .sd .top { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6); font-family: Consolas, monospace; }
 /* rtl puts the ellipsis on the left so the current folder stays visible; the bdi keeps the path itself ltr. */
@@ -61,25 +55,19 @@ button.link { background: none; border: none; padding: 0; min-height: 0; color: 
 .sd .bottom { box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.6); justify-content: center; }
 .sd ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; scrollbar-color: #545454 transparent; }
 .sd li { display: flex; align-items: center; gap: calc(var(--u) * 8); padding: 0 calc(var(--u) * 6); min-height: calc(var(--u) * 24); font-size: calc(var(--u) * 15); }
-.sd li:hover { background: var(--hover); }
+.sd li:has(button, label):hover { background: var(--hover); }
 .sd li.on { background: var(--accent); }
 .sd li.on .dim { color: var(--text); }
 .sd li > .dim { flex: none; font-size: calc(var(--u) * 13); }
 .sd li :focus-visible { outline-offset: -2px; }
 .sd .name { flex: 1; min-width: 0; align-self: stretch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 .sd button.name { background: none; border: none; padding: 0; min-height: 0; border-radius: 0; color: var(--dir); }
-.sd button.name.base { color: var(--focus); }
+.sd span.name { align-self: center; }
 .sd label.name { cursor: pointer; display: flex; gap: calc(var(--u) * 8); align-items: center; }
 .sd input[type=checkbox] { width: calc(var(--u) * 13); height: calc(var(--u) * 13); margin: 0; }
 .sd label.name span { overflow: hidden; text-overflow: ellipsis; }
-#drop { border: 2px dashed var(--lineStrong); border-radius: 4px; padding: 14px; text-align: center; color: var(--dim); }
-#drop.over { border-color: var(--accent); color: var(--text); }
-#files, #results { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; }
-#files li { display: flex; gap: 8px; align-items: center; padding: 2px 0; }
-#files .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: Consolas, monospace; }
-#files .x { min-height: 0; padding: 0 6px; background: none; border: none; color: var(--muted); }
+#results { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; }
 #results li { overflow-wrap: anywhere; }
-.tag { font-size: 12px; padding: 0 6px; border-radius: 3px; background: var(--accentStrong); }
 progress, input[type=checkbox] { accent-color: var(--accent); }
 progress { width: 100%; height: 10px; }
 dialog { background: var(--panel); color: var(--text); border: 1px solid var(--lineStrong); border-radius: 4px; max-width: 520px; padding: 16px; }
@@ -90,7 +78,7 @@ dialog .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: fle
 </head>
 <body>
 <main>
-<h1>FTB Web Transfer</h1>
+<h1>FTB 3DS Web Server</h1>
 
 <div class="tabs" role="tablist" aria-label="Transfer direction" data-tab="0">
 <span class="indicator"></span>
@@ -99,34 +87,23 @@ dialog .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: fle
 </div>
 
 <div class="page" id="pageSend" role="tabpanel" aria-labelledby="tabSend">
-<section aria-labelledby="destLabel">
-<div class="split">
-<label for="dest" id="destLabel" class="dim">Save to</label>
-<div class="seg" role="group" aria-label="What the 3DS does with sent files and links" title="Save: files and link downloads go to the SD folder below. Install: CIA, ticket, and 3DSX files and links install; other files still save to the folder.">
-<button type="button" id="modeSave">Save</button><button type="button" id="modeInstall">Install</button>
-</div>
-</div>
+<section aria-label="3DS SD card">
+<div id="browser" class="sd"></div>
 <div class="row">
-<input id="dest" type="text" spellcheck="false" autocomplete="off" title="Folders that do not exist yet are made when files are saved.">
-<button type="button" id="browse" aria-expanded="false" aria-controls="browser" title="Pick a folder on the 3DS SD card">Browse</button>
+<button type="button" class="primary" id="addFiles" title="Saves files in the open folder. Files and folders can also be dropped onto the list.">Add files</button>
+<button type="button" class="primary" id="installFiles" title="Installs CIA, ticket (.tik, .cetk), and 3DSX files.">Install CIA</button>
 </div>
-<div id="browser" class="sd" hidden></div>
-</section>
-
-<section aria-labelledby="uploadTitle">
-<h2 id="uploadTitle">Upload</h2>
-<div id="drop"><span id="dropText">Drop files or folders here<br></span><button type="button" class="link" id="chooseFiles">Choose files</button><span id="chooseFolderPart"> &middot; <button type="button" class="link" id="chooseFolder">Choose folder</button></span></div>
 <input id="pickFiles" type="file" multiple hidden>
-<input id="pickFolder" type="file" webkitdirectory hidden>
-<ul id="files"></ul>
-<div class="split" id="filesInfo" hidden><span class="dim" id="filesCount"></span><button type="button" class="link" id="clear">Clear</button></div>
-<button type="button" class="primary wide" id="sendFiles" disabled></button>
+<input id="pickInstall" type="file" multiple accept=".cia,.tik,.cetk,.3dsx" hidden>
 </section>
 
 <section aria-labelledby="linksTitle">
 <h2 id="linksTitle"><label for="links">Links</label></h2>
 <textarea id="links" spellcheck="false" autocomplete="off" placeholder="https://example.com/game.cia"></textarea>
-<button type="button" class="primary wide" id="sendLinks"></button>
+<div class="row">
+<button type="button" class="primary" id="saveLinks" title="The 3DS downloads the links into the open folder.">Save links</button>
+<button type="button" class="primary" id="installLinks" title="The 3DS installs CIA, ticket, and 3DSX links; other files save to the open folder.">Install links</button>
+</div>
 </section>
 </div>
 
@@ -165,10 +142,17 @@ const WAIT_TEXT = "Waiting for the 3DS: approve this device there if it asks.";
 const OFFER_WAIT = "Waiting for the 3DS: approve this device and accept the transfer there if it asks.";
 const LINKS_WAIT = "Waiting for the 3DS: approve and accept there if it asks; then the 3DS downloads the links.";
 
-let chosen = []; // {file, path}
+// The 3DS remembers approved browsers by this key (Settings > 3DS Web Server devices: Ask once).
+// SameSite=Strict: requests that other sites start never carry it.
+let deviceKey = localStorage.getItem("ftbDevice") || "";
+if (!/^[0-9a-f]{32}$/.test(deviceKey)) {
+    deviceKey = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, "0")).join("");
+    localStorage.setItem("ftbDevice", deviceKey);
+}
+document.cookie = "ftbDevice=" + deviceKey + "; path=/; max-age=34560000; samesite=strict";
+
 let busy = false;
 let idleTasks = [];
-let installMode = localStorage.getItem("ftbMode") === "install";
 
 const size = n => n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(1) + " KiB" : n < 1073741824 ? (n / 1048576).toFixed(1) + " MiB" : (n / 1073741824).toFixed(2) + " GiB";
 const count = (n, word) => n + " " + word + (n === 1 ? "" : "s");
@@ -181,13 +165,6 @@ function el(tag, className, text) {
     if (className) node.className = className;
     if (text !== undefined) node.textContent = text;
     return node;
-}
-
-// The Save to field as an SD folder ("/cia/").
-function folder() {
-    let value = $("dest").value.trim();
-    if (!value.startsWith("/")) value = "/" + value;
-    return value.endsWith("/") ? value : value + "/";
 }
 
 function show(text, kind) {
@@ -203,7 +180,7 @@ function showResults(lines) {
 
 function setBusy(value) {
     busy = value;
-    for (const id of ["sendFiles", "sendLinks", "clear", "browse", "chooseFiles", "chooseFolder", "modeSave", "modeInstall"]) $(id).disabled = value;
+    for (const id of ["addFiles", "installFiles", "saveLinks", "installLinks"]) $(id).disabled = value;
     refresh();
     while (!busy && idleTasks.length > 0) idleTasks.shift()();
 }
@@ -289,8 +266,8 @@ async function ciaInfo(file) {
     }
 }
 
-// One SD listing, used by Browse (folders only) and Download (files to select).
-function sdList(box, files, onUse, onChange) {
+// One SD listing: Send's folder (uploads go to the open one) and Download's file picker (pick set).
+function sdList(box, pick, onChange) {
     const view = {path: "/", entries: [], free: undefined, selected: new Set(), error: "", loaded: false};
 
     view.load = async (path, fallback) => {
@@ -316,8 +293,8 @@ function sdList(box, files, onUse, onChange) {
         setBusy(false);
     });
 
-    function folderRow(text, className, onClick) {
-        const button = el("button", className, text);
+    function folderRow(text, onClick) {
+        const button = el("button", "name", text);
         button.type = "button";
         button.addEventListener("click", onClick);
         const li = el("li");
@@ -334,15 +311,14 @@ function sdList(box, files, onUse, onChange) {
 
         const list = el("ul");
         const dirs = view.entries.filter(entry => entry.dir);
-        const fileEntries = files ? view.entries.filter(entry => !entry.dir) : [];
-        if (onUse) list.append(folderRow("<use this folder>", "name base", () => onUse(view.path)));
-        if (view.path !== "/") list.append(folderRow("..", "name", () => go(view.path.replace(/[^/]*\/$/, ""))));
+        const fileEntries = view.entries.filter(entry => !entry.dir);
+        if (view.path !== "/") list.append(folderRow("..", () => go(view.path.replace(/[^/]*\/$/, ""))));
         if (view.error) list.append(el("li", "bad", view.error));
-        else if (dirs.length + fileEntries.length === 0) list.append(el("li", "muted", files ? "Empty folder" : "No folders here"));
+        else if (view.entries.length === 0) list.append(el("li", "muted", "Empty folder"));
 
-        for (const entry of dirs) list.append(folderRow(entry.name + "/", "name", () => go(view.path + entry.name + "/")));
+        for (const entry of dirs) list.append(folderRow(entry.name + "/", () => go(view.path + entry.name + "/")));
 
-        if (fileEntries.length > 1) {
+        if (pick && fileEntries.length > 1) {
             const all = el("input");
             all.type = "checkbox";
             all.checked = view.selected.size === fileEntries.length;
@@ -359,115 +335,58 @@ function sdList(box, files, onUse, onChange) {
         }
 
         for (const entry of fileEntries) {
-            const pick = el("input");
-            pick.type = "checkbox";
-            pick.checked = view.selected.has(entry.name);
-            pick.addEventListener("change", () => {
-                if (pick.checked) view.selected.add(entry.name);
-                else view.selected.delete(entry.name);
-                render();
-            });
-            const label = el("label", "name");
-            label.append(pick, el("span", "", entry.name));
-            const li = el("li", pick.checked ? "on" : "");
-            li.append(label, el("span", "dim", size(entry.size)));
+            const li = el("li");
+            if (pick) {
+                const check = el("input");
+                check.type = "checkbox";
+                check.checked = view.selected.has(entry.name);
+                check.addEventListener("change", () => {
+                    if (check.checked) view.selected.add(entry.name);
+                    else view.selected.delete(entry.name);
+                    render();
+                });
+                const label = el("label", "name");
+                label.append(check, el("span", "", entry.name));
+                li.className = check.checked ? "on" : "";
+                li.append(label);
+            } else {
+                li.append(el("span", "name", entry.name));
+            }
+            li.append(el("span", "dim", size(entry.size)));
             list.append(li);
         }
 
         const bottom = el("div", "bar bottom", view.free === undefined ? "" : "SD: " + size(view.free) + " free");
         box.append(top, list, bottom);
-        if (onChange) onChange(view);
+        onChange(view);
     }
 
     return view;
 }
 
-const browser = sdList($("browser"), false, path => {
-    $("dest").value = path;
-    destChanged();
-    toggleBrowser(false);
-}, null);
+const browser = sdList($("browser"), false, view => {
+    if (!view.error) localStorage.setItem("ftbDest", view.path);
+});
 
-const downloads = sdList($("downloadList"), true, null, view => {
+const downloads = sdList($("downloadList"), true, view => {
     if (!view.error) localStorage.setItem("ftbDownloadPath", view.path);
     refresh();
 });
 
-function toggleBrowser(open) {
-    $("browser").hidden = !open;
-    $("browse").setAttribute("aria-expanded", open);
-    if (open) whenIdle(async () => {
-        setBusy(true);
-        await browser.load(folder(), true);
-        setBusy(false);
-    });
-}
-
-function setMode(install) {
-    installMode = install;
-    localStorage.setItem("ftbMode", install ? "install" : "save");
-    $("modeSave").setAttribute("aria-pressed", !install);
-    $("modeInstall").setAttribute("aria-pressed", install);
-    $("destLabel").textContent = install ? "Other files save to" : "Save to";
-    showChosen();
-}
-
-function destChanged() {
-    localStorage.setItem("ftbDest", folder());
-    refresh();
-}
-
-// Button labels say exactly what pressing them does.
+// The download button says exactly what pressing it does.
 function refresh() {
-    const dest = folder();
-    const installs = installMode ? chosen.filter(item => installable(item.path)).length : 0;
-    const saves = chosen.length - installs;
-    $("sendFiles").textContent = chosen.length === 0 ? (installMode ? "Install files" : "Save files to " + dest)
-        : saves === 0 ? "Install " + count(installs, "file")
-        : installs === 0 ? "Save " + count(saves, "file") + " to " + dest
-        : "Install " + installs + ", save " + saves + " to " + dest;
-    $("sendFiles").disabled = busy || chosen.length === 0;
-    $("sendLinks").textContent = installMode ? "Install links" : "Save links to " + dest;
-
     const picked = downloads.entries.filter(entry => !entry.dir && downloads.selected.has(entry.name));
     const bytes = picked.reduce((sum, entry) => sum + entry.size, 0);
     $("downloadFiles").textContent = picked.length === 0 ? "Download files" : "Download " + count(picked.length, "file") + " (" + size(bytes) + ")";
     $("downloadFiles").disabled = busy || picked.length === 0;
 }
 
-function showChosen() {
-    const list = $("files");
-    list.textContent = "";
-    chosen.forEach((item, index) => {
-        const li = el("li");
-        li.append(el("span", "name", item.path));
-        if (installMode && installable(item.path)) li.append(el("span", "tag", "installs"));
-        li.append(el("span", "dim", size(item.file.size)));
-        const remove = el("button", "x", "x");
-        remove.type = "button";
-        remove.setAttribute("aria-label", "Remove " + item.path);
-        remove.addEventListener("click", () => {
-            if (busy) return;
-            chosen.splice(index, 1);
-            showChosen();
-        });
-        li.append(remove);
-        list.append(li);
-    });
-    const total = chosen.reduce((sum, item) => sum + item.file.size, 0);
-    $("filesInfo").hidden = chosen.length === 0;
-    $("filesCount").textContent = count(chosen.length, "file") + ", " + size(total);
-    refresh();
-}
-
-function add(file, path) {
-    if (!chosen.some(item => item.path === path)) chosen.push({file, path});
-}
-
-// Folders dropped whole keep their layout under the SD folder.
-async function walk(entry) {
+// Adds a dropped file or folder to out ({file, path}); folders keep their layout under the SD folder.
+async function walk(entry, out) {
     if (entry.isFile) {
-        add(await new Promise((resolve, reject) => entry.file(resolve, reject)), entry.fullPath.replace(/^\/+/, ""));
+        const path = entry.fullPath.replace(/^\/+/, "");
+        const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+        if (!out.some(item => item.path === path)) out.push({file, path});
         return;
     }
     const reader = entry.createReader();
@@ -475,7 +394,7 @@ async function walk(entry) {
         const entries = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
         if (entries.length === 0) break;
         for (const child of entries) {
-            if (!child.name.startsWith(".")) await walk(child);
+            if (!child.name.startsWith(".")) await walk(child, out);
         }
     }
 }
@@ -515,9 +434,12 @@ function finish(results, total, verb) {
     return failed;
 }
 
-async function sendFiles() {
-    const dest = folder();
-    let items = chosen.map(item => ({file: item.file, path: item.path, size: item.file.size, install: installMode && installable(item.path)}));
+// Sends picked files ({file, path}) to the open SD folder. With install, CIA, ticket, and 3DSX files
+// install instead of saving there.
+async function sendFiles(picked, install) {
+    const dest = browser.path;
+    let items = picked.map(item => ({file: item.file, path: item.path, size: item.file.size, install: install && installable(item.path)}));
+    if (items.length === 0) return;
     const tooBig = items.find(item => item.size > FILE_MAX);
     const tooSmall = items.find(item => item.install && item.size < 4);
     if (items.length > FILES_MAX) return show("Send " + FILES_MAX + " files or fewer at a time.", "bad");
@@ -578,10 +500,8 @@ async function sendFiles() {
         $("bar").hidden = false;
         const results = await upload(offer.token, items.map(item => item.file), total);
         showResults(resultLines(items.map(item => item.path), results, items.map(item => item.install)));
-        if (finish(results, items.length, "sent") === 0) {
-            chosen = [];
-            showChosen();
-        }
+        finish(results, items.length, "sent");
+        await browser.load(dest, false);
     } catch (error) {
         show(error.message, "bad");
     } finally {
@@ -596,14 +516,14 @@ function linksFrom(text) {
     return [...new Set(links)];
 }
 
-async function sendLinks() {
+async function sendLinks(install) {
     let links = linksFrom($("links").value);
     if (links.length === 0) return show("Enter at least one link.", "bad");
     if (links.length > LINKS_MAX) return show("Send " + LINKS_MAX + " links or fewer at a time.", "bad");
 
-    const dest = folder();
+    const dest = browser.path;
     let names = links.map(linkName);
-    if (!installMode) {
+    if (!install) {
         const nameless = links.find((link, i) => names[i] === null);
         if (nameless) return show("No usable file name in " + nameless, "bad");
         const twice = names.find((name, i) => names.findIndex(other => other.toLowerCase() === name.toLowerCase()) !== i);
@@ -615,7 +535,7 @@ async function sendLinks() {
     $("status").hidden = false;
     try {
         let replace = false;
-        if (!installMode) {
+        if (!install) {
             show("Checking the SD card", "");
             const exists = new Set((await api("/check", {dest, saves: names})).exists);
             if (exists.size > 0) {
@@ -632,10 +552,11 @@ async function sendLinks() {
         }
 
         show("Asking the 3DS", "");
-        const reply = await api("/offer", {links, install: installMode, dest, replace}, LINKS_WAIT);
+        const reply = await api("/offer", {links, install, dest, replace}, LINKS_WAIT);
         if (!reply.accepted) return show("Declined on the 3DS.", "bad");
-        showResults(resultLines(installMode ? links : names.map(name => dest + name), reply.results, links.map(() => installMode)));
-        finish(reply.results, links.length, installMode ? "installed" : "saved");
+        showResults(resultLines(install ? links : names.map(name => dest + name), reply.results, links.map(() => install)));
+        finish(reply.results, links.length, install ? "installed" : "saved");
+        await browser.load(dest, false);
     } catch (error) {
         show(error.message, "bad");
     } finally {
@@ -704,57 +625,58 @@ async function downloadFiles() {
     }
 }
 
-$("modeSave").addEventListener("click", () => setMode(false));
-$("modeInstall").addEventListener("click", () => setMode(true));
-$("dest").value = localStorage.getItem("ftbDest") || "/";
-$("dest").addEventListener("input", refresh);
-$("dest").addEventListener("change", destChanged);
-$("browse").addEventListener("click", () => toggleBrowser($("browser").hidden));
-
-$("chooseFiles").addEventListener("click", () => $("pickFiles").click());
-$("chooseFolder").addEventListener("click", () => $("pickFolder").click());
-for (const id of ["pickFiles", "pickFolder"]) {
+$("addFiles").addEventListener("click", () => $("pickFiles").click());
+$("installFiles").addEventListener("click", () => $("pickInstall").click());
+for (const [id, install] of [["pickFiles", false], ["pickInstall", true]]) {
     $(id).addEventListener("change", event => {
-        for (const file of event.target.files) add(file, file.webkitRelativePath || file.name);
+        const picked = [...event.target.files].map(file => ({file, path: file.name}));
         event.target.value = "";
-        showChosen();
+        if (!busy) sendFiles(picked, install);
     });
 }
-$("clear").addEventListener("click", () => {
-    chosen = [];
-    showChosen();
-});
 
-// Touch screens cannot drop files; browsers without folder picking get files only.
-$("dropText").hidden = matchMedia("(pointer: coarse)").matches;
-$("chooseFolderPart").hidden = !("webkitdirectory" in $("pickFolder"));
+const hasFiles = event => event.dataTransfer !== null && [...event.dataTransfer.types].includes("Files");
 
-const drop = $("drop");
-["dragenter", "dragover"].forEach(type => drop.addEventListener(type, event => { event.preventDefault(); drop.classList.add("over"); }));
-["dragleave", "drop"].forEach(type => drop.addEventListener(type, () => drop.classList.remove("over")));
+// A file dropped outside the SD list must not open in this tab and leave the page.
+for (const type of ["dragover", "drop"]) document.addEventListener(type, event => { if (hasFiles(event)) event.preventDefault(); });
+
+// Files and folders dropped on the SD list save in its open folder.
+const drop = $("browser");
+for (const type of ["dragenter", "dragover"]) {
+    drop.addEventListener(type, event => {
+        if (!hasFiles(event) || busy) return;
+        event.preventDefault();
+        drop.dataset.drop = "Save in sdmc:" + browser.path;
+        drop.classList.add("over");
+    });
+}
+drop.addEventListener("dragleave", event => { if (!drop.contains(event.relatedTarget)) drop.classList.remove("over"); });
 drop.addEventListener("drop", async event => {
+    drop.classList.remove("over");
+    if (!hasFiles(event) || busy) return;
     event.preventDefault();
-    if (busy) return;
     const entries = [...event.dataTransfer.items].map(item => item.webkitGetAsEntry && item.webkitGetAsEntry()).filter(Boolean);
+    const files = [...event.dataTransfer.files];
+    const picked = [];
     try {
         if (entries.length > 0) {
-            for (const entry of entries) await walk(entry);
+            for (const entry of entries) await walk(entry, picked);
         } else {
-            for (const file of event.dataTransfer.files) add(file, file.name);
+            for (const file of files) picked.push({file, path: file.name});
         }
     } catch (error) {
-        show("Could not read the dropped files: " + error.message, "bad");
+        return show("Could not read the dropped files: " + error.message, "bad");
     }
-    showChosen();
+    if (!busy) sendFiles(picked, false);
 });
 
-$("sendFiles").addEventListener("click", () => { if (!busy && chosen.length > 0) sendFiles(); });
-$("sendLinks").addEventListener("click", () => { if (!busy) sendLinks(); });
+$("saveLinks").addEventListener("click", () => { if (!busy) sendLinks(false); });
+$("installLinks").addEventListener("click", () => { if (!busy) sendLinks(true); });
 $("downloadFiles").addEventListener("click", () => { if (!busy) downloadFiles(); });
 
-const TABS = [{tab: "tabSend", page: "pageSend"}, {tab: "tabDownload", page: "pageDownload"}];
+const TABS = [{tab: "tabSend", page: "pageSend", list: browser, saved: "ftbDest"}, {tab: "tabDownload", page: "pageDownload", list: downloads, saved: "ftbDownloadPath"}];
 
-// The download listing loads on the tab's first open, so pages that only upload never ask the 3DS to approve early.
+// Each tab's SD listing loads on its first open, at the folder it showed last.
 function showTab(index, focus) {
     TABS.forEach((entry, i) => {
         $(entry.tab).setAttribute("aria-selected", i === index);
@@ -764,11 +686,12 @@ function showTab(index, focus) {
     document.querySelector(".tabs").dataset.tab = index;
     localStorage.setItem("ftbTab", index);
     if (focus) $(TABS[index].tab).focus();
-    if (index !== 1 || downloads.loaded) return;
+    const {list, saved} = TABS[index];
+    if (list.loaded) return;
     whenIdle(async () => {
-        if (downloads.loaded) return;
+        if (list.loaded) return;
         setBusy(true);
-        await downloads.load(localStorage.getItem("ftbDownloadPath") || "/", true);
+        await list.load(localStorage.getItem(saved) || "/", true);
         setBusy(false);
     });
 }
@@ -781,7 +704,6 @@ TABS.forEach((entry, i) => {
     });
 });
 
-setMode(installMode);
 showTab(localStorage.getItem("ftbTab") === "1" ? 1 : 0, false);
 </script>
 </body>

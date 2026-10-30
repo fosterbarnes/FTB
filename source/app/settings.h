@@ -7,7 +7,7 @@ typedef struct ftb_settings_s {
     bool dateDayFirst; // top bar date: DD/MM/YY instead of MM/DD/YY
     bool systemChanges; // safety.h: system title, ticket, save, and NAND changes allowed
     bool webAutoAccept; // Web Transfer starts uploads without asking (boot.firm, luma, Nintendo 3DS still ask)
-    bool webApproveDevices; // Web Transfer asks before a new device's first request; off = anyone on the network
+    u8 webApproveDevices; // web_approve: when Web Transfer asks before a device's first request
 
     // Title Manager view, changed from its Options menu and touch buttons.
     u8 titleStyle; // title_style
@@ -27,6 +27,14 @@ typedef enum title_style_e {
     TITLE_STYLE_ICON_LIST,
     TITLE_STYLE_COUNT
 } title_style;
+
+// settings.cfg stores the value; 0 and 1 kept their meaning from when webApproveDevices was a bool.
+typedef enum web_approve_e {
+    WEB_APPROVE_NONE, // anyone on the network
+    WEB_APPROVE_SESSION, // approvals last until Web Transfer closes
+    WEB_APPROVE_REMEMBER, // approved browsers are remembered in PATHS_WEB_DEVICES
+    WEB_APPROVE_COUNT
+} web_approve;
 
 typedef enum title_sort_e {
     TITLE_SORT_NAME,

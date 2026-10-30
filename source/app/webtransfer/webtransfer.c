@@ -272,7 +272,7 @@ static void webtransfer_update(ui_view* view, void* data, linked_list* items, li
 void webtransfer_open() {
     webtransfer_data* data = (webtransfer_data*) calloc(1, sizeof(webtransfer_data));
     if(data == NULL) {
-        error_display(NULL, NULL, "Failed to allocate Web Transfer data.");
+        error_display(NULL, NULL, "Failed to allocate 3DS Web Server data.");
         return;
     }
 
@@ -288,7 +288,7 @@ void webtransfer_open() {
 
     Result res = webserver_start(&data->shared);
     if(R_FAILED(res)) {
-        error_display_res(NULL, NULL, res, "Failed to start Web Transfer.");
+        error_display_res(NULL, NULL, res, "Failed to start 3DS Web Server.");
 
         if(data->qrTexture != 0) {
             screen_unload_texture(data->qrTexture);
@@ -299,5 +299,5 @@ void webtransfer_open() {
         return;
     }
 
-    list_display("Web Transfer", "B: Cancel transfer or return", data, webtransfer_update, webtransfer_draw_top);
+    list_display("3DS Web Server", "B: Cancel transfer or return", data, webtransfer_update, webtransfer_draw_top);
 }

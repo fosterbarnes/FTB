@@ -35,5 +35,7 @@ typedef struct {
 
 // Call with state zeroed except page; inits the locks and the row list, then starts the worker.
 Result webserver_start(web_state* state);
+// Deletes the remembered browsers (Settings; never while Web Transfer is open). True when none are left.
+bool webserver_forget_devices();
 // UI side, under jobLock: what the running transfer is moving ("From 192.168.1.20: a.cia").
 void webserver_job_line(const web_job* job, u32 index, char* out, size_t size);

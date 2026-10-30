@@ -8,6 +8,7 @@
 
 #define WEB_HEAD_MAX 8192
 #define WEB_TOKEN_LENGTH 8
+#define WEB_DEVICE_KEY_LENGTH 32 // the page's ftbDevice cookie: lowercase hex
 #define WEB_TARGET_MAX 512 // FILE_PATH_MAX
 // web_content_disposition's output for any name that fits an SD path.
 #define WEB_DISPOSITION_MAX (WEB_TARGET_MAX * 4 + 64)
@@ -27,6 +28,9 @@ typedef struct {
     char target[WEB_TARGET_MAX];
     bool hostAllowed; // Host is an IPv4 address or a .local name, with an optional port
     bool ftbHeader; // X-FTB: 1, which a page on another site cannot send without asking first
+    // The Cookie header's ftbDevice= value when web_device_key_valid, else "". The page sets it
+    // SameSite=Strict, so requests started by other sites never carry it.
+    char device[WEB_DEVICE_KEY_LENGTH + 1];
     bool hasLength;
     uint64_t contentLength;
 } web_request;
@@ -34,6 +38,9 @@ typedef struct {
 // Parses a request head (the request line and headers up to the blank line). INCOMPLETE until the
 // blank line is in data; BAD for anything malformed, a head over WEB_HEAD_MAX, or a chunked body.
 web_parse web_parse_head(const char* data, size_t size, web_request* out);
+
+// A remembered device key: exactly WEB_DEVICE_KEY_LENGTH lowercase hex digits.
+bool web_device_key_valid(const char* key, size_t length);
 
 // Host header value check; DNS names other than .local could be rebound to the console by a website.
 bool web_host_allowed(const char* host, size_t length);

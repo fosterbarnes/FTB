@@ -18,6 +18,7 @@
 #include "webproto.h"
 #include "webserver.h"
 #include "webtls.h"
+#include "../paths.h"
 #include "../resources.h"
 #include "../settings.h"
 #include "../action/action.h"
@@ -47,6 +48,7 @@
 #define WEB_FILE_SIZE_MAX 0xFFFFFFFFULL // FAT32
 #define WEB_ADDRESS_MAX 16
 #define WEB_DEVICES_MAX 16
+#define WEB_REMEMBERED_MAX 32 // the oldest is dropped for a new one
 #define WEB_PREVIEW_MAX 8
 #define WEB_NETWORK_GONE (-2)
 
@@ -112,11 +114,15 @@ typedef struct {
     char head[WEB_HEAD_MAX];
 
     // Devices answered this session (IPv4, network order). Not saved: home network addresses change
-    // hands, so an approval only lasts until the screen closes.
+    // hands, so an address approval only lasts until the screen closes.
     u32 approved[WEB_DEVICES_MAX];
     u32 approvedCount;
     u32 declined[WEB_DEVICES_MAX];
     u32 declinedCount;
+
+    // Browsers approved with "Ask once" (their ftbDevice cookie), oldest first; PATHS_WEB_DEVICES.
+    char remembered[WEB_REMEMBERED_MAX][WEB_DEVICE_KEY_LENGTH + 1];
+    u32 rememberedCount;
 
     // GET /file requests answered, and how many of them did not send the whole file (GET /status).
     u32 downloads;
@@ -342,44 +348,111 @@ static bool webserver_has_device(const u32* devices, u32 count, u32 address) {
     return false;
 }
 
-// With "Approve new devices" on, a device's first API request asks on the 3DS (the request waits on
-// the prompt). True when the client may go on; otherwise it has been answered.
-static bool webserver_check_device(webserver* w, const web_client* client) {
-    web_state* state = w->shared;
+static bool webserver_is_remembered(const webserver* w, const char* key) {
+    for(u32 i = 0; i < w->rememberedCount; i++) {
+        if(strcmp(w->remembered[i], key) == 0) {
+            return true;
+        }
+    }
 
-    if(!settings_get()->webApproveDevices || webserver_has_device(w->approved, w->approvedCount, client->address)) {
+    return false;
+}
+
+static void webserver_load_devices(webserver* w) {
+    FILE* fd = fopen(PATHS_WEB_DEVICES, "r");
+    if(fd == NULL) {
+        return;
+    }
+
+    // One key per line; anything else is skipped.
+    char line[64];
+    while(w->rememberedCount < WEB_REMEMBERED_MAX && fgets(line, sizeof(line), fd) != NULL) {
+        line[strcspn(line, "\r\n")] = '\0';
+        if(web_device_key_valid(line, strlen(line)) && !webserver_is_remembered(w, line)) {
+            string_copy(w->remembered[w->rememberedCount++], line, WEB_DEVICE_KEY_LENGTH + 1);
+        }
+    }
+
+    fclose(fd);
+}
+
+static bool webserver_write_devices(FILE* fd, void* data) {
+    const webserver* w = (const webserver*) data;
+
+    bool written = true;
+    for(u32 i = 0; i < w->rememberedCount && written; i++) {
+        written = fprintf(fd, "%s\n", w->remembered[i]) > 0;
+    }
+
+    return written;
+}
+
+// False when saving failed; the key is still remembered until the screen closes.
+static bool webserver_remember_device(webserver* w, const char* key) {
+    if(w->rememberedCount == WEB_REMEMBERED_MAX) {
+        memmove(w->remembered[0], w->remembered[1], sizeof(w->remembered[0]) * (WEB_REMEMBERED_MAX - 1));
+        w->rememberedCount--;
+    }
+
+    string_copy(w->remembered[w->rememberedCount++], key, WEB_DEVICE_KEY_LENGTH + 1);
+
+    paths_ensure_data_dir();
+    return fs_write_file_safe(PATHS_WEB_DEVICES, webserver_write_devices, w);
+}
+
+bool webserver_forget_devices() {
+    return remove(PATHS_WEB_DEVICES) == 0 || errno == ENOENT;
+}
+
+// Unless the setting is "Allow all", a device's first API request asks on the 3DS (the request waits
+// on the prompt). With "Ask once", a browser that sent its device key is remembered after a yes.
+// True when the client may go on; otherwise it has been answered.
+static bool webserver_check_device(webserver* w, const web_client* client, const web_request* request) {
+    web_state* state = w->shared;
+    u8 mode = settings_get()->webApproveDevices;
+    bool remember = mode == WEB_APPROVE_REMEMBER && request->device[0] != '\0';
+
+    if(mode == WEB_APPROVE_NONE || webserver_has_device(w->approved, w->approvedCount, client->address)
+       || (remember && webserver_is_remembered(w, request->device))) {
         return true;
     }
 
     // Declined devices stay declined until the screen closes, so a page that retries cannot keep
     // putting the prompt back up.
     if(webserver_has_device(w->declined, w->declinedCount, client->address)) {
-        webserver_respond_error(state, client->socket, 403, "Declined on the 3DS. Reopen Web Transfer there to ask again.");
+        webserver_respond_error(state, client->socket, 403, "Declined on the 3DS. Reopen 3DS Web Server there to ask again.");
         return false;
     }
 
     if(w->approvedCount == WEB_DEVICES_MAX || w->declinedCount == WEB_DEVICES_MAX) {
-        webserver_respond_error(state, client->socket, 503, "Too many devices. Reopen Web Transfer on the 3DS.");
+        webserver_respond_error(state, client->socket, 503, "Too many devices. Reopen 3DS Web Server on the 3DS.");
         return false;
     }
 
     char text[160];
     snprintf(text, sizeof(text),
              "Allow %s to use\n"
-             "Web Transfer?\n"
+             "3DS Web Server?\n"
              "\n"
              "It can browse, download, and send\n"
-             "files until this screen closes.",
-             client->from);
+             "files %s.",
+             client->from, remember ? "from now on" : "until this screen closes");
 
-    if(prompt_wait_yes_no("Web Transfer", text, COLOR_TEXT, NULL, NULL)) {
+    if(prompt_wait_yes_no("3DS Web Server", text, COLOR_TEXT, NULL, NULL)) {
         w->approved[w->approvedCount++] = client->address;
-        webserver_log(state, COLOR_TEXT, "Allowed: %s", client->from);
+        if(!remember) {
+            webserver_log(state, COLOR_TEXT, "Allowed: %s", client->from);
+        } else if(webserver_remember_device(w, request->device)) {
+            webserver_log(state, COLOR_TEXT, "Allowed and remembered: %s", client->from);
+        } else {
+            webserver_log(state, COLOR_WARNING, "Allowed: %s (saving webDevices.cfg failed)", client->from);
+        }
+
         return true;
     }
 
     w->declined[w->declinedCount++] = client->address;
-    webserver_log(state, COLOR_TEXT_DIM, "Declined: %s until Web Transfer closes", client->from);
+    webserver_log(state, COLOR_TEXT_DIM, "Declined: %s until 3DS Web Server closes", client->from);
     webserver_respond_error(state, client->socket, 403, "Declined on the 3DS.");
     return false;
 }
@@ -745,7 +818,7 @@ static bool webserver_confirm(web_state* state, web_job* job) {
 
     string_append(text, sizeof(text), &pos, "\n\nAccept?");
 
-    return prompt_wait_yes_no("Web Transfer", text, job->sensitive ? COLOR_WARNING : COLOR_TEXT, job, webserver_draw_preview);
+    return prompt_wait_yes_no("3DS Web Server", text, job->sensitive ? COLOR_WARNING : COLOR_TEXT, job, webserver_draw_preview);
 }
 
 static Result webserver_is_src_directory(void* data, u32 index, bool* isDirectory) {
@@ -1486,7 +1559,7 @@ static bool webserver_serve_web(webserver* w, const web_client* client, web_job*
         webserver_respond_error(state, fd, 405, "Method not allowed.");
     } else if(webserver_routes[route].ftbHeader && !request.ftbHeader) {
         webserver_respond_error(state, fd, 403, "Missing X-FTB header.");
-    } else if(webserver_check_device(w, client)) {
+    } else if(webserver_check_device(w, client, &request)) {
         switch(webserver_routes[route].route) {
             case WEB_ROUTE_LIST:
                 webserver_serve_list(state, fd, &request);
@@ -1650,6 +1723,8 @@ static void webserver_open_listeners(webserver* w) {
 static Result webserver_thread(void* arg) {
     webserver* w = (webserver*) arg;
     web_state* state = w->shared;
+
+    webserver_load_devices(w);
 
     w->tls = web_tls_create();
     if(w->tls == NULL) {

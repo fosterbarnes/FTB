@@ -14,13 +14,14 @@ static void mainmenu_legacy_open();
 static list_item cia_installer = {.name = "CIA Installer", .color = COLOR_TEXT, .data = ciainstaller_open};
 static list_item titles = {.name = "Title Manager", .color = COLOR_TEXT, .data = titlemanager_open};
 static list_item ftp_server = {.name = "FTP Server", .color = COLOR_TEXT, .data = ftp_open};
-static list_item web_transfer = {.name = "Web Transfer", .color = COLOR_TEXT, .data = webtransfer_open};
+static list_item web_transfer = {.name = "3DS Web Server", .color = COLOR_TEXT, .data = webtransfer_open};
 // Same screen as FBI Legacy > SD until the SD File Browser gets its own features.
 static list_item file_browser = {.name = "SD File Browser", .color = COLOR_TEXT, .data = files_open_sd};
-static list_item remote_install = {.name = "Remote Install", .color = COLOR_TEXT, .data = remoteinstall_open};
-// Sets FBI Legacy, Update, and Settings apart from the main tools.
-static list_item spacer = {.color = COLOR_TEXT, .spacer = true};
-static list_item fbi_legacy = {.name = "FBI Legacy", .color = COLOR_TEXT, .data = mainmenu_legacy_open};
+static list_item remote_install = {.name = "Remote Install (FBI Legacy)", .color = COLOR_TEXT, .data = remoteinstall_open};
+// Blank rows between the SD tools, the network tools, and FBI Legacy, Settings, and Update.
+static list_item spacer_network = {.color = COLOR_TEXT, .spacer = true};
+static list_item spacer_other = {.color = COLOR_TEXT, .spacer = true};
+static list_item fbi_legacy = {.name = "Other FBI Legacy", .color = COLOR_TEXT, .data = mainmenu_legacy_open};
 static list_item update = {.name = "Update", .color = COLOR_TEXT, .data = update_open};
 static list_item settings = {.name = "Settings", .color = COLOR_TEXT, .data = settings_open};
 
@@ -63,13 +64,14 @@ static void mainmenu_update(ui_view* view, void* data, linked_list* items, list_
         linked_list_add(items, &cia_installer);
         linked_list_add(items, &titles);
         linked_list_add(items, &file_browser);
-        linked_list_add(items, &ftp_server);
+        linked_list_add(items, &spacer_network);
         linked_list_add(items, &web_transfer);
+        linked_list_add(items, &ftp_server);
         linked_list_add(items, &remote_install);
-        linked_list_add(items, &spacer);
+        linked_list_add(items, &spacer_other);
         linked_list_add(items, &fbi_legacy);
-        linked_list_add(items, &update);
         linked_list_add(items, &settings);
+        linked_list_add(items, &update);
     }
 }
 

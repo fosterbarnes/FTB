@@ -7,6 +7,7 @@
 #define PATHS_DATA_DIR "sdmc:/ftb"
 #define PATHS_SETTINGS PATHS_DATA_DIR "/settings.cfg"
 #define PATHS_CIA_FOLDERS PATHS_DATA_DIR "/ciaFolders.cfg"
+#define PATHS_WEB_DEVICES PATHS_DATA_DIR "/webDevices.cfg"
 #define PATHS_TITLE_CACHE_DIR PATHS_DATA_DIR "/cache"
 #define PATHS_THEME_DIR PATHS_DATA_DIR "/theme/"
 #define PATHS_FS_DATA_DIR "/ftb/"

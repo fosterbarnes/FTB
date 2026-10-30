@@ -149,6 +149,41 @@ static void web_parse_token(const char* value, size_t length, char* out) {
     out[WEB_TOKEN_LENGTH] = '\0';
 }
 
+bool web_device_key_valid(const char* key, size_t length) {
+    if(length != WEB_DEVICE_KEY_LENGTH) {
+        return false;
+    }
+
+    for(size_t i = 0; i < length; i++) {
+        if(!web_is_digit(key[i]) && !(key[i] >= 'a' && key[i] <= 'f')) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// The Cookie header's ftbDevice= value; other cookies are ignored.
+static void web_parse_cookies(const char* text, size_t length, web_request* out) {
+    size_t pos = 0;
+    while(pos < length) {
+        size_t end = pos;
+        while(end < length && text[end] != ';') {
+            end++;
+        }
+
+        const char* cookie = text + pos;
+        size_t cookieLength = end - pos;
+        web_trim(&cookie, &cookieLength);
+        if(cookieLength >= 10 && strncmp(cookie, "ftbDevice=", 10) == 0 && web_device_key_valid(cookie + 10, cookieLength - 10)) {
+            memcpy(out->device, cookie + 10, WEB_DEVICE_KEY_LENGTH);
+            out->device[WEB_DEVICE_KEY_LENGTH] = '\0';
+        }
+
+        pos = end + 1;
+    }
+}
+
 // The query's token= and path= parameters; others are ignored.
 static void web_parse_query(const char* query, size_t length, web_request* out) {
     size_t pos = 0;
@@ -262,6 +297,8 @@ web_parse web_parse_head(const char* data, size_t size, web_request* out) {
             return WEB_PARSE_BAD;
         } else if(web_name_is(line, nameLength, "X-FTB")) {
             out->ftbHeader = valueLength == 1 && value[0] == '1';
+        } else if(web_name_is(line, nameLength, "Cookie")) {
+            web_parse_cookies(value, valueLength, out);
         }
     }
 

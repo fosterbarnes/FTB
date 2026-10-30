@@ -35,6 +35,7 @@
 #define RECEIVE_HEAD_MS 5000
 #define RECEIVE_STALL_MS 10000
 #define RECEIVE_DATA_WAIT_MS 30000
+#define RECEIVE_CLOSE_MS 2000
 
 #define RECEIVE_SOCKET_BUFFER 32768 // ftpd's tuned 3DS value
 #define RECEIVE_BUFFER_SIZE (128 * 1024)
@@ -186,6 +187,28 @@ static bool receiver_read_head(receiver* r, int fd, receive_request* request) {
         struct pollfd pfd = {.fd = fd, .events = POLLIN};
         poll(&pfd, 1, RECEIVE_POLL_MS);
     }
+}
+
+// A bare close() with unsent data makes the 3DS reset the connection, cutting off the reply. Like
+// ftpd's closeSocket: end our side, then read until the peer closes (or RECEIVE_CLOSE_MS passes).
+static void receiver_close_client(receive_state* state, int fd) {
+    shutdown(fd, SHUT_WR);
+
+    char discard[512];
+    u64 start = osGetTime();
+    while(!task_is_cancelled(&state->state) && osGetTime() - start < RECEIVE_CLOSE_MS) {
+        int ret = recv(fd, discard, sizeof(discard), 0);
+        if(ret == 0 || (ret < 0 && errno != EAGAIN)) {
+            break;
+        }
+
+        if(ret < 0) {
+            struct pollfd pfd = {.fd = fd, .events = POLLIN};
+            poll(&pfd, 1, RECEIVE_POLL_MS);
+        }
+    }
+
+    close(fd);
 }
 
 static const char* receiver_reason(int status) {
@@ -959,7 +982,7 @@ static bool receiver_serve_web(receiver* r, int client, const char* from, receiv
         receiver_respond_error(state, client, 404, "Not found.");
     }
 
-    close(client);
+    receiver_close_client(state, client);
 
     if(accepted != NULL) {
         if(!receiver_await_data(r, accepted, acceptedToken)) {
@@ -1147,7 +1170,7 @@ static Result receiver_thread(void* arg) {
 
             if(fds[i].fd == r->fbi) {
                 receiver_serve_fbi(r, client, from);
-                close(client);
+                receiver_close_client(state, client);
             } else {
                 receiver_serve_web(r, client, from, NULL, NULL);
             }

@@ -272,8 +272,9 @@ static Result task_populate_files_thread(void* arg) {
                             break;
                         }
 
-                        char name[FILE_NAME_MAX] = {'\0'};
-                        utf16_to_utf8((uint8_t*) name, entries[i].name, FILE_NAME_MAX - 1);
+                        // Up to 3 bytes per UTF-16 unit, so long names are never cut.
+                        char name[sizeof(entries[i].name) / sizeof(entries[i].name[0]) * 3 + 1] = {'\0'};
+                        utf16_to_utf8((uint8_t*) name, entries[i].name, sizeof(name) - 1);
 
                         if(data->filter == NULL || data->filter(data->filterData, name, entries[i].attributes)) {
                             // Entries whose path does not fit (with a folder's '/') are skipped: a cut
@@ -281,6 +282,7 @@ static Result task_populate_files_thread(void* arg) {
                             bool isDir = (entries[i].attributes & FS_ATTRIBUTE_DIRECTORY) != 0;
                             char path[FILE_PATH_MAX] = {'\0'};
                             if(snprintf(path, FILE_PATH_MAX, "%s%s%s", curr->path, name, isDir ? "/" : "") >= FILE_PATH_MAX) {
+                                data->skipped++;
                                 continue;
                             }
 
@@ -374,6 +376,7 @@ Result task_populate_files(populate_files_data* data) {
 
     data->metaLoaded = 0;
     data->metaTotal = 0;
+    data->skipped = 0;
 
     return task_start(&data->state, task_populate_files_thread, data, 0x19, 1);
 }

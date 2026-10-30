@@ -47,8 +47,9 @@ static Result task_populate_cias_read_dir(populate_cias_data* data, const char* 
         u32 attributes = entries[i].attributes;
         bool isDir = (attributes & FS_ATTRIBUTE_DIRECTORY) != 0;
 
-        char name[FILE_NAME_MAX] = {'\0'};
-        utf16_to_utf8((uint8_t*) name, entries[i].name, FILE_NAME_MAX - 1);
+        // Up to 3 bytes per UTF-16 unit, so long names are never cut.
+        char name[sizeof(entries[i].name) / sizeof(entries[i].name[0]) * 3 + 1] = {'\0'};
+        utf16_to_utf8((uint8_t*) name, entries[i].name, sizeof(name) - 1);
 
         if((attributes & FS_ATTRIBUTE_HIDDEN) || (!isDir && !fs_filter_cias(NULL, name, attributes))) {
             continue;
@@ -153,6 +154,7 @@ static Result task_populate_cias_thread(void* arg) {
     populate_cias_data* data = (populate_cias_data*) arg;
 
     Result res = 0;
+    Result firstError = 0;
     bool quit = false;
 
     // Rows are collected and sorted privately, so the shown list only ever grows at the end.
@@ -169,7 +171,11 @@ static Result task_populate_cias_thread(void* arg) {
             firstFolder = data->folders[i];
         }
 
-        res = task_populate_cias_walk(data, data->folders[i], &found, &quit);
+        // An unreadable folder is left out and its error returned, but the other folders still list.
+        if(R_FAILED(res = task_populate_cias_walk(data, data->folders[i], &found, &quit)) && res != R_APP_OUT_OF_MEMORY) {
+            firstError = R_SUCCEEDED(firstError) ? res : firstError;
+            res = 0;
+        }
     }
 
     if(R_SUCCEEDED(res) && !quit && linked_list_size(&found) > 0) {
@@ -211,7 +217,7 @@ static Result task_populate_cias_thread(void* arg) {
         }
     }
 
-    return res;
+    return R_SUCCEEDED(res) ? firstError : res;
 }
 
 Result task_populate_cias(populate_cias_data* data) {

@@ -260,8 +260,13 @@ async function ciaInfo(file) {
         const sigSize = data.byteLength >= 4 ? [0x240, 0x140, 0x80, 0x240, 0x140, 0x80][data.getUint8(3)] : undefined;
         if (sigSize === undefined || data.byteLength < sigSize + 0x9E) return null;
         const hex = offset => data.getUint32(sigSize + offset).toString(16).toUpperCase().padStart(8, "0");
+        const titleId = hex(0x4C) + hex(0x50);
         const version = data.getUint16(sigSize + 0x9C);
-        return {titleId: hex(0x4C) + hex(0x50), version: (version >> 10 & 0x3F) + "." + (version >> 4 & 0x3F) + "." + (version & 0xF)};
+        // Like ui_format_version: FTB's own title packs major * 10000 + minor * 100 + micro.
+        const parts = titleId === "000400000F8F7B00"
+            ? [Math.floor(version / 10000), Math.floor(version / 100) % 100, version % 100]
+            : [version >> 10 & 0x3F, version >> 4 & 0x3F, version & 0xF];
+        return {titleId, version: parts.join(".")};
     } catch (error) {
         return null;
     }

@@ -53,6 +53,9 @@ typedef struct populate_files_data_s {
     volatile u32 metaLoaded;
     volatile u32 metaTotal;
 
+    // Entries left out because their full path does not fit FILE_PATH_MAX; read after the task finishes.
+    u32 skipped;
+
     task_state state;
 } populate_files_data;
 

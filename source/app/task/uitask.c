@@ -144,7 +144,7 @@ void task_draw_file_info(ui_view* view, void* data, float x1, float y1, float x2
             }
 
             char version[16];
-            ui_format_version(version, sizeof(version), info->ciaInfo.version);
+            ui_format_version(version, sizeof(version), info->ciaInfo.titleId, info->ciaInfo.version);
 
             snprintf(line, sizeof(line),
                      "Title ID: %016llX\n"
@@ -170,7 +170,7 @@ void task_draw_pending_title_info(ui_view* view, void* data, float x1, float y1,
     pending_title_info* info = (pending_title_info*) data;
 
     char version[16];
-    ui_format_version(version, sizeof(version), info->version);
+    ui_format_version(version, sizeof(version), info->titleId, info->version);
 
     char infoText[512];
 
@@ -221,7 +221,7 @@ void task_draw_title_info(ui_view* view, void* data, float x1, float y1, float x
     }
 
     char version[16];
-    ui_format_version(version, sizeof(version), info->version);
+    ui_format_version(version, sizeof(version), info->titleId, info->version);
 
     char infoText[512];
 

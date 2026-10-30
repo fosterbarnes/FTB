@@ -406,10 +406,16 @@ static Result spi_is_data_mirrored(SaveChip chip, u32 size, bool* mirrored) {
        && R_SUCCEEDED(res = spi_read_data(chip, NULL, &oldMirror, 2 * size - 1, sizeof(oldMirror)))) {
         u8 modified = ~original;
         u8 newMirror = 0;
-        if(R_SUCCEEDED(res = spi_write_data(chip, NULL, &modified, size - 1, sizeof(modified)))
-           && R_SUCCEEDED(res = spi_read_data(chip, NULL, &newMirror, 2 * size - 1, sizeof(newMirror)))
-           && R_SUCCEEDED(res = spi_write_data(chip, NULL, &original, size - 1, sizeof(original)))) {
-            if(mirrored != NULL) {
+        if(R_SUCCEEDED(res = spi_write_data(chip, NULL, &modified, size - 1, sizeof(modified)))) {
+            res = spi_read_data(chip, NULL, &newMirror, 2 * size - 1, sizeof(newMirror));
+
+            // The original byte goes back even when the read failed; the first error is the result.
+            Result restoreRes = spi_write_data(chip, NULL, &original, size - 1, sizeof(original));
+            if(R_SUCCEEDED(res)) {
+                res = restoreRes;
+            }
+
+            if(R_SUCCEEDED(res) && mirrored != NULL) {
                 *mirrored = oldMirror != newMirror;
             }
         }
@@ -498,10 +504,25 @@ Result spi_get_save_size(u32* size) {
     return spi_get_capacity(curr_chip, size);
 }
 
+// The mirror probes in spi_get_save_chip address past the capacity on purpose, so the bound is
+// checked here: a 0-byte success at the end of the chip would make the copy loop spin forever.
+static Result spi_check_offset(u32 offset) {
+    Result res = 0;
+
+    u32 capacity = 0;
+    if(R_SUCCEEDED(res = spi_get_capacity(curr_chip, &capacity)) && offset >= capacity) {
+        res = R_APP_OUT_OF_RANGE;
+    }
+
+    return res;
+}
+
 Result spi_read_save(u32* bytesRead, void* data, u32 offset, u32 size) {
-    return spi_read_data(curr_chip, bytesRead, data, offset, size);
+    Result res = spi_check_offset(offset);
+    return R_SUCCEEDED(res) ? spi_read_data(curr_chip, bytesRead, data, offset, size) : res;
 }
 
 Result spi_write_save(u32* bytesWritten, void* data, u32 offset, u32 size) {
-    return spi_write_data(curr_chip, bytesWritten, data, offset, size);
+    Result res = spi_check_offset(offset);
+    return R_SUCCEEDED(res) ? spi_write_data(curr_chip, bytesWritten, data, offset, size) : res;
 }

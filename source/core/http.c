@@ -37,8 +37,8 @@ struct httpc_context_s {
 typedef struct httpc_context_s* httpc_context;
 
 // Resolves a Location header against the URL it came from, in place: absolute URLs, //host/...,
-// /path, and paths relative to the current folder.
-static void httpc_resolve_redirect(char* url, const char* location, size_t size) {
+// /path, and paths relative to the current folder. False when the result does not fit.
+static bool httpc_resolve_redirect(char* url, const char* location, size_t size) {
     char* scheme = strstr(url, "://");
     char* host = scheme != NULL ? scheme + 3 : url;
     char* path = host + strcspn(host, "/?#");
@@ -66,7 +66,8 @@ static void httpc_resolve_redirect(char* url, const char* location, size_t size)
     }
 
     size_t keepLen = keepEnd - url;
-    snprintf(url + keepLen, size - keepLen, "%s%s", separator, location);
+    int len = snprintf(url + keepLen, size - keepLen, "%s%s", separator, location);
+    return len >= 0 && (size_t) len < size - keepLen;
 }
 
 static Result httpc_open(httpc_context* context, const char* url, bool userAgent) {
@@ -78,7 +79,7 @@ static Result httpc_open(httpc_context* context, const char* url, bool userAgent
 
     httpc_context ctx = (httpc_context) calloc(1, sizeof(struct httpc_context_s));
     if(ctx != NULL) {
-        char currUrl[1024];
+        char currUrl[2048];
         string_copy(currUrl, url, sizeof(currUrl));
 
         bool resolved = false;
@@ -95,12 +96,15 @@ static Result httpc_open(httpc_context* context, const char* url, bool userAgent
                     if(response == 301 || response == 302 || response == 303 || response == 307 || response == 308) {
                         redirectCount++;
 
-                        char redirectTo[1024];
+                        // The last byte stays the terminator; a Location that fills the rest was cut off.
+                        char redirectTo[2048];
                         memset(redirectTo, '\0', sizeof(redirectTo));
-                        if(R_SUCCEEDED(res = httpcGetResponseHeader(&ctx->httpc, "Location", redirectTo, sizeof(redirectTo)))) {
-                            httpcCloseContext(&ctx->httpc);
-
-                            httpc_resolve_redirect(currUrl, redirectTo, sizeof(currUrl));
+                        if(R_SUCCEEDED(res = httpcGetResponseHeader(&ctx->httpc, "Location", redirectTo, sizeof(redirectTo) - 1))) {
+                            if(strlen(redirectTo) == sizeof(redirectTo) - 1 || !httpc_resolve_redirect(currUrl, redirectTo, sizeof(currUrl))) {
+                                res = R_APP_OUT_OF_RANGE;
+                            } else {
+                                httpcCloseContext(&ctx->httpc);
+                            }
                         }
                     } else {
                         resolved = true;
@@ -369,6 +373,9 @@ Result http_download_callback(const char* url, u32 bufferSize, void* userData, R
                 curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
                 curl_easy_setopt(curl, CURLOPT_USERAGENT, HTTP_USER_AGENT);
                 curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, (long) HTTP_TIMEOUT_SEC);
+                // A transfer that stalls for the timeout fails, like httpc's receive timeout.
+                curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1L);
+                curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, (long) HTTP_TIMEOUT_SEC);
                 curl_easy_setopt(curl, CURLOPT_MAXREDIRS, (long) HTTP_MAX_REDIRECTS);
                 curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
                 curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);

@@ -20,6 +20,11 @@
 
 static void* soc_buffer = NULL;
 
+// curl's mbedtls gathers entropy through sslcGenerateRandomData, which needs a running sslc.
+static Result services_sslc_init(void) {
+    return sslcInit(0);
+}
+
 static Result services_httpc_init(void) {
     return httpcInit(0);
 }
@@ -56,6 +61,7 @@ static const struct {
     {acInit, acExit},
     {ptmuInit, ptmuExit},
     {pxiDevInit, pxiDevExit},
+    {services_sslc_init, sslcExit},
     {services_httpc_init, httpcExit},
     {services_soc_init, services_soc_exit},
 };

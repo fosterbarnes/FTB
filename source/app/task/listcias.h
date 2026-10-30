@@ -21,5 +21,6 @@ typedef struct populate_cias_data_s {
 } populate_cias_data;
 
 // Lists the .cia files in every folder and its subfolders, sorted by name, after the pinned
-// CIA_ALL_NAME row (a directory item, none when no CIAs), then loads their meta.
+// CIA_ALL_NAME row (a directory item, none when no CIAs), then loads their meta. A folder that
+// cannot be read is left out and the first such error is the result; the other rows stay.
 Result task_populate_cias(populate_cias_data* data);

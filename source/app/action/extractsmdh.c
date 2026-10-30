@@ -23,7 +23,11 @@ static void action_extract_smdh_update(ui_view* view, void* data, float* progres
         SMDH* smdh = (SMDH*) calloc(1, sizeof(SMDH));
         if(smdh != NULL) {
             u32 bytesRead = 0;
-            if(R_SUCCEEDED(res = FSFILE_Read(fileHandle, &bytesRead, 0, smdh, sizeof(SMDH))) && bytesRead == sizeof(SMDH)) {
+            if(R_SUCCEEDED(res = FSFILE_Read(fileHandle, &bytesRead, 0, smdh, sizeof(SMDH))) && bytesRead != sizeof(SMDH)) {
+                res = R_APP_BAD_DATA;
+            }
+
+            if(R_SUCCEEDED(res)) {
                 FS_Archive sdmcArchive = 0;
                 if(R_SUCCEEDED(res = FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, "")))) {
                     if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/fbi/")) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/fbi/smdh/"))) {

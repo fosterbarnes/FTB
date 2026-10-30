@@ -384,6 +384,12 @@ bool screen_load_texture_file(u32 id, FILE* fd, bool linearFilter) {
         return false;
     }
 
+    // C3D_TexInit refuses textures over 1024 px, which would panic in screen_prepare_texture.
+    if(width > 1024 || height > 1024) {
+        free(image);
+        return false;
+    }
+
     for(u32 x = 0; x < width; x++) {
         for(u32 y = 0; y < height; y++) {
             u32 pos = (y * width + x) * 4;

@@ -136,7 +136,10 @@ static void action_delete_tickets_loading_update(ui_view* view, void* data, floa
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(loadingData->popData.state.result)) {
+        // B during the listing returns success with a partial list; never offer to delete it.
+        if(loadingData->popData.state.cancelled) {
+            action_delete_tickets_free_data(loadingData->deleteData);
+        } else if(R_SUCCEEDED(loadingData->popData.state.result)) {
             delete_tickets_data* deleteData = loadingData->deleteData;
             bool locked = !safety_allowed();
             u32 kept = 0;

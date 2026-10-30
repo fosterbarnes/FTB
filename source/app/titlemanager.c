@@ -123,7 +123,7 @@ static void titlemanager_item_detail(list_item* item, char* out, size_t size) {
     }
 
     char version[16];
-    ui_format_version(version, sizeof(version), info->version);
+    ui_format_version(version, sizeof(version), info->titleId, info->version);
 
     snprintf(out, size, "%s\n%s, %.2f %s, v%s",
              string_is_empty(info->meta.publisher) ? "Unknown publisher" : info->meta.publisher,

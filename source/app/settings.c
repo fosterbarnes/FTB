@@ -67,13 +67,20 @@ void settings_load() {
         return;
     }
 
+    // A line longer than the buffer arrives in pieces; partial marks the pieces after the first, and
+    // the whole line is ignored so a tail piece is never read as its own key.
     char line[128];
+    bool partial = false;
     while(fgets(line, sizeof(line), fd) != NULL) {
+        bool lineEnd = strchr(line, '\n') != NULL || feof(fd);
+        bool skip = partial || !lineEnd;
+        partial = !lineEnd;
+
         line[strcspn(line, "\r\n")] = '\0';
 
         // Values are one digit.
         char* value = strchr(line, '=');
-        if(value == NULL || value[1] < '0' || value[1] > '9' || value[2] != '\0') {
+        if(skip || value == NULL || value[1] < '0' || value[1] > '9' || value[2] != '\0') {
             continue;
         }
 

@@ -4,6 +4,7 @@
 
 #include "action.h"
 #include "../resources.h"
+#include "../safety.h"
 #include "../task/uitask.h"
 #include "../../core/core.h"
 
@@ -54,5 +55,9 @@ static void action_import_secure_value_onresponse(ui_view* view, void* data, u32
 }
 
 void action_import_secure_value(linked_list* items, list_item* selected) {
+    if(safety_is_system_title(((title_info*) selected->data)->titleId) && !safety_check("Importing system secure values")) {
+        return;
+    }
+
     prompt_display_yes_no("Confirmation", "Import the secure value of the selected title?", COLOR_TEXT, selected->data, task_draw_title_info, action_import_secure_value_onresponse);
 }

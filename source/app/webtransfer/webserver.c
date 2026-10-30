@@ -1545,7 +1545,7 @@ static void webserver_serve_check(web_state* state, int fd, const web_request* r
             bad = text;
         } else if(R_SUCCEEDED(AM_GetTitleInfo(fs_get_title_destination(titleId), 1, &titleId, &entry))) {
             char version[16];
-            ui_format_version(version, sizeof(version), entry.version);
+            ui_format_version(version, sizeof(version), titleId, entry.version);
             json_array_append_new(installed, json_pack("{s:s, s:s}", "titleId", text, "version", version));
         }
     }

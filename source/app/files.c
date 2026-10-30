@@ -80,14 +80,29 @@ typedef struct {
     bool containsTickets;
 } files_action_data;
 
+// Save data and ext data archive paths are binary {mediaType, ID low, ID high}; 0 for any other.
+static u64 files_archive_path_id(FS_Path archivePath) {
+    if(archivePath.type != PATH_BINARY || archivePath.size < 3 * sizeof(u32)) {
+        return 0;
+    }
+
+    const u32* path = (const u32*) archivePath.data;
+    return ((u64) path[2] << 32) | path[1];
+}
+
 // System storage opens read-only while system changes are locked (safety.h).
-static bool files_read_only(FS_ArchiveID archiveId) {
+static bool files_read_only(FS_ArchiveID archiveId, FS_Path archivePath) {
     switch(archiveId) {
         case ARCHIVE_NAND_CTR_FS:
         case ARCHIVE_NAND_TWL_FS:
         case ARCHIVE_SYSTEM_SAVEDATA:
         case ARCHIVE_SHARED_EXTDATA:
             return !safety_allowed();
+        case ARCHIVE_USER_SAVEDATA:
+            return !safety_allowed() && safety_is_system_title(files_archive_path_id(archivePath));
+        case ARCHIVE_EXTDATA:
+        case ARCHIVE_BOSS_EXTDATA:
+            return !safety_allowed() && safety_is_system_ext_save_data(files_archive_path_id(archivePath));
         default:
             return false;
     }
@@ -165,7 +180,7 @@ static void files_action_update(ui_view* view, void* data, linked_list* items, l
         file_info* info = (file_info*) actionData->selected->data;
 
         // Read-only: copying out (and installing, which checks the lock itself) only.
-        if(files_read_only(actionData->parent->archiveId)) {
+        if(files_read_only(actionData->parent->archiveId, actionData->parent->archivePath)) {
             if(info->attributes & FS_ATTRIBUTE_DIRECTORY) {
                 if(actionData->containsCias) {
                     linked_list_add(items, &install_all_cias);
@@ -208,7 +223,10 @@ static void files_action_update(ui_view* view, void* data, linked_list* items, l
 
             linked_list_add(items, &new_folder);
 
-            linked_list_add(items, &delete_dir);
+            // The root itself can never be deleted; "Delete all contents" covers it.
+            if(strcmp(info->path, "/") != 0) {
+                linked_list_add(items, &delete_dir);
+            }
         } else {
             if(info->isCia) {
                 linked_list_add(items, &install_cia);
@@ -358,10 +376,11 @@ static void files_update(ui_view* view, void* data, linked_list* items, list_ite
     files_data* listData = (files_data*) data;
 
     if(listData->populated) {
-        // Detect whether the current directory was renamed by an action.
+        // Detect whether the current directory was renamed by an action; the child rows still hold the
+        // old paths, so the listing is reloaded.
         list_item* currDirItem = linked_list_get(items, 0);
         if(currDirItem != NULL && strncmp(listData->currDir, ((file_info*) currDirItem->data)->path, FILE_PATH_MAX) != 0) {
-            string_copy(listData->currDir, ((file_info*) currDirItem->data)->path, FILE_PATH_MAX);
+            files_navigate(listData, items, ((file_info*) currDirItem->data)->path);
         }
     }
 
@@ -479,7 +498,7 @@ void files_open(FS_ArchiveID archiveId, FS_Path archivePath) {
         return;
     }
 
-    list_display(files_read_only(archiveId) ? "Files (Read-only)" : "Files", "A: Select, B: Back, X: Refresh, Select: Options", data, files_update, files_draw_top);
+    list_display(files_read_only(archiveId, archivePath) ? "Files (Read-only)" : "Files", "A: Select, B: Back, X: Refresh, Select: Options", data, files_update, files_draw_top);
 }
 
 static void files_open_nand_warning_onresponse(ui_view* view, void* data, u32 response) {
@@ -492,7 +511,7 @@ static void files_open_nand_warning_onresponse(ui_view* view, void* data, u32 re
 
 void files_open_nand_warning(FS_ArchiveID archive) {
     // Read-only NAND cannot be modified, so it needs no warning.
-    if(files_read_only(archive)) {
+    if(files_read_only(archive, fsMakePath(PATH_EMPTY, ""))) {
         files_open(archive, fsMakePath(PATH_EMPTY, ""));
         return;
     }

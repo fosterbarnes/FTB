@@ -8,21 +8,6 @@
 #include "resources.h"
 #include "../core/core.h"
 
-static FILE* resources_open_file(const char* path) {
-    char realPath[FILE_PATH_MAX];
-    snprintf(realPath, sizeof(realPath), PATHS_THEME_DIR "%s", path);
-
-    FILE* fd = fopen(realPath, "rb");
-
-    if(fd != NULL) {
-        return fd;
-    } else {
-        snprintf(realPath, sizeof(realPath), "romfs:/%s", path);
-
-        return fopen(realPath, "rb");
-    }
-}
-
 static bool resources_load_texture_from(u32 id, const char* dir, const char* name) {
     char path[FILE_PATH_MAX];
     snprintf(path, sizeof(path), "%s%s", dir, name);
@@ -118,16 +103,13 @@ static const struct {
 
 #define RESOURCES_COUNT(table) (sizeof(table) / sizeof(table[0]))
 
-void resources_load() {
-    FILE* fd = resources_open_file("textcolor.cfg");
+// Reads one textcolor.cfg over colors (indexed by color ID) and marks the keys it has in colorSet.
+// False when the file cannot be opened.
+static bool resources_read_colors(const char* path, u32* colors, bool* colorSet) {
+    FILE* fd = fopen(path, "rb");
     if(fd == NULL) {
-        error_panic("Failed to open text color config: %s\n", strerror(errno));
-        return;
+        return false;
     }
-
-    // Indexed by color ID; the flags drive the fallbacks for keys older themes lack.
-    u32 colors[COLOR_WARNING + 1] = {[COLOR_TEXT] = 0xFFFFFFFF};
-    bool colorSet[COLOR_WARNING + 1] = {false};
 
     char line[128];
     while(fgets(line, sizeof(line), fd) != NULL) {
@@ -143,7 +125,6 @@ void resources_load() {
             if(strcasecmp(key, resources_colors[i].key) == 0) {
                 u32 id = resources_colors[i].colorId;
 
-                screen_set_color(id, color);
                 colors[id] = color;
                 colorSet[id] = true;
                 break;
@@ -152,17 +133,36 @@ void resources_load() {
     }
 
     fclose(fd);
+    return true;
+}
 
-    // Themes made before the FTP screen have no ftp* keys, and themes made before the icon list have no
-    // textdim key; those use the text color. Without a warning key, warnings use ftperror, then text.
-    if(!colorSet[COLOR_WARNING]) {
-        screen_set_color(COLOR_WARNING, colorSet[COLOR_FTP_ERROR] ? colors[COLOR_FTP_ERROR] : colors[COLOR_TEXT]);
+void resources_load() {
+    u32 colors[COLOR_WARNING + 1] = {0};
+    bool builtInSet[COLOR_WARNING + 1] = {false};
+    if(!resources_read_colors("romfs:/textcolor.cfg", colors, builtInSet)) {
+        error_panic("Failed to open text color config: %s\n", strerror(errno));
+        return;
     }
 
-    for(u32 id = COLOR_FTP_ERROR; id <= COLOR_TEXT_DIM; id++) {
-        if(!colorSet[id]) {
-            screen_set_color(id, colors[COLOR_TEXT]);
+    // A theme textcolor.cfg layers over the built-in colors, so a key it lacks never stays transparent.
+    bool colorSet[COLOR_WARNING + 1] = {false};
+    if(resources_read_colors(PATHS_THEME_DIR "textcolor.cfg", colors, colorSet)) {
+        // Themes made before the FTP screen have no ftp* keys, and themes made before the icon list have
+        // no textdim key; those use the text color. Without a warning key, warnings use ftperror, then
+        // text.
+        if(!colorSet[COLOR_WARNING]) {
+            colors[COLOR_WARNING] = colorSet[COLOR_FTP_ERROR] ? colors[COLOR_FTP_ERROR] : colors[COLOR_TEXT];
         }
+
+        for(u32 id = COLOR_FTP_ERROR; id <= COLOR_TEXT_DIM; id++) {
+            if(!colorSet[id]) {
+                colors[id] = colors[COLOR_TEXT];
+            }
+        }
+    }
+
+    for(u32 id = 0; id <= COLOR_WARNING; id++) {
+        screen_set_color(id, colors[id]);
     }
 
     for(u32 i = 0; i < RESOURCES_COUNT(resources_textures); i++) {

@@ -52,8 +52,9 @@ void ui_draw_centered_text(const char* text, float x1, float y1, float x2, float
 const char* ui_get_display_eta(u32 seconds);
 double ui_get_display_size(u64 size);
 const char* ui_get_display_size_units(u64 size);
-// Title version as "major.minor.micro" (6, 6, and 4 bits).
-void ui_format_version(char* out, size_t size, u16 version);
+// Title version as "major.minor.micro" (6, 6, and 4 bits); FTB's own title packs it as
+// major * 10000 + minor * 100 + micro (Makefile TITLE_VERSION).
+void ui_format_version(char* out, size_t size, u64 titleId, u16 version);
 
 #include "error.h"
 #include "info.h"

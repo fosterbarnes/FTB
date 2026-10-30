@@ -167,20 +167,15 @@ static void receiveurls_update(ui_view* view, void* data, float* progress, char*
 
         free(urls);
     } else if(acceptErr != EAGAIN) {
-        // The network went away (Wi-Fi off or lost): waiting longer cannot help.
-        bool networkGone = acceptErr == EINVAL || acceptErr == ENETDOWN;
-        if(networkGone) {
-            ui_pop();
-            info_destroy(view);
-        }
+        // EAGAIN (newlib's EWOULDBLOCK too) only means no connection yet. Anything else (Wi-Fi off
+        // or lost, a broken socket) would fail again every frame: show it once and close.
+        ui_pop();
+        info_destroy(view);
 
         error_display_errno(NULL, NULL, acceptErr, "Failed to open socket.");
 
-        if(networkGone) {
-            receiveurls_free_data(urlsData);
-
-            return;
-        }
+        receiveurls_free_data(urlsData);
+        return;
     }
 
     struct in_addr addr = {(in_addr_t) gethostid()};

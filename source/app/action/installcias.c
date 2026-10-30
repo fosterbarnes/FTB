@@ -242,9 +242,11 @@ static void action_install_cias_confirm(install_cias_data* data, const char* que
     if(total == 0) {
         action_install_cias_free_data(data);
 
-        // Only system CIAs were selected: say why nothing happens.
+        // Say why nothing happens: only system CIAs were selected, or no CIA was found or readable.
         if(dropped > 0) {
             safety_check("Installing system titles");
+        } else {
+            prompt_display_notify("Failure", "No installable CIAs.", COLOR_TEXT, NULL, NULL, NULL);
         }
 
         return;
@@ -282,7 +284,10 @@ static void action_install_cias_loading_update(ui_view* view, void* data, float*
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(loadingData->popData.state.result)) {
+        // B during the listing returns success with a partial list; never offer to install it.
+        if(loadingData->popData.state.cancelled) {
+            action_install_cias_free_data(loadingData->installData);
+        } else if(R_SUCCEEDED(loadingData->popData.state.result)) {
             u32 dropped = action_install_cias_drop_system(loadingData->installData);
             action_install_cias_confirm(loadingData->installData, loadingData->message, dropped);
         } else {

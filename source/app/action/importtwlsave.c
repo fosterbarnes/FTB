@@ -63,7 +63,28 @@ static Result action_import_twl_save_read_src(void* data, u32 handle, u32* bytes
 }
 
 static Result action_import_twl_save_open_dst(void* data, u32 index, void* initialReadBlock, u32 initialReadSize, u64 size, u32* handle) {
-    return spi_init_card();
+    Result res = 0;
+
+    // Checked before any byte is written: a file larger than the chip cannot be a save for this cart.
+    // The chip is only known once the card is read, so the smaller-file confirm is asked here, on the
+    // worker, and not with the first confirm (SPI polls can take seconds on a pulled cart).
+    u32 capacity = 0;
+    if(R_SUCCEEDED(res = spi_init_card()) && R_SUCCEEDED(res = spi_get_save_size(&capacity))) {
+        if(size > capacity) {
+            res = R_APP_BAD_DATA;
+        } else if(size < capacity) {
+            char text[256];
+            snprintf(text, sizeof(text), "The save file (%.1f %s) is smaller than the cart's save chip (%.1f %s). "
+                                         "Only the start of the cart save is replaced.\nImport anyway?",
+                     ui_get_display_size(size), ui_get_display_size_units(size), ui_get_display_size(capacity), ui_get_display_size_units(capacity));
+
+            if(!prompt_wait_yes_no("Warning", text, COLOR_WARNING, data, action_import_twl_save_draw_top)) {
+                res = R_APP_SKIPPED;
+            }
+        }
+    }
+
+    return res;
 }
 
 static Result action_import_twl_save_close_dst(void* data, u32 index, bool succeeded, u32 handle) {

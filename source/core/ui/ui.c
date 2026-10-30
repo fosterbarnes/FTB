@@ -506,6 +506,14 @@ void ui_draw_centered_text(const char* text, float x1, float y1, float x2, float
     screen_draw_string_wrap(text, x, y1 + (y2 - y1 - height) / 2, 0.5f, 0.5f, COLOR_TEXT, true, x + wrapWidth);
 }
 
-void ui_format_version(char* out, size_t size, u16 version) {
+// Application title ID from the Makefile's UNIQUE_ID (0xF8F7B).
+#define UI_FTB_TITLE_ID 0x000400000F8F7B00ULL
+
+void ui_format_version(char* out, size_t size, u64 titleId, u16 version) {
+    if(titleId == UI_FTB_TITLE_ID) {
+        snprintf(out, size, "%d.%d.%d", version / 10000, version / 100 % 100, version % 100);
+        return;
+    }
+
     snprintf(out, size, "%d.%d.%d", (version >> 10) & 0x3F, (version >> 4) & 0x3F, version & 0xF);
 }

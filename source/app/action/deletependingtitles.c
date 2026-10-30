@@ -6,6 +6,7 @@
 
 #include "action.h"
 #include "../resources.h"
+#include "../safety.h"
 #include "../task/uitask.h"
 #include "../../core/core.h"
 
@@ -15,6 +16,9 @@ typedef struct {
 
     linked_list contents;
     bool all;
+
+    // Confirmation text when it is built at runtime; the prompt keeps the pointer.
+    char message[128];
 
     data_op_data deleteInfo;
 } delete_pending_titles_data;
@@ -136,11 +140,37 @@ static void action_delete_pending_titles_loading_update(ui_view* view, void* dat
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(loadingData->popData.state.result)) {
-            loadingData->deleteData->deleteInfo.total = linked_list_size(&loadingData->deleteData->contents);
-            loadingData->deleteData->deleteInfo.processed = loadingData->deleteData->deleteInfo.total;
+        // B during the listing returns success with a partial list; never offer to delete it.
+        if(loadingData->popData.state.cancelled) {
+            action_delete_pending_titles_free_data(loadingData->deleteData);
+        } else if(R_SUCCEEDED(loadingData->popData.state.result)) {
+            delete_pending_titles_data* deleteData = loadingData->deleteData;
+            u32 kept = 0;
 
-            prompt_display_yes_no("Confirmation", loadingData->message, COLOR_TEXT, loadingData->deleteData, action_delete_pending_titles_draw_top, action_delete_pending_titles_onresponse);
+            if(!safety_allowed()) {
+                linked_list_iter iter;
+                linked_list_iterate(&deleteData->contents, &iter);
+                while(linked_list_iter_has_next(&iter)) {
+                    list_item* item = (list_item*) linked_list_iter_next(&iter);
+
+                    if(safety_is_system_title(((pending_title_info*) item->data)->titleId)) {
+                        linked_list_iter_remove(&iter);
+                        task_free_pending_title(item);
+                        kept++;
+                    }
+                }
+            }
+
+            deleteData->deleteInfo.total = linked_list_size(&deleteData->contents);
+            deleteData->deleteInfo.processed = deleteData->deleteInfo.total;
+
+            if(kept > 0) {
+                snprintf(deleteData->message, sizeof(deleteData->message), "%s\n%lu pending system title%s kept (System changes is off).", loadingData->message, kept, kept == 1 ? "" : "s");
+            } else {
+                string_copy(deleteData->message, loadingData->message, sizeof(deleteData->message));
+            }
+
+            prompt_display_yes_no("Confirmation", deleteData->message, COLOR_TEXT, deleteData, action_delete_pending_titles_draw_top, action_delete_pending_titles_onresponse);
         } else {
             error_display_res(NULL, NULL, loadingData->popData.state.result, "Failed to populate pending title list.");
 
@@ -221,6 +251,10 @@ void action_delete_pending_titles(linked_list* items, list_item* selected, const
 }
 
 void action_delete_pending_title(linked_list* items, list_item* selected) {
+    if(safety_is_system_title(((pending_title_info*) selected->data)->titleId) && !safety_check("Deleting pending system titles")) {
+        return;
+    }
+
     action_delete_pending_titles(items, selected, "Delete the selected pending title?", false);
 }
 

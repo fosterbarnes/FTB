@@ -52,6 +52,23 @@ static Result action_paste_contents_get_dst_path(paste_contents_data* data, u32 
     return snprintf(dstPath, FILE_PATH_MAX, "%s%s", baseDstPath, relativePath) < FILE_PATH_MAX ? 0 : R_APP_OUT_OF_RANGE;
 }
 
+// A file is copied to partPath and renamed over dstPath only once it is whole.
+static Result action_paste_contents_get_part_path(char* partPath, const char* dstPath) {
+    return snprintf(partPath, FILE_PATH_MAX, "%s.part", dstPath) < FILE_PATH_MAX ? 0 : R_APP_OUT_OF_RANGE;
+}
+
+static Result action_paste_contents_delete_file(FS_Archive archive, const char* path) {
+    FS_Path* fsPath = fs_make_path_utf8(path);
+    if(fsPath == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    Result res = FSUSER_DeleteFile(archive, *fsPath);
+    fs_free_path_utf8(fsPath);
+
+    return res;
+}
+
 static Result action_paste_contents_is_src_directory(void* data, u32 index, bool* isDirectory) {
     paste_contents_data* pasteData = (paste_contents_data*) data;
 
@@ -138,33 +155,20 @@ static Result action_paste_contents_open_dst(void* data, u32 index, void* initia
     Result res = 0;
 
     char dstPath[FILE_PATH_MAX];
-    if(R_FAILED(res = action_paste_contents_get_dst_path(pasteData, index, dstPath))) {
+    char partPath[FILE_PATH_MAX];
+    if(R_FAILED(res = action_paste_contents_get_dst_path(pasteData, index, dstPath)) || R_FAILED(res = action_paste_contents_get_part_path(partPath, dstPath))) {
         return res;
     }
 
-    FS_Path* fsPath = fs_make_path_utf8(dstPath);
+    FS_Path* fsPath = fs_make_path_utf8(partPath);
     if(fsPath != NULL) {
-        Handle currHandle;
-        if(R_SUCCEEDED(FSUSER_OpenFile(&currHandle, pasteData->target->archive, *fsPath, FS_OPEN_READ, 0))) {
-            FSFILE_Close(currHandle);
-            if(R_SUCCEEDED(res = FSUSER_DeleteFile(pasteData->target->archive, *fsPath))) {
-                linked_list_iter iter;
-                linked_list_iterate(pasteData->items, &iter);
+        // A part file left by an earlier cut paste would make CreateFile fail.
+        FSUSER_DeleteFile(pasteData->target->archive, *fsPath);
 
-                while(linked_list_iter_has_next(&iter)) {
-                    list_item* item = (list_item*) linked_list_iter_next(&iter);
-                    file_info* currInfo = (file_info*) item->data;
-
-                    if(strncmp(currInfo->path, dstPath, FILE_PATH_MAX) == 0) {
-                        linked_list_iter_remove(&iter);
-                        task_free_file(item);
-                    }
-                }
-            }
-        }
-
-        if(R_SUCCEEDED(res) && R_SUCCEEDED(res = FSUSER_CreateFile(pasteData->target->archive, *fsPath, ((file_info*) ((list_item*) linked_list_get(&pasteData->contents, index))->data)->attributes & ~FS_ATTRIBUTE_READ_ONLY, size))) {
-            res = FSUSER_OpenFile(handle, pasteData->target->archive, *fsPath, FS_OPEN_WRITE, 0);
+        // dataop never closes a failed open, so a part file that cannot be opened goes here.
+        if(R_SUCCEEDED(res = FSUSER_CreateFile(pasteData->target->archive, *fsPath, ((file_info*) ((list_item*) linked_list_get(&pasteData->contents, index))->data)->attributes & ~FS_ATTRIBUTE_READ_ONLY, size))
+           && R_FAILED(res = FSUSER_OpenFile(handle, pasteData->target->archive, *fsPath, FS_OPEN_WRITE, 0))) {
+            FSUSER_DeleteFile(pasteData->target->archive, *fsPath);
         }
 
         fs_free_path_utf8(fsPath);
@@ -177,39 +181,72 @@ static Result action_paste_contents_open_dst(void* data, u32 index, void* initia
 
 static Result action_paste_contents_close_dst(void* data, u32 index, bool succeeded, u32 handle) {
     paste_contents_data* pasteData = (paste_contents_data*) data;
+    FS_Archive archive = pasteData->target->archive;
 
-    Result res = 0;
+    Result res = FSFILE_Close(handle);
 
-    // open_dst built the same path, so it fits here too.
+    // open_dst built the same paths, so they fit here too.
     char dstPath[FILE_PATH_MAX];
-    if(R_SUCCEEDED(res = FSFILE_Close(handle)) && R_SUCCEEDED(res = action_paste_contents_get_dst_path(pasteData, index, dstPath))) {
-        // A cancelled or failed copy leaves a truncated file; remove it so it never passes for a
-        // complete one (a cut-off CIA, for example).
-        if(!succeeded) {
-            FS_Path* fsPath = fs_make_path_utf8(dstPath);
-            if(fsPath != NULL) {
-                FSUSER_DeleteFile(pasteData->target->archive, *fsPath);
-                fs_free_path_utf8(fsPath);
-            }
+    char partPath[FILE_PATH_MAX];
+    Result pathRes = 0;
+    if(R_FAILED(pathRes = action_paste_contents_get_dst_path(pasteData, index, dstPath)) || R_FAILED(pathRes = action_paste_contents_get_part_path(partPath, dstPath))) {
+        return R_SUCCEEDED(res) ? pathRes : res;
+    }
 
-            return res;
+    // A cancelled or failed copy leaves a truncated part file; remove it so it never passes for a
+    // complete one (a cut-off CIA, for example). The old destination stays untouched.
+    if(!succeeded || R_FAILED(res)) {
+        action_paste_contents_delete_file(archive, partPath);
+        return res;
+    }
+
+    // The old file goes only now; a failed rename keeps the part file, the only whole copy left.
+    if(R_SUCCEEDED(action_paste_contents_delete_file(archive, dstPath))) {
+        linked_list_iter iter;
+        linked_list_iterate(pasteData->items, &iter);
+
+        while(linked_list_iter_has_next(&iter)) {
+            list_item* item = (list_item*) linked_list_iter_next(&iter);
+            file_info* currInfo = (file_info*) item->data;
+
+            if(strncmp(currInfo->path, dstPath, FILE_PATH_MAX) == 0) {
+                linked_list_iter_remove(&iter);
+                task_free_file(item);
+            }
+        }
+    }
+
+    res = R_APP_OUT_OF_MEMORY;
+
+    FS_Path* fromPath = fs_make_path_utf8(partPath);
+    if(fromPath != NULL) {
+        FS_Path* toPath = fs_make_path_utf8(dstPath);
+        if(toPath != NULL) {
+            res = FSUSER_RenameFile(archive, *fromPath, archive, *toPath);
+            fs_free_path_utf8(toPath);
         }
 
-        char parentPath[FILE_PATH_MAX];
-        string_get_parent_path(parentPath, dstPath, FILE_PATH_MAX);
+        fs_free_path_utf8(fromPath);
+    }
 
-        char baseDstPath[FILE_PATH_MAX];
-        if(pasteData->target->attributes & FS_ATTRIBUTE_DIRECTORY) {
-            string_copy(baseDstPath, pasteData->target->path, FILE_PATH_MAX);
-        } else {
-            string_get_parent_path(baseDstPath, pasteData->target->path, FILE_PATH_MAX);
-        }
+    if(R_FAILED(res)) {
+        return res;
+    }
 
-        if(strncmp(parentPath, baseDstPath, FILE_PATH_MAX) == 0) {
-            list_item* dstItem = NULL;
-            if(R_SUCCEEDED(task_create_file_item(&dstItem, pasteData->target->archive, dstPath, ((file_info*) ((list_item*) linked_list_get(&pasteData->contents, index))->data)->attributes & ~FS_ATTRIBUTE_READ_ONLY, true))) {
-                linked_list_add(pasteData->items, dstItem);
-            }
+    char parentPath[FILE_PATH_MAX];
+    string_get_parent_path(parentPath, dstPath, FILE_PATH_MAX);
+
+    char baseDstPath[FILE_PATH_MAX];
+    if(pasteData->target->attributes & FS_ATTRIBUTE_DIRECTORY) {
+        string_copy(baseDstPath, pasteData->target->path, FILE_PATH_MAX);
+    } else {
+        string_get_parent_path(baseDstPath, pasteData->target->path, FILE_PATH_MAX);
+    }
+
+    if(strncmp(parentPath, baseDstPath, FILE_PATH_MAX) == 0) {
+        list_item* dstItem = NULL;
+        if(R_SUCCEEDED(task_create_file_item(&dstItem, archive, dstPath, ((file_info*) ((list_item*) linked_list_get(&pasteData->contents, index))->data)->attributes & ~FS_ATTRIBUTE_READ_ONLY, true))) {
+            linked_list_add(pasteData->items, dstItem);
         }
     }
 
@@ -308,6 +345,11 @@ static void action_paste_contents_loading_update(ui_view* view, void* data, floa
         // B during the listing returns success with a partial list; never offer to paste it.
         if(loadingData->popData.state.cancelled) {
             action_paste_contents_free_data(loadingData->pasteData);
+        } else if(R_SUCCEEDED(loadingData->popData.state.result) && loadingData->popData.skipped > 0) {
+            // The listing left out entries whose paths do not fit; a paste would silently miss them.
+            prompt_display_notify("Failure", "Some paths are too long to copy.", COLOR_TEXT, NULL, NULL, NULL);
+
+            action_paste_contents_free_data(loadingData->pasteData);
         } else if(R_SUCCEEDED(loadingData->popData.state.result)) {
             loadingData->pasteData->pasteInfo.total = linked_list_size(&loadingData->pasteData->contents);
             loadingData->pasteData->pasteInfo.processed = loadingData->pasteData->pasteInfo.total;
@@ -330,8 +372,8 @@ static void action_paste_contents_loading_update(ui_view* view, void* data, floa
     snprintf(text, PROGRESS_TEXT_MAX, "Fetching clipboard content list...");
 }
 
-// Pasting into the clipboard's own folder makes every destination its source, which open_dst deletes
-// before copying; a folder pasted into itself copies into the tree being read. Archive handles differ
+// Pasting into the clipboard's own folder makes every destination its source, which close_dst deletes
+// and replaces; a folder pasted into itself copies into the tree being read. Archive handles differ
 // per browser session, so only paths are compared.
 static const char* action_paste_contents_check_target(const file_info* target) {
     const char* srcPath = clipboard_get_path();

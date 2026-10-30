@@ -10,6 +10,8 @@ typedef struct ui_view_s ui_view;
 bool safety_is_system_title(u64 titleId);
 // NATIVE_FIRM for Old and New 3DS; installing it also writes the FIRM partitions.
 bool safety_is_native_firm(u64 titleId);
+// Ext data IDs carry no system bit; this lists the system's own non-shared ext data (HOME Menu).
+bool safety_is_system_ext_save_data(u64 extSaveDataId);
 
 bool safety_allowed();
 // UI thread: true while unlocked; otherwise shows "<what> is locked." and returns false.

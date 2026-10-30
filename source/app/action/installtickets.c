@@ -208,7 +208,10 @@ static void action_install_tickets_loading_update(ui_view* view, void* data, flo
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(loadingData->popData.state.result)) {
+        // B during the listing returns success with a partial list; never offer to install it.
+        if(loadingData->popData.state.cancelled) {
+            action_install_tickets_free_data(loadingData->installData);
+        } else if(R_SUCCEEDED(loadingData->popData.state.result)) {
             loadingData->installData->installInfo.total = linked_list_size(&loadingData->installData->contents);
             loadingData->installData->installInfo.processed = loadingData->installData->installInfo.total;
 

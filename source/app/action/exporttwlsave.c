@@ -12,7 +12,23 @@ typedef struct {
     title_info* title;
 
     data_op_data exportInfo;
+
+    // The export is written to partPath and renamed over path only once it is whole.
+    char path[FILE_PATH_MAX];
+    char partPath[FILE_PATH_MAX];
 } export_twl_save_data;
+
+static Result action_export_twl_save_delete_file(FS_Archive archive, const char* path) {
+    FS_Path* fsPath = fs_make_path_utf8(path);
+    if(fsPath == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    Result res = FSUSER_DeleteFile(archive, *fsPath);
+    fs_free_path_utf8(fsPath);
+
+    return res;
+}
 
 static void action_export_twl_save_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2) {
     task_draw_title_info(view, ((export_twl_save_data*) data)->title, x1, y1, x2, y2);
@@ -61,16 +77,18 @@ static Result action_export_twl_save_open_dst(void* data, u32 index, void* initi
             char gameName[0x10] = {'\0'};
             string_escape_file_name(gameName, exportData->title->productCode, sizeof(gameName));
 
-            char path[FILE_PATH_MAX];
-            snprintf(path, sizeof(path), "/fbi/save/%s.sav", gameName);
+            snprintf(exportData->path, sizeof(exportData->path), "/fbi/save/%s.sav", gameName);
+            snprintf(exportData->partPath, sizeof(exportData->partPath), "/fbi/save/%s.sav.part", gameName);
 
-            FS_Path* fsPath = fs_make_path_utf8(path);
+            FS_Path* fsPath = fs_make_path_utf8(exportData->partPath);
             if(fsPath != NULL) {
-                // An older, larger export of the same game would otherwise keep its tail.
+                // A part file left by an earlier cut export would otherwise keep its tail.
                 if(R_SUCCEEDED(res = FSUSER_OpenFileDirectly(handle, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), *fsPath, FS_OPEN_WRITE | FS_OPEN_CREATE, 0))
                    && R_FAILED(res = FSFILE_SetSize(*handle, size))) {
                     FSFILE_Close(*handle);
                     *handle = 0; // dataop closes a nonzero handle again
+
+                    action_export_twl_save_delete_file(sdmcArchive, exportData->partPath);
                 }
 
                 fs_free_path_utf8(fsPath);
@@ -86,7 +104,38 @@ static Result action_export_twl_save_open_dst(void* data, u32 index, void* initi
 }
 
 static Result action_export_twl_save_close_dst(void* data, u32 index, bool succeeded, u32 handle) {
-    return FSFILE_Close(handle);
+    export_twl_save_data* exportData = (export_twl_save_data*) data;
+
+    Result res = FSFILE_Close(handle);
+
+    FS_Archive sdmcArchive = 0;
+    Result archiveRes = FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""));
+    if(R_FAILED(archiveRes)) {
+        return R_SUCCEEDED(res) ? archiveRes : res;
+    }
+
+    if(!succeeded || R_FAILED(res)) {
+        action_export_twl_save_delete_file(sdmcArchive, exportData->partPath);
+    } else {
+        // The previous export goes only now; a failed rename keeps the part file, the only copy left.
+        action_export_twl_save_delete_file(sdmcArchive, exportData->path);
+
+        res = R_APP_OUT_OF_MEMORY;
+
+        FS_Path* fromPath = fs_make_path_utf8(exportData->partPath);
+        if(fromPath != NULL) {
+            FS_Path* toPath = fs_make_path_utf8(exportData->path);
+            if(toPath != NULL) {
+                res = FSUSER_RenameFile(sdmcArchive, *fromPath, sdmcArchive, *toPath);
+                fs_free_path_utf8(toPath);
+            }
+
+            fs_free_path_utf8(fromPath);
+        }
+    }
+
+    FSUSER_CloseArchive(sdmcArchive);
+    return res;
 }
 
 static Result action_export_twl_save_write_dst(void* data, u32 handle, u32* bytesWritten, void* buffer, u64 offset, u32 size) {

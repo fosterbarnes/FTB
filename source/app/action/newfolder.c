@@ -42,6 +42,8 @@ static void action_new_folder_onresponse(ui_view* view, void* data, SwkbdButton 
         }
 
         if(R_SUCCEEDED(res)) {
+            FSUSER_ControlArchive(parentDir->archive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0);
+
             list_item* folderItem = NULL;
             if(R_SUCCEEDED(task_create_file_item(&folderItem, parentDir->archive, path, FS_ATTRIBUTE_DIRECTORY, true))) {
                 linked_list_add(newFolderData->items, folderItem);

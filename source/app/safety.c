@@ -17,6 +17,20 @@ bool safety_is_native_firm(u64 titleId) {
     return (titleId >> 32) == 0x00040138 && (titleId & 0x0FFFFFFF) == 0x2;
 }
 
+bool safety_is_system_ext_save_data(u64 extSaveDataId) {
+    // HOME Menu for JPN, USA, EUR, CHN, KOR, TWN (3dbrew Extdata, Title list): each is the unique ID
+    // of that region's HOME Menu title (0004003000008202 = 0x82).
+    static const u64 ids[] = {0x82, 0x8F, 0x98, 0xA1, 0xA9, 0xB1};
+
+    for(u32 i = 0; i < sizeof(ids) / sizeof(ids[0]); i++) {
+        if(extSaveDataId == ids[i]) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool safety_allowed() {
     return settings_get()->systemChanges;
 }

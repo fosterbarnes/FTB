@@ -59,6 +59,8 @@ static void action_rename_onresponse(ui_view* view, void* data, SwkbdButton butt
         }
 
         if(R_SUCCEEDED(res)) {
+            FSUSER_ControlArchive(targetInfo->archive, ARCHIVE_ACTION_COMMIT_SAVE_DATA, NULL, 0, NULL, 0);
+
             if(!targetInfo->isBase) {
                 string_copy(selected->name, fileName, LIST_ITEM_NAME_MAX);
             }

@@ -29,7 +29,7 @@ Result cia_install_begin(cia_install* install, void* block, u32 blockSize, void*
     AM_TitleEntry installed;
     if(install->askInstalled && R_SUCCEEDED(AM_GetTitleInfo(dest, 1, &titleId, &installed))) {
         char version[16];
-        ui_format_version(version, sizeof(version), installed.version);
+        ui_format_version(version, sizeof(version), titleId, installed.version);
 
         // Reinstalling deletes the title first (below); whether its save data survives that is not
         // confirmed on hardware, hence "may".

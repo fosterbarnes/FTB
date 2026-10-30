@@ -23,8 +23,9 @@ typedef struct {
 static void kbd_update(ui_view* view, void* data, float bx1, float by1, float bx2, float by2) {
     kbd_data* kbdData = (kbd_data*) data;
 
+    // swkbdInputText keeps maxSize - 1 bytes plus the terminator: never offer more characters.
     SwkbdState swkbd;
-    swkbdInit(&swkbd, kbdData->type, 2, kbdData->maxSize < 65000 ? (int) kbdData->maxSize : 65000);
+    swkbdInit(&swkbd, kbdData->type, 2, kbdData->maxSize - 1 < 65000 ? (int) kbdData->maxSize - 1 : 65000);
     swkbdSetHintText(&swkbd, kbdData->hint);
     swkbdSetInitialText(&swkbd, kbdData->initialText);
     swkbdSetFeatures(&swkbd, kbdData->features);

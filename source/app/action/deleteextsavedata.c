@@ -53,6 +53,10 @@ void action_delete_ext_save_data(linked_list* items, list_item* selected) {
         return;
     }
 
+    if(safety_is_system_ext_save_data(((ext_save_data_info*) selected->data)->extSaveDataId) && !safety_check("Deleting HOME Menu ext save data")) {
+        return;
+    }
+
     delete_ext_save_data_data* data = (delete_ext_save_data_data*) calloc(1, sizeof(delete_ext_save_data_data));
     if(data == NULL) {
         error_display(NULL, NULL, "Failed to allocate delete ext save data data.");

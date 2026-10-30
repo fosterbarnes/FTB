@@ -229,16 +229,26 @@ static void prompt_wait_onresponse(ui_view* view, void* data, u32 response) {
     svcSignalEvent(waitData->answered);
 }
 
-bool prompt_wait_yes_no(const char* name, const char* text, u32 color, void* data, void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2)) {
+static bool prompt_wait(const char* name, const char* text, u32 color, bool yesNo, void* data, void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2)) {
     prompt_wait_data waitData = {.data = data, .drawTop = drawTop, .yes = false};
     if(R_FAILED(svcCreateEvent(&waitData.answered, RESET_ONESHOT))) {
         return false;
     }
 
-    if(prompt_display_yes_no(name, text, color, &waitData, prompt_wait_draw_top, prompt_wait_onresponse) != NULL) {
+    ui_view* view = yesNo ? prompt_display_yes_no(name, text, color, &waitData, prompt_wait_draw_top, prompt_wait_onresponse)
+                          : prompt_display_notify(name, text, color, &waitData, prompt_wait_draw_top, prompt_wait_onresponse);
+    if(view != NULL) {
         svcWaitSynchronization(waitData.answered, U64_MAX);
     }
 
     svcCloseHandle(waitData.answered);
     return waitData.yes;
+}
+
+bool prompt_wait_yes_no(const char* name, const char* text, u32 color, void* data, void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2)) {
+    return prompt_wait(name, text, color, true, data, drawTop);
+}
+
+void prompt_wait_notify(const char* name, const char* text, u32 color) {
+    prompt_wait(name, text, color, false, NULL, NULL);
 }

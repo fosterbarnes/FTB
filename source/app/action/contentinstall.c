@@ -157,8 +157,11 @@ Result content_install_begin(content_install* content, const char* fileName, con
         string_get_parent_path(dir, dest3dsx, FILE_PATH_MAX);
         string_copy(content->path, dest3dsx, FILE_PATH_MAX);
     } else {
+        // A URL's name can hold characters FAT does not allow (fs_make_3dsx_path's rule).
+        char baseName[FILE_NAME_MAX];
+        string_get_file_name(baseName, fileName, FILE_NAME_MAX);
         char name[FILE_NAME_MAX];
-        string_get_file_name(name, fileName, FILE_NAME_MAX);
+        string_escape_file_name(name, baseName, FILE_NAME_MAX);
 
         snprintf(dir, FILE_PATH_MAX, "/3ds/%s/", name);
         if(snprintf(content->path, FILE_PATH_MAX, "/3ds/%s/%s.%s", name, name, magic == CONTENT_MAGIC_3DSX ? "3dsx" : "smdh") >= FILE_PATH_MAX) {

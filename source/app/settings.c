@@ -62,7 +62,7 @@ const ftb_settings* settings_get() {
 }
 
 void settings_load() {
-    FILE* fd = fopen(SETTINGS_PATH, "r");
+    FILE* fd = fs_open_file_safe(SETTINGS_PATH, "r");
     if(fd == NULL) {
         return;
     }

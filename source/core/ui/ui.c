@@ -14,7 +14,7 @@
 #include "../../app/screenshot.h"
 #include "../../app/settings.h"
 
-#define MAX_UI_VIEWS 16
+#define MAX_UI_VIEWS 32
 
 static ui_view* ui_stack[MAX_UI_VIEWS];
 static int ui_stack_top = -1;
@@ -52,15 +52,11 @@ ui_view* ui_create() {
     ui_view* view = (ui_view*) calloc(1, sizeof(ui_view));
     if(view == NULL) {
         error_panic("Failed to allocate UI view.");
-        return NULL;
     }
 
     Result res = 0;
     if(R_FAILED(res = svcCreateEvent(&view->active, RESET_STICKY))) {
         error_panic("Failed to create view active event: 0x%08lX", res);
-
-        free(view);
-        return NULL;
     }
 
     view->buttonActivated = -1;
@@ -90,9 +86,9 @@ ui_view* ui_top() {
     return ui;
 }
 
-bool ui_push(ui_view* view) {
+void ui_push(ui_view* view) {
     if(view == NULL) {
-        return false;
+        return;
     }
 
     svcWaitSynchronization(ui_stack_mutex, U64_MAX);
@@ -106,7 +102,11 @@ bool ui_push(ui_view* view) {
 
     svcReleaseMutex(ui_stack_mutex);
 
-    return space;
+    // Callers treat the view as shown: a dropped one would leak, and a worker waiting on its
+    // answer would wait forever.
+    if(!space) {
+        error_panic("UI stack full (%d views).", MAX_UI_VIEWS);
+    }
 }
 
 void ui_pop() {

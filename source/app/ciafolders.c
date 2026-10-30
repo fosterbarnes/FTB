@@ -66,7 +66,7 @@ void ciafolders_load() {
     folderCount = 0;
     version++;
 
-    FILE* fd = fopen(CIA_FOLDERS_PATH, "r");
+    FILE* fd = fs_open_file_safe(CIA_FOLDERS_PATH, "r");
     if(fd == NULL) {
         return;
     }

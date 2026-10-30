@@ -416,7 +416,7 @@ static bool task_populate_titles_read_record(FILE* fd, title_record* record) {
 
 // Returns the cache file positioned at its first record, or NULL when it is missing or invalid.
 static FILE* task_populate_titles_open_cache(const char* path, u8 language) {
-    FILE* fd = fopen(path, "rb");
+    FILE* fd = fs_open_file_safe(path, "rb");
     if(fd == NULL) {
         return NULL;
     }
@@ -511,10 +511,12 @@ static Result task_populate_titles_add_cached(populate_titles_data* data, title_
     return res;
 }
 
-// Phase 2: loads every title the cache did not cover.
+// Phase 2: loads every title the cache did not cover. A title that cannot be read (AM has no info
+// for it, a card pulled mid-load) is left out and its error returned, but the rest still load; it
+// is never cached, so the next open tries it again.
 static Result task_populate_titles_add_missing(populate_titles_data* data, title_pass* pass) {
-    Result res = 0;
-    for(u32 i = 0; i < pass->count && R_SUCCEEDED(res); i++) {
+    Result firstError = 0;
+    for(u32 i = 0; i < pass->count; i++) {
         if(pass->states[i] & TITLE_STATE_LOADED) {
             continue;
         }
@@ -526,20 +528,22 @@ static Result task_populate_titles_add_missing(populate_titles_data* data, title
 
         const AM_TitleEntry* info = (pass->states[i] & TITLE_STATE_INFO) ? &pass->infos[i] : NULL;
         title_record* record = &pass->records[i];
-        res = (pass->twl || pass->twlCard) ? task_populate_titles_load_twl(pass->mediaType, pass->ids[i], info, record)
-                                           : task_populate_titles_load_ctr(pass->mediaType, pass->ids[i], info, record);
-        if(R_SUCCEEDED(res)) {
-            pass->states[i] |= TITLE_STATE_LOADED;
-            pass->changed |= info != NULL;
-            res = task_populate_titles_add_record(data, pass->mediaType, record);
+        Result res = (pass->twl || pass->twlCard) ? task_populate_titles_load_twl(pass->mediaType, pass->ids[i], info, record)
+                                                  : task_populate_titles_load_ctr(pass->mediaType, pass->ids[i], info, record);
+        if(R_FAILED(res)) {
+            firstError = R_SUCCEEDED(firstError) ? res : firstError;
+            continue;
+        }
+
+        pass->states[i] |= TITLE_STATE_LOADED;
+        pass->changed |= info != NULL;
+        if(R_FAILED(res = task_populate_titles_add_record(data, pass->mediaType, record))) {
+            pass->complete = false;
+            return res;
         }
     }
 
-    if(R_FAILED(res)) {
-        pass->complete = false;
-    }
-
-    return res;
+    return firstError;
 }
 
 typedef struct {
@@ -586,16 +590,20 @@ static Result task_populate_titles_thread(void* arg) {
     // Names come from the SMDH/banner entry for the system language, so it keys the cache.
     u8 language = language_system();
 
-    // List every pass first so the progress total is known before any title shows. A failing pass
-    // stops the passes after it, but the ones before it still finish.
+    // List every pass first so the progress total is known before any title shows. A pass that cannot
+    // be listed (a card pulled mid-list) is reported and left out, never cached; the others still load.
     Result res = 0;
-    u32 ready = 0;
-    while(ready < passCount && R_SUCCEEDED(res = task_populate_titles_prepare(data, &passes[ready]))) {
-        ready++;
+    for(u32 i = 0; i < passCount; i++) {
+        Result passRes = task_populate_titles_prepare(data, &passes[i]);
+        if(R_FAILED(passRes)) {
+            passes[i].count = 0;
+            passes[i].complete = false;
+            res = R_SUCCEEDED(res) ? passRes : res;
+        }
     }
 
     u32 total = 0;
-    for(u32 i = 0; i < ready; i++) {
+    for(u32 i = 0; i < passCount; i++) {
         total += passes[i].count;
     }
 
@@ -606,6 +614,7 @@ static Result task_populate_titles_thread(void* arg) {
         data->stage = TITLE_STAGE_CACHE;
     }
 
+    u32 ready = passCount;
     for(u32 i = 0; i < ready; i++) {
         Result cacheRes = task_populate_titles_add_cached(data, &passes[i], language);
         if(R_FAILED(cacheRes)) {
@@ -618,10 +627,10 @@ static Result task_populate_titles_thread(void* arg) {
     for(u32 i = 0; i < ready; i++) {
         data->stage = TITLE_STAGE_LOADING;
 
+        // A failing pass is reported once the list is done; the passes after it still load.
         Result passRes = task_populate_titles_add_missing(data, &passes[i]);
-        if(R_FAILED(passRes)) {
+        if(R_FAILED(passRes) && R_SUCCEEDED(res)) {
             res = passRes;
-            break;
         }
 
         if(data->cacheMode != TITLE_CACHE_OFF && passes[i].path != NULL && passes[i].complete && passes[i].changed) {

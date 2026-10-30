@@ -440,6 +440,10 @@ private:
 	/// \brief Whether emulating /dev/zero
 	bool m_devZero : 1;
 
+	/// \brief FTB: STOR opened an existing file without truncating; storeTransfer truncates it once
+	/// the data connection is up, so a failed connection keeps the old contents
+	bool m_truncate : 1;
+
 	/// \brief Abort a transfer
 	/// \param args_ Command arguments
 	void ABOR (char const *args_);

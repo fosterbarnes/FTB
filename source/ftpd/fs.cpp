@@ -99,6 +99,9 @@ std::string fs::printSize (std::uint64_t const size_)
 ///////////////////////////////////////////////////////////////////////////
 fs::File::~File ()
 {
+	// FTB: close first; members die in reverse order, so m_buffer (the setvbuf buffer) was freed
+	// before m_fp's fclose flushed through it when a session ended mid-upload
+	m_fp.reset ();
 	std::free (m_lineBuffer);
 }
 

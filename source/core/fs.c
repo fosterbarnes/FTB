@@ -135,12 +135,30 @@ bool fs_write_file_safe(const char* path, bool (*write)(FILE* fd, void* data), v
     written = fclose(fd) == 0 && written;
 
     // FS rename fails when the target exists, so the old file goes just before it.
-    if(!written || (remove(path) != 0 && errno != ENOENT) || rename(tempPath, path) != 0) {
+    if(!written || (remove(path) != 0 && errno != ENOENT)) {
         remove(tempPath);
         return false;
     }
 
-    return true;
+    // The old file is gone, so a failed rename keeps the temp file: fs_open_file_safe reads it.
+    return rename(tempPath, path) == 0;
+}
+
+FILE* fs_open_file_safe(const char* path, const char* mode) {
+    FILE* fd = fopen(path, mode);
+    if(fd != NULL || errno != ENOENT) {
+        return fd;
+    }
+
+    // fs_write_file_safe removes the old file only after the temp file is complete, so a temp file
+    // with no file beside it is the newest copy (the rename failed or power went out), unless the
+    // very first write was cut short; every reader skips lines or records it cannot parse.
+    char tempPath[FILE_PATH_MAX];
+    if(snprintf(tempPath, sizeof(tempPath), "%s.tmp", path) >= (int) sizeof(tempPath) || rename(tempPath, path) != 0) {
+        return NULL;
+    }
+
+    return fopen(path, mode);
 }
 
 FS_Path fs_make_path_binary(const void* data, u32 size) {

@@ -501,7 +501,8 @@ FtpSession::FtpSession (FtpConfig &config_, UniqueSocket commandSocket_)
       m_mlstModify (true),
       m_mlstPerm (true),
       m_mlstUnixMode (false),
-      m_devZero (false)
+      m_devZero (false),
+      m_truncate (false)
 {
 	{
 #ifndef __NDS__
@@ -715,7 +716,8 @@ bool FtpSession::poll (std::vector<UniqueFtpSession> const &sessions_)
 				if (!session->m_dataSocket && (i.revents & POLLOUT))
 					session->writeResponse ();
 
-				if (i.revents & (POLLIN | POLLPRI))
+				// FTB: writeResponse may have closed the command socket just above
+				if (session->m_commandSocket && (i.revents & (POLLIN | POLLPRI)))
 					session->readCommand (i.revents);
 
 				if (i.revents & (POLLERR | POLLHUP))
@@ -729,7 +731,8 @@ bool FtpSession::poll (std::vector<UniqueFtpSession> const &sessions_)
 				switch (session->m_state)
 				{
 				case State::COMMAND:
-					std::abort ();
+					// FTB: was std::abort (). A command handled above (ABOR then PASV in one read) can
+					// free the polled socket and reuse its address for a new one: a stale entry
 					break;
 
 				case State::DATA_CONNECT:
@@ -838,7 +841,8 @@ void FtpSession::setState (State const state_, bool const closePasv_, bool const
 			m_workItem.clear ();
 		}
 
-		m_devZero = false;
+		m_devZero  = false;
+		m_truncate = false;
 		m_file.close ();
 		m_dir.close ();
 		m_zStream.reset ();
@@ -1431,14 +1435,20 @@ void FtpSession::xferFile (char const *const args_, XferFileMode const mode_)
 		// marker has been set."
 		auto const append = mode_ == XferFileMode::APPE && !m_restartPosition.has_value ();
 
-		char const *mode = "wb"; // truncates
+		// FTB: STOR on an existing file opens "r+b" and truncates in storeTransfer, once the data
+		// connection is up; "wb" here emptied the file even when the connection then failed
+		char const *mode = "r+b"; // write at offset without truncation
 		if (append)
 			mode = "ab"; // append mode
-		else if (restartPosition != 0)
-			mode = "r+b"; // write at offset without truncation
 
 		// open file in write mode
-		if (!m_file.open (path.c_str (), mode))
+		bool opened = m_file.open (path.c_str (), mode);
+		if (opened)
+			m_truncate = !append && restartPosition == 0;
+		else if (errno == ENOENT && !append && restartPosition == 0)
+			opened = m_file.open (path.c_str (), "wb"); // new file: nothing to keep
+
+		if (!opened)
 		{
 			sendResponse ("450 %s\r\n", std::strerror (errno));
 			return;
@@ -2410,6 +2420,18 @@ bool FtpSession::retrieveTransfer ()
 
 bool FtpSession::storeTransfer ()
 {
+	// FTB: see m_truncate; the file is still at offset 0 with nothing written
+	if (m_truncate)
+	{
+		m_truncate = false;
+		if (::ftruncate (fileno (m_file), 0) != 0)
+		{
+			sendResponse ("426 %s\r\n", std::strerror (errno));
+			setState (State::COMMAND, true, true);
+			return false;
+		}
+	}
+
 	if (m_ascii && !m_asciiBuffer.empty ())
 	{
 		if (!m_devZero)

@@ -38,7 +38,8 @@ static void action_install_url_draw_top(ui_view* view, void* data, float x1, flo
 
     if(installData->drawTop != NULL) {
         installData->drawTop(view, installData->userData, x1, y1, x2, y2, installData->installInfo.processed);
-    } else if(installData->installInfo.processed == installData->installInfo.total) {
+    } else if(installData->installInfo.processed >= installData->installInfo.total) {
+        // >=: retrying the first URL wraps processed to 0xFFFFFFFF until the loop's ++.
         float urlY = y1 + 5;
         u32 index = 0;
         while(urlY < y2 && index < installData->installInfo.total) {
@@ -76,7 +77,7 @@ static Result action_install_url_open_dst(void* data, u32 index, void* initialRe
     installData->installInfo.stage = "Preparing";
 
     char fileName[FILE_NAME_MAX];
-    string_get_path_file(fileName, installData->urls[index], FILE_NAME_MAX);
+    string_get_url_file(fileName, installData->urls[index], FILE_NAME_MAX);
 
     return content_install_begin(&installData->content, fileName, installData->paths[index], initialReadBlock, initialReadSize, data,
                                  action_install_url_draw_top, handle);

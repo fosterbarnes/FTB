@@ -76,10 +76,13 @@ static void webtransfer_update_address(webtransfer_data* data) {
     }
 
     struct in_addr address = {.s_addr = ip};
+    char ipText[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &address, ipText, sizeof(ipText));
+
     if(port == 80) {
-        snprintf(data->url, sizeof(data->url), "http://%s/", inet_ntoa(address));
+        snprintf(data->url, sizeof(data->url), "http://%s/", ipText);
     } else {
-        snprintf(data->url, sizeof(data->url), "http://%s:%u/", inet_ntoa(address), port);
+        snprintf(data->url, sizeof(data->url), "http://%s:%u/", ipText, port);
     }
 
     if(data->qrTexture == 0) {

@@ -59,6 +59,10 @@ bool web_path_sensitive(const char* path);
 // the name breaks web_join_path's rules. The page computes the same name for its pre-check.
 bool web_url_file_name(char* out, size_t size, const char* url);
 
+// False when a JSON body nests arrays and objects deeper than maxDepth. jansson parses by recursion,
+// so a deep body could run the worker's stack out before its own limit (2048 levels) stops it.
+bool web_json_depth_ok(const char* body, size_t length, uint32_t maxDepth);
+
 // The Content-Disposition value that saves a download as name (UTF-8): an ASCII filename= for old
 // browsers and the exact name as filename*= (RFC 6266). False when it does not fit.
 bool web_content_disposition(char* out, size_t size, const char* name);

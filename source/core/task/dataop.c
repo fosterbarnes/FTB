@@ -278,7 +278,13 @@ static Result task_data_op_loop(data_op_data* data) {
 
         if(R_FAILED(res)) {
             if(res == R_APP_CANCELLED) {
-                prompt_display_notify("Failure", "Operation cancelled.", COLOR_TEXT, NULL, NULL, NULL);
+                // Waits until dismissed, like the error view below: if the op ended while the notice
+                // was on top, the progress view's finish (ui_pop, then destroy itself) would pop the
+                // notice and free a view still on the stack. Quitting answers no prompts.
+                if(!task_is_quit_all()) {
+                    prompt_wait_notify("Failure", "Operation cancelled.", COLOR_TEXT);
+                }
+
                 break;
             } else if(res != R_APP_SKIPPED) {
                 ui_view* errorView = NULL;

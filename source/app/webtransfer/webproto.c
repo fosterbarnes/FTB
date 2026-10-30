@@ -486,6 +486,31 @@ bool web_url_file_name(char* out, size_t size, const char* url) {
     return web_percent_decode(out, size, name, rest + end - name, false) && web_component_allowed(out, strlen(out));
 }
 
+bool web_json_depth_ok(const char* body, size_t length, uint32_t maxDepth) {
+    uint32_t depth = 0;
+    bool inString = false;
+    for(size_t i = 0; i < length; i++) {
+        char c = body[i];
+        if(inString) {
+            if(c == '\\') {
+                i++;
+            } else if(c == '"') {
+                inString = false;
+            }
+        } else if(c == '"') {
+            inString = true;
+        } else if(c == '[' || c == '{') {
+            if(++depth > maxDepth) {
+                return false;
+            }
+        } else if((c == ']' || c == '}') && depth > 0) {
+            depth--;
+        }
+    }
+
+    return true;
+}
+
 bool web_content_disposition(char* out, size_t size, const char* name) {
     static const char hex[] = "0123456789ABCDEF";
 

@@ -8,4 +8,6 @@ void string_append(char* out, size_t size, size_t* pos, const char* text);
 void string_get_file_name(char* out, const char* file, u32 size);
 void string_escape_file_name(char* out, const char* file, size_t size);
 void string_get_path_file(char* out, const char* path, u32 size);
+// string_get_path_file for a URL: the last path part, without the query or fragment.
+void string_get_url_file(char* out, const char* url, u32 size);
 void string_get_parent_path(char* out, const char* path, u32 size);

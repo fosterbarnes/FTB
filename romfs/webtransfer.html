@@ -587,17 +587,23 @@ async function sendLinks(install) {
     }
 }
 
-// Waits until the 3DS has answered the download that was just started. /status is answered only
-// between transfers, so a slow answer means the download ran. Null when the browser never asked.
-async function waitDownload(before, name, position) {
+// The id a download link carries, so /status answers for this download only (8 hex digits, the
+// server's token= rule).
+function downloadId() {
+    return Array.from(crypto.getRandomValues(new Uint8Array(4)), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+// Waits until the 3DS has answered the download with this id. /status is answered only between
+// transfers, so a slow answer means a download ran. Null when the browser never asked.
+async function waitDownload(id, name, position) {
     let idle = 0;
     let networkErrors = 0;
     for (;;) {
         const started = Date.now();
         try {
-            const status = await api("/status", undefined, "");
+            const status = await api("/status?token=" + id, undefined, "");
             networkErrors = 0;
-            if (status.downloads > before.downloads) return status;
+            if (status.done) return status;
         } catch (error) {
             if (!error.network) throw error;
             if (++networkErrors >= 3) throw error;
@@ -619,29 +625,28 @@ async function downloadFiles() {
     const lines = [];
     let failed = 0;
     try {
-        let status = await api("/status");
         for (let i = 0; i < picked.length; i++) {
             const name = picked[i].name;
             const position = "Downloading " + (i + 1) + " of " + picked.length;
             show(position + ": " + name, "");
+            const id = downloadId();
             const link = el("a");
-            link.href = "/file?path=" + encodeURIComponent(folderPath + name);
+            link.href = "/file?path=" + encodeURIComponent(folderPath + name) + "&token=" + id;
             link.download = name;
             document.body.append(link);
             link.click();
             link.remove();
 
-            const next = await waitDownload(status, name, position);
+            const next = await waitDownload(id, name, position);
             if (next === null) {
                 lines.push({text: "Not started: " + name, kind: "bad"});
                 showResults(lines);
                 return show("The browser did not start the download. Allow downloads from this page, then try again.", "bad");
             }
-            const ok = next.failed === status.failed;
+            const ok = next.ok;
             failed += ok ? 0 : 1;
             lines.push(ok ? {text: "Downloaded: " + folderPath + name, kind: "ok"} : {text: "Failed: " + folderPath + name + " (stopped on the 3DS or not found)", kind: "bad"});
             showResults(lines);
-            status = next;
         }
         show(failed === 0 ? "Done." : failed + " of " + picked.length + " not downloaded.", failed === 0 ? "ok" : "bad");
     } catch (error) {

@@ -94,6 +94,22 @@ void string_get_path_file(char* out, const char* path, u32 size) {
     }
 }
 
+void string_get_url_file(char* out, const char* url, u32 size) {
+    const char* end = url + strcspn(url, "?#");
+    while(end > url && end[-1] == '/') {
+        end--;
+    }
+
+    const char* start = end;
+    while(start > url && start[-1] != '/') {
+        start--;
+    }
+
+    u32 length = (u32) (end - start) < size - 1 ? (u32) (end - start) : size - 1;
+    memcpy(out, start, length);
+    out[length] = '\0';
+}
+
 void string_get_parent_path(char* out, const char* path, u32 size) {
     size_t pathLen = strlen(path);
 

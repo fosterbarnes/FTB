@@ -38,7 +38,8 @@ ui_view* ui_create();
 void ui_destroy(ui_view* view);
 
 ui_view* ui_top();
-bool ui_push(ui_view* view);
+// A full stack is fatal (error_panic), like running out of memory, so a pushed view is always shown.
+void ui_push(ui_view* view);
 void ui_pop();
 bool ui_update();
 

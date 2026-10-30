@@ -26,4 +26,5 @@
 #define R_APP_OUT_OF_MEMORY MAKERESULT(RL_FATAL, RS_OUTOFRESOURCE, RM_APPLICATION, RD_OUT_OF_MEMORY)
 #define R_APP_OUT_OF_RANGE MAKERESULT(RL_PERMANENT, RS_INVALIDARG, RM_APPLICATION, RD_OUT_OF_RANGE)
 
-void error_panic(const char* s, ...);
+// Shows a fatal error screen, waits for a key, then exits the app.
+void error_panic(const char* s, ...) __attribute__((noreturn));

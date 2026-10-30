@@ -21,8 +21,11 @@ Result fs_read_dir(FS_Archive archive, const char* path, FS_DirectoryEntry** ent
 // Replaces a stdio file through "<path>.tmp", so a crash or power loss mid-write never leaves a
 // cut-off file: write fills fd and returns false on failure; the old file is replaced only after a
 // complete write. False when anything failed (the old file then stays, except when the final rename
-// fails).
+// fails: the new copy then stays as "<path>.tmp").
 bool fs_write_file_safe(const char* path, bool (*write)(FILE* fd, void* data), void* data);
+// fopen for files written by fs_write_file_safe: when path is missing, a leftover "<path>.tmp" takes
+// its place first.
+FILE* fs_open_file_safe(const char* path, const char* mode);
 
 FS_Path fs_make_path_binary(const void* data, u32 size);
 FS_Path* fs_make_path_utf8(const char* path);

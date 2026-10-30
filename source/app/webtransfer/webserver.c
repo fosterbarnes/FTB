@@ -43,6 +43,8 @@
 #define WEB_BUFFER_SIZE (128 * 1024)
 #define WEB_DRAIN_SIZE (32 * 1024)
 #define WEB_BODY_MAX (256 * 1024) // JSON request bodies (offers, checks)
+#define WEB_BODY_DEPTH_MAX 8 // the page's bodies nest 2 deep
+#define WEB_DOWNLOADS_RECENT 16 // finished /file ids /status can still answer for
 #define WEB_FILES_MAX 1000
 #define WEB_LIST_MAX 4000
 #define WEB_FILE_SIZE_MAX 0xFFFFFFFFULL // FAT32
@@ -127,9 +129,13 @@ typedef struct {
     char remembered[WEB_REMEMBERED_MAX][WEB_DEVICE_KEY_LENGTH + 1];
     u32 rememberedCount;
 
-    // GET /file requests answered, and how many of them did not send the whole file (GET /status).
-    u32 downloads;
-    u32 downloadsFailed;
+    // Finished GET /file requests that carried the page's token= download id, oldest overwritten
+    // first (GET /status?token=). Ids keep browsers that download at once from reading each other's.
+    struct {
+        char token[WEB_TOKEN_LENGTH + 1];
+        bool sent;
+    } recent[WEB_DOWNLOADS_RECENT];
+    u32 recentNext;
 } webserver;
 
 // One accepted connection.
@@ -362,7 +368,7 @@ static bool webserver_is_remembered(const webserver* w, const char* key) {
 }
 
 static void webserver_load_devices(webserver* w) {
-    FILE* fd = fopen(PATHS_WEB_DEVICES, "r");
+    FILE* fd = fs_open_file_safe(PATHS_WEB_DEVICES, "r");
     if(fd == NULL) {
         return;
     }
@@ -505,7 +511,7 @@ static json_t* webserver_read_json(web_state* state, int fd, const web_request* 
     }
 
     json_t* root = NULL;
-    if(R_SUCCEEDED(webserver_io(state, fd, body, length, true, false))) {
+    if(R_SUCCEEDED(webserver_io(state, fd, body, length, true, false)) && web_json_depth_ok(body, length, WEB_BODY_DEPTH_MAX)) {
         json_error_t parseError;
         root = json_loadb(body, length, 0, &parseError);
     }
@@ -946,7 +952,7 @@ static Result webserver_open_dst(void* data, u32 index, void* initialReadBlock, 
 
     char fileName[FILE_NAME_MAX];
     if(job->kind == WEB_JOB_LINKS) {
-        string_get_path_file(fileName, job->urls[index], FILE_NAME_MAX);
+        string_get_url_file(fileName, job->urls[index], FILE_NAME_MAX);
     } else {
         string_copy(fileName, item->name, FILE_NAME_MAX);
     }
@@ -1089,11 +1095,17 @@ static Result webserver_run(web_state* state, web_job* job) {
 
     op->state.finished = true;
 
+    // Like webserver_ask: B with no job closes the screen, which then waits for this worker, so a job
+    // (and the install prompts it can raise) starts only while the screen is open.
     LightLock_Lock(&state->jobLock);
-    state->job = job;
+    bool open = !state->state.cancelled && !task_is_quit_all();
+    if(open) {
+        state->job = job;
+    }
+
     LightLock_Unlock(&state->jobLock);
 
-    Result res = task_data_op_run(op);
+    Result res = open ? task_data_op_run(op) : R_APP_CANCELLED;
 
     LightLock_Lock(&state->jobLock);
     state->job = NULL;
@@ -1569,6 +1581,36 @@ static void webserver_serve_check(web_state* state, int fd, const web_request* r
     json_decref(root);
 }
 
+static void webserver_note_download(webserver* w, const char* token, bool sent) {
+    if(token[0] == '\0') {
+        return; // a copied /file link carries no id
+    }
+
+    u32 slot = w->recentNext++ % WEB_DOWNLOADS_RECENT;
+    string_copy(w->recent[slot].token, token, sizeof(w->recent[slot].token));
+    w->recent[slot].sent = sent;
+}
+
+// GET /status?token=: {done, ok} for that download. Answered only between transfers, so the page can
+// wait here for its download to end.
+static void webserver_serve_status(webserver* w, int fd, const web_request* request) {
+    if(request->token[0] == '\0') {
+        webserver_respond_error(w->shared, fd, 400, "Missing token.");
+        return;
+    }
+
+    // Newest first: an id reused by chance answers with its latest download.
+    for(u32 i = 1; i <= WEB_DOWNLOADS_RECENT && i <= w->recentNext; i++) {
+        u32 slot = (w->recentNext - i) % WEB_DOWNLOADS_RECENT;
+        if(strcmp(w->recent[slot].token, request->token) == 0) {
+            webserver_respond_json(w->shared, fd, 200, json_pack("{s:b, s:b}", "done", 1, "ok", w->recent[slot].sent));
+            return;
+        }
+    }
+
+    webserver_respond_json(w->shared, fd, 200, json_pack("{s:b}", "done", 0));
+}
+
 static bool webserver_await_data(webserver* w, web_job* job, const char* token);
 
 // One HTTP request. waiting is the accepted files job whose /data is expected, or NULL. Returns true
@@ -1612,15 +1654,10 @@ static bool webserver_serve_web(webserver* w, const web_client* client, web_job*
                 webserver_serve_list(state, fd, &request);
                 break;
             case WEB_ROUTE_FILE:
-                w->downloads++;
-                if(!webserver_serve_file(state, client, &request)) {
-                    w->downloadsFailed++;
-                }
-
+                webserver_note_download(w, request.token, webserver_serve_file(state, client, &request));
                 break;
             case WEB_ROUTE_STATUS:
-                // Answered only between transfers, so the page can wait here for a download to end.
-                webserver_respond_json(state, fd, 200, json_pack("{s:i, s:i}", "downloads", (int) w->downloads, "failed", (int) w->downloadsFailed));
+                webserver_serve_status(w, fd, &request);
                 break;
             case WEB_ROUTE_CHECK:
                 webserver_serve_check(state, fd, &request);
@@ -1665,7 +1702,8 @@ static int webserver_accept(int listener, web_client* client) {
 
     client->socket = fd;
     client->address = address.sin_addr.s_addr;
-    string_copy(client->from, inet_ntoa(address.sin_addr), WEB_ADDRESS_MAX);
+    // inet_ntop, not inet_ntoa: inet_ntoa's static buffer is shared with the UI thread.
+    inet_ntop(AF_INET, &address.sin_addr, client->from, WEB_ADDRESS_MAX);
 
     int buffer = WEB_SOCKET_BUFFER;
     setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &buffer, sizeof(buffer));
@@ -1703,11 +1741,14 @@ static void webserver_redirect_https(webserver* w, int client) {
     web_state* state = w->shared;
 
     struct in_addr address = {.s_addr = state->ip};
+    char ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &address, ip, sizeof(ip));
+
     char location[32];
     if(state->webPort == WEB_PORT) {
-        snprintf(location, sizeof(location), "http://%s/", inet_ntoa(address));
+        snprintf(location, sizeof(location), "http://%s/", ip);
     } else {
-        snprintf(location, sizeof(location), "http://%s:%u/", inet_ntoa(address), state->webPort);
+        snprintf(location, sizeof(location), "http://%s:%u/", ip, state->webPort);
     }
 
     web_tls_redirect(w->tls, client, location, &state->state);

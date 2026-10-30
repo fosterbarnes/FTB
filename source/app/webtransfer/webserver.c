@@ -1245,7 +1245,15 @@ static void webserver_serve_list(web_state* state, int fd, const web_request* re
     }
 
     free(entries);
-    webserver_respond_json(state, fd, 200, list != NULL ? json_pack("{s:s, s:o}", "path", folder, "entries", list) : NULL);
+
+    // SD free space for the page's bottom bar; left out when FS cannot report it.
+    json_t* reply = list != NULL ? json_pack("{s:s, s:o}", "path", folder, "entries", list) : NULL;
+    FS_ArchiveResource resource = {0};
+    if(reply != NULL && R_SUCCEEDED(FSUSER_GetArchiveResource(&resource, SYSTEM_MEDIATYPE_SD))) {
+        json_object_set_new(reply, "free", json_integer((json_int_t) ((u64) resource.freeClusters * resource.clusterSize)));
+    }
+
+    webserver_respond_json(state, fd, 200, reply);
 }
 
 // GET /file?path=/3ds/a.cia: streams the file to the browser as a download. True when all of it went.

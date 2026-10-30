@@ -36,6 +36,7 @@ static list_item pending_titles = {.name = "Pending Titles", .color = COLOR_TEXT
 static list_item tickets = {.name = "Tickets", .color = COLOR_TEXT, .data = tickets_open};
 static list_item ext_save_data = {.name = "Ext Save Data", .color = COLOR_TEXT, .data = extsavedata_open};
 static list_item system_save_data = {.name = "System Save Data", .color = COLOR_TEXT, .data = systemsavedata_open};
+static list_item receive_urls = {.name = "Receive URLs over the network", .color = COLOR_TEXT, .data = receiveurls_open};
 
 static void mainmenu_draw_top(ui_view* view, void* data, float x1, float y1, float x2, float y2, list_item* selected) {
     u32 logoWidth;
@@ -97,6 +98,7 @@ static void mainmenu_legacy_update(ui_view* view, void* data, linked_list* items
         linked_list_add(items, &tickets);
         linked_list_add(items, &ext_save_data);
         linked_list_add(items, &system_save_data);
+        linked_list_add(items, &receive_urls);
     }
 }
 

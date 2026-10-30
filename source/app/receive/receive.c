@@ -118,29 +118,12 @@ static void receive_draw_idle(receive_data* data, float x1, float y1, float x2, 
         return;
     }
 
-    struct in_addr address = {.s_addr = data->shownIp};
-
-    char text[256];
-    size_t pos = 0;
-    text[0] = '\0';
-
-    char line[96];
+    char text[64];
     if(data->url[0] != '\0') {
-        snprintf(line, sizeof(line), "Browser: %s\n", data->url);
+        snprintf(text, sizeof(text), "Browser: %s", data->url);
     } else {
-        snprintf(line, sizeof(line), "Browser: ports 80 and 8080 in use\n");
+        snprintf(text, sizeof(text), "Browser: ports 80 and 8080 in use");
     }
-
-    string_append(text, sizeof(text), &pos, line);
-    string_append(text, sizeof(text), &pos, "PC: ftbsend.py <files or folders>\n");
-
-    if(data->shared.fbiListening) {
-        snprintf(line, sizeof(line), "FBI tools: %s, port 5000", inet_ntoa(address));
-    } else {
-        snprintf(line, sizeof(line), "FBI tools: port 5000 in use");
-    }
-
-    string_append(text, sizeof(text), &pos, line);
 
     float textX = x1 + RECEIVE_MARGIN;
     if(data->qrSize != 0) {

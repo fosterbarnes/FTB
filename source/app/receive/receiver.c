@@ -16,16 +16,16 @@
 
 #include "receiveproto.h"
 #include "receiver.h"
+#include "receivetls.h"
 #include "../resources.h"
 #include "../settings.h"
 #include "../action/action.h"
 #include "../action/contentinstall.h"
 #include "../../core/core.h"
 
-#define RECEIVE_FBI_PORT 5000
-#define RECEIVE_DISCOVERY_PORT 5000
 #define RECEIVE_WEB_PORT 80
 #define RECEIVE_WEB_FALLBACK_PORT 8080
+#define RECEIVE_TLS_PORT 443
 #define RECEIVE_BACKLOG 4
 
 #define RECEIVE_POLL_MS 100
@@ -43,7 +43,6 @@
 #define RECEIVE_OFFER_MAX (256 * 1024)
 #define RECEIVE_FILES_MAX 1000
 #define RECEIVE_FILE_SIZE_MAX 0xFFFFFFFFULL // FAT32
-#define RECEIVE_FBI_PAYLOAD_MAX (INSTALL_URLS_MAX * DOWNLOAD_URL_MAX)
 #define RECEIVE_ADDRESS_MAX 16
 #define RECEIVE_PREVIEW_MAX 8
 #define RECEIVE_NETWORK_GONE (-2)
@@ -93,9 +92,9 @@ struct receive_job_s {
 
 typedef struct {
     receive_state* shared;
-    int fbi;
     int web;
-    int udp;
+    int https; // redirects to the page; only open while the page is served
+    receive_tls* tls; // NULL when TLS failed to start
     char head[RECEIVE_HEAD_MAX];
 } receiver;
 
@@ -758,49 +757,6 @@ static void receiver_log_declined(receive_state* state, const receive_job* job) 
     receiver_log(state, COLOR_TEXT_DIM, "Declined: %lu %s from %s", job->count, job->links ? "links" : "files", job->from);
 }
 
-// FBI's protocol: a big-endian length, newline-separated URLs, then one byte back once they are done.
-static void receiver_serve_fbi(receiver* r, int client, const char* from) {
-    receive_state* state = r->shared;
-
-    u32 length = 0;
-    if(R_FAILED(receiver_io(state, client, &length, sizeof(length), true, false))) {
-        return;
-    }
-
-    length = ntohl(length);
-    if(length == 0 || length >= RECEIVE_FBI_PAYLOAD_MAX) {
-        receiver_log(state, COLOR_WARNING, "Rejected: %lu bytes of URLs from %s", length, from);
-        return;
-    }
-
-    char* text = (char*) calloc(length + 1, 1);
-    if(text == NULL) {
-        return;
-    }
-
-    receive_job* job = NULL;
-    if(R_SUCCEEDED(receiver_io(state, client, text, length, true, false))) {
-        job = receiver_links_job(state, from, text);
-    }
-
-    free(text);
-
-    if(job == NULL) {
-        return;
-    }
-
-    if(receiver_confirm(state, job)) {
-        receiver_report(state, job, receiver_run(state, job));
-    } else {
-        receiver_log_declined(state, job);
-    }
-
-    u8 ack = 0;
-    receiver_io(state, client, &ack, sizeof(ack), false, false);
-
-    receiver_free_job(job);
-}
-
 // Joins the offer's links into the newline text action_parse_urls reads.
 static char* receiver_links_text(json_t* links) {
     size_t count = json_array_size(links);
@@ -1039,21 +995,24 @@ static bool receiver_await_data(receiver* r, receive_job* job, const char* token
     return false;
 }
 
-static void receiver_answer_discovery(receiver* r) {
-    char message[16];
-    struct sockaddr_in address;
-    socklen_t addressLength = sizeof(address);
+// Browsers try https:// first for a bare typed address; this sends them to the page.
+static void receiver_redirect_https(receiver* r, int client) {
+    receive_state* state = r->shared;
 
-    int length = recvfrom(r->udp, message, sizeof(message), 0, (struct sockaddr*) &address, &addressLength);
-    if(length == 7 && memcmp(message, "ftbfind", 7) == 0 && r->shared->webPort != 0) {
-        char reply[16];
-        int replyLength = snprintf(reply, sizeof(reply), "ftbhere %u", r->shared->webPort);
-        sendto(r->udp, reply, replyLength, 0, (struct sockaddr*) &address, addressLength);
+    struct in_addr address = {.s_addr = state->ip};
+    char location[32];
+    if(state->webPort == RECEIVE_WEB_PORT) {
+        snprintf(location, sizeof(location), "http://%s/", inet_ntoa(address));
+    } else {
+        snprintf(location, sizeof(location), "http://%s:%u/", inet_ntoa(address), state->webPort);
     }
+
+    receive_tls_redirect(r->tls, client, location, &state->state);
+    receiver_close_client(state, client);
 }
 
-static int receiver_open_socket(int type, u16 port) {
-    int fd = socket(AF_INET, type, 0);
+static int receiver_open_listener(u16 port) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
     if(fd < 0) {
         return -1;
     }
@@ -1067,7 +1026,7 @@ static int receiver_open_socket(int type, u16 port) {
     address.sin_port = htons(port);
     address.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    if(bind(fd, (struct sockaddr*) &address, sizeof(address)) < 0 || (type == SOCK_STREAM && listen(fd, RECEIVE_BACKLOG) < 0)
+    if(bind(fd, (struct sockaddr*) &address, sizeof(address)) < 0 || listen(fd, RECEIVE_BACKLOG) < 0
        || fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK) < 0) {
         close(fd);
         return -1;
@@ -1084,32 +1043,35 @@ static void receiver_close_socket(int* fd) {
 }
 
 static void receiver_close_listeners(receiver* r) {
-    receiver_close_socket(&r->fbi);
     receiver_close_socket(&r->web);
-    receiver_close_socket(&r->udp);
+    receiver_close_socket(&r->https);
 
-    r->shared->fbiListening = false;
     r->shared->webPort = 0;
 }
 
 static void receiver_open_listeners(receiver* r) {
     u16 webPort = RECEIVE_WEB_PORT;
-    r->web = receiver_open_socket(SOCK_STREAM, webPort);
+    r->web = receiver_open_listener(webPort);
     if(r->web < 0) {
         webPort = RECEIVE_WEB_FALLBACK_PORT;
-        r->web = receiver_open_socket(SOCK_STREAM, webPort);
+        r->web = receiver_open_listener(webPort);
     }
 
-    r->fbi = receiver_open_socket(SOCK_STREAM, RECEIVE_FBI_PORT);
-    r->udp = receiver_open_socket(SOCK_DGRAM, RECEIVE_DISCOVERY_PORT);
+    if(r->web >= 0 && r->tls != NULL) {
+        r->https = receiver_open_listener(RECEIVE_TLS_PORT);
+    }
 
-    r->shared->fbiListening = r->fbi >= 0;
     r->shared->webPort = r->web >= 0 ? webPort : 0;
 }
 
 static Result receiver_thread(void* arg) {
     receiver* r = (receiver*) arg;
     receive_state* state = r->shared;
+
+    r->tls = receive_tls_create();
+    if(r->tls == NULL) {
+        receiver_log(state, COLOR_WARNING, "HTTPS redirect off: TLS failed to start");
+    }
 
     u64 lastIpCheck = 0;
     while(!task_is_cancelled(&state->state)) {
@@ -1123,15 +1085,15 @@ static Result receiver_thread(void* arg) {
                 state->ip = ip;
             }
 
-            if(ip != 0 && r->fbi < 0 && r->web < 0 && r->udp < 0) {
+            if(ip != 0 && r->web < 0 && r->https < 0) {
                 receiver_open_listeners(r);
             }
         }
 
-        struct pollfd fds[3];
+        struct pollfd fds[2];
         nfds_t count = 0;
-        int listeners[3] = {r->udp, r->fbi, r->web};
-        for(u32 i = 0; i < 3; i++) {
+        int listeners[2] = {r->web, r->https};
+        for(u32 i = 0; i < 2; i++) {
             if(listeners[i] >= 0) {
                 fds[count++] = (struct pollfd) {.fd = listeners[i], .events = POLLIN};
             }
@@ -1151,11 +1113,6 @@ static Result receiver_thread(void* arg) {
                 continue;
             }
 
-            if(fds[i].fd == r->udp) {
-                receiver_answer_discovery(r);
-                continue;
-            }
-
             char from[RECEIVE_ADDRESS_MAX];
             int client = receiver_accept(fds[i].fd, from);
             if(client == RECEIVE_NETWORK_GONE) {
@@ -1168,9 +1125,8 @@ static Result receiver_thread(void* arg) {
                 continue;
             }
 
-            if(fds[i].fd == r->fbi) {
-                receiver_serve_fbi(r, client, from);
-                receiver_close_client(state, client);
+            if(fds[i].fd == r->https) {
+                receiver_redirect_https(r, client);
             } else {
                 receiver_serve_web(r, client, from, NULL, NULL);
             }
@@ -1181,6 +1137,7 @@ static Result receiver_thread(void* arg) {
     }
 
     receiver_close_listeners(r);
+    receive_tls_free(r->tls);
     free(r);
 
     return 0;
@@ -1198,9 +1155,8 @@ Result receiver_start(receive_state* state) {
     }
 
     r->shared = state;
-    r->fbi = -1;
     r->web = -1;
-    r->udp = -1;
+    r->https = -1;
 
     Result res = task_start(&state->state, receiver_thread, r, 0x18, 1);
     if(R_FAILED(res)) {

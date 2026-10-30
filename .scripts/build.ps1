@@ -15,8 +15,10 @@ invokeMsys $checkTools 'Build tool check'
 
 if ($Clean) { invokeMsys 'make clean' 'make clean' }
 # Serial on purpose: buildtools/make_base does not order screen.c after its generated shader
-# header, so parallel clean builds race.
-invokeMsys 'make' 'make'
+# header, so parallel clean builds race. Homebrew never has Nintendo's NCCH key, so makerom's
+# "will not be encrypted" warning for FTB.3ds is expected and filtered out.
+invokeMsys ("set -o pipefail; make 2>&1 | { grep -v '^\[NCCH WARNING\] NCCH AES Key could not be " +
+    "loaded' || true; }") 'make'
 
 foreach ($asset in $publishAssets) {
     if (-not (Test-Path -LiteralPath $asset)) { throw "Missing build output: $asset" }

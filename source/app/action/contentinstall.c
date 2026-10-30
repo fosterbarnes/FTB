@@ -170,7 +170,11 @@ Result content_end(content_install* content, data_op_data* op, bool succeeded, u
     char partPath[FILE_PATH_MAX];
     const char* written = content->path;
     if(content->part) {
-        content_part_path(partPath, content->path); // fit was checked when it opened
+        // Fit was checked when it opened; checking again keeps -Wformat-truncation quiet.
+        if(!content_part_path(partPath, content->path)) {
+            return R_SUCCEEDED(res) ? R_APP_OUT_OF_RANGE : res;
+        }
+
         written = partPath;
     }
 

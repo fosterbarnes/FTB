@@ -1,6 +1,4 @@
 #!/bin/bash
 
-if [ $# -eq 0 ]; then
-    set -- .
-fi
-python3 "$(dirname "$0")/ftbsend.py" "$@"
+read -p "Type the IP address of your 3DS: " -e input
+python servefiles.py $input .

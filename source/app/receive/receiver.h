@@ -3,10 +3,10 @@
 #include "../../core/linkedlist.h"
 #include "../../core/task/dataop.h"
 
-// Receive's worker: listens for FBI's URL protocol (TCP 5000), the Receive page (HTTP on 80, or 8080
-// when 80 is taken), and ftbsend.py's discovery broadcast (UDP 5000). It serves one connection at a
-// time and runs each accepted batch on its own thread through the data op engine. The screen
-// (receive.c) only draws this state and asks for cancels.
+// Receive's worker: serves the Receive page (HTTP on 80, or 8080 when 80 is taken). It serves one
+// connection at a time and runs each accepted batch on its own thread through the data op engine.
+// The screen (receive.c) only draws this state and asks for cancels. FBI's port 5000 URL protocol is
+// the FBI Legacy screen (legacy/receiveurls.c).
 
 typedef struct receive_job_s receive_job;
 
@@ -16,7 +16,6 @@ typedef struct {
     // Written by the worker, read by the UI each frame.
     volatile u32 ip; // 0 while there is no network
     volatile u16 webPort; // 0 while the page is not served
-    volatile bool fbiListening;
 
     // The running batch: job is set while op runs and only changes under jobLock, so the UI may read
     // the job's sender and item names while it holds the lock. task_cancel(&op.state) stops the batch.

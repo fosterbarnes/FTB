@@ -141,9 +141,11 @@ bool fs::File::open (char const *const path_, char const *const mode_)
 	return true;
 }
 
-void fs::File::close ()
+bool fs::File::close ()
 {
-	m_fp.reset ();
+	// FTB: reset () dropped fclose's result, which is where a buffered write to a full SD fails
+	auto const fp = m_fp.release ();
+	return !fp || std::fclose (fp) == 0;
 }
 
 int fs::File::seek (std::int64_t const pos_, int const origin_)

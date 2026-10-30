@@ -30,10 +30,12 @@ static void action_rename_onresponse(ui_view* view, void* data, SwkbdButton butt
         string_get_parent_path(parentPath, targetInfo->path, FILE_PATH_MAX);
 
         char dstPath[FILE_PATH_MAX] = {'\0'};
-        if(targetInfo->attributes & FS_ATTRIBUTE_DIRECTORY) {
-            snprintf(dstPath, FILE_PATH_MAX, "%s%s/", parentPath, fileName);
-        } else {
-            snprintf(dstPath, FILE_PATH_MAX, "%s%s", parentPath, fileName);
+        bool isDir = (targetInfo->attributes & FS_ATTRIBUTE_DIRECTORY) != 0;
+        if(snprintf(dstPath, FILE_PATH_MAX, "%s%s%s", parentPath, fileName, isDir ? "/" : "") >= FILE_PATH_MAX) {
+            error_display_res(NULL, NULL, R_APP_OUT_OF_RANGE, "Failed to perform rename.");
+
+            free(renameData);
+            return;
         }
 
         FS_Path* srcFsPath = fs_make_path_utf8(targetInfo->path);

@@ -413,6 +413,30 @@ bool webserver_forget_devices() {
     return remove(PATHS_WEB_DEVICES) == 0 || errno == ENOENT;
 }
 
+// Every worker prompt goes through here. B with no job running closes the screen, which then waits
+// for this worker; a prompt pushed after that could never be answered. The screen decides under
+// jobLock, so a prompt starts only while the screen is open, and the screen stays open until it ends.
+// False (no) when the screen is closing.
+static bool webserver_ask(web_state* state, const char* text, u32 color, void* data,
+                          void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2)) {
+    LightLock_Lock(&state->jobLock);
+    bool open = !state->state.cancelled && !task_is_quit_all();
+    state->prompting = open;
+    LightLock_Unlock(&state->jobLock);
+
+    if(!open) {
+        return false;
+    }
+
+    bool yes = prompt_wait_yes_no("3DS Web Server", text, color, data, drawTop);
+
+    LightLock_Lock(&state->jobLock);
+    state->prompting = false;
+    LightLock_Unlock(&state->jobLock);
+
+    return yes;
+}
+
 // Unless the setting is "Allow all", a device's first API request asks on the 3DS (the request waits
 // on the prompt). With "Ask once", a browser that sent its device key is remembered after a yes.
 // True when the client may go on; otherwise it has been answered.
@@ -447,7 +471,7 @@ static bool webserver_check_device(webserver* w, const web_client* client, const
              "files %s.",
              client->from, remember ? "from now on" : "until this screen closes");
 
-    if(prompt_wait_yes_no("3DS Web Server", text, COLOR_TEXT, NULL, NULL)) {
+    if(webserver_ask(state, text, COLOR_TEXT, NULL, NULL)) {
         w->approved[w->approvedCount++] = client->address;
         if(!remember) {
             webserver_log(state, COLOR_TEXT, "Allowed: %s", client->from);
@@ -649,7 +673,10 @@ static int webserver_links_job(web_state* state, const char* from, json_t* root,
             goto fail;
         }
 
-        if((status = webserver_add_save(job, item, path, name, error, errorSize)) != 200) {
+        // A 200 kept in status would make a later failure return 200 with *out unset.
+        int added = webserver_add_save(job, item, path, name, error, errorSize);
+        if(added != 200) {
+            status = added;
             goto fail;
         }
     }
@@ -736,7 +763,9 @@ static int webserver_files_job(web_state* state, const char* from, json_t* root,
             continue;
         }
 
-        if((status = webserver_add_save(job, item, path, relative, error, errorSize)) != 200) {
+        int added = webserver_add_save(job, item, path, relative, error, errorSize);
+        if(added != 200) {
+            status = added;
             goto fail;
         }
 
@@ -827,7 +856,7 @@ static bool webserver_confirm(web_state* state, web_job* job) {
 
     string_append(text, sizeof(text), &pos, "\n\nAccept?");
 
-    return prompt_wait_yes_no("3DS Web Server", text, job->sensitive ? COLOR_WARNING : COLOR_TEXT, job, webserver_draw_preview);
+    return webserver_ask(state, text, job->sensitive ? COLOR_WARNING : COLOR_TEXT, job, webserver_draw_preview);
 }
 
 static Result webserver_is_src_directory(void* data, u32 index, bool* isDirectory) {

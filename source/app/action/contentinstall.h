@@ -20,10 +20,12 @@ typedef struct {
     ticket_install ticket;
     char path[FILE_PATH_MAX]; // CONTENT_FILE: the file being written
     bool part; // CONTENT_FILE: written to "<path>.part" and moved into place on success
+    bool copyOver; // part: copied over path instead of renamed (path may be the running 3DSX, held open by romfs)
 } content_install;
 
 // Picks the destination from the item's first block: CIA and ticket install into AM; 3DSX and SMDH are
-// saved to dest3dsx, or to /3ds/<name>/<name>.<ext> named after fileName when dest3dsx is empty.
+// saved to dest3dsx, or to /3ds/<name>/<name>.<ext> named after fileName when dest3dsx is empty,
+// through "<path>.part", so a cut download leaves the old file untouched.
 // Anything else is R_APP_BAD_DATA; R_APP_SKIPPED when a prompt is declined.
 Result content_install_begin(content_install* content, const char* fileName, const char* dest3dsx, void* block, u32 blockSize, void* data,
                              void (*drawTop)(ui_view* view, void* data, float x1, float y1, float x2, float y2), u32* handle);

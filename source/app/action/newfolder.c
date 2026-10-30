@@ -25,7 +25,12 @@ static void action_new_folder_onresponse(ui_view* view, void* data, SwkbdButton 
         string_escape_file_name(fileName, response, sizeof(fileName));
 
         char path[FILE_PATH_MAX] = {'\0'};
-        snprintf(path, FILE_PATH_MAX, "%s%s", parentDir->path, fileName);
+        if(snprintf(path, FILE_PATH_MAX, "%s%s", parentDir->path, fileName) >= FILE_PATH_MAX) {
+            error_display_res(NULL, NULL, R_APP_OUT_OF_RANGE, "Failed to create folder.");
+
+            free(newFolderData);
+            return;
+        }
 
         FS_Path* fsPath = fs_make_path_utf8(path);
         if(fsPath != NULL) {

@@ -23,6 +23,9 @@ typedef struct {
     LightLock jobLock;
     web_job* job;
     data_op_data op;
+    // Under jobLock: the worker shows or is about to show a prompt. The screen closes only while this
+    // is false and no job runs, and cancels state under the same lock, so no prompt starts after.
+    bool prompting;
 
     // Log rows (calloc'd list_item) for the UI, oldest first; add and take only under logLock.
     LightLock logLock;

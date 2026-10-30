@@ -28,7 +28,8 @@
 #include "platform.h"
 #include "socket.h"
 
-#if __has_include(<glob.h>)
+// FTB: off on 3DS; NLST globbing chdir()s the whole process and skips resolvePath
+#if __has_include(<glob.h>) && !defined(__3DS__)
 #include <glob.h>
 #define FTPD_HAS_GLOB 1
 #else

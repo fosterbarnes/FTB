@@ -469,8 +469,18 @@ static Result task_populate_titles_add_cached(populate_titles_data* data, title_
         }
 
         while(have && old->titleId < pass->ids[i]) {
+            if(task_is_cancelled(&data->state)) {
+                pass->complete = false;
+                have = false;
+                break;
+            }
+
             pass->changed = true;
+            u64 previousId = old->titleId;
             have = task_populate_titles_read_record(fd, old);
+            if(have && old->titleId <= previousId) {
+                have = false;
+            }
         }
 
         if(!have || old->titleId != pass->ids[i]) {
@@ -484,7 +494,12 @@ static Result task_populate_titles_add_cached(populate_titles_data* data, title_
             res = task_populate_titles_add_record(data, pass->mediaType, &pass->records[i]);
         }
 
+        u64 previousId = old->titleId;
         have = task_populate_titles_read_record(fd, old);
+        if(have && old->titleId <= previousId) {
+            pass->changed = true;
+            have = false;
+        }
     }
 
     if(have) {

@@ -23,16 +23,26 @@ static FILE* resources_open_file(const char* path) {
     }
 }
 
-static void resources_load_texture(u32 id, const char* name) {
-    FILE* fd = resources_open_file(name);
+static bool resources_load_texture_from(u32 id, const char* dir, const char* name) {
+    char path[FILE_PATH_MAX];
+    snprintf(path, sizeof(path), "%s%s", dir, name);
+
+    FILE* fd = fopen(path, "rb");
     if(fd == NULL) {
-        error_panic("Failed to open texture \"%s\": %s\n", name, strerror(errno));
-        return;
+        return false;
     }
 
-    screen_load_texture_file(id, fd, true);
+    bool loaded = screen_load_texture_file(id, fd, true);
 
     fclose(fd);
+    return loaded;
+}
+
+// A missing or corrupt theme PNG falls back to the built-in art instead of panicking on every launch.
+static void resources_load_texture(u32 id, const char* name) {
+    if(!resources_load_texture_from(id, PATHS_THEME_DIR, name) && !resources_load_texture_from(id, "romfs:/", name)) {
+        error_panic("Failed to load texture \"%s\".\n", name);
+    }
 }
 
 // textcolor.cfg keys (matched case-insensitively). Names are the theme contract: never rename.

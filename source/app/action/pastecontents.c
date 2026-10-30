@@ -1,6 +1,7 @@
 #include <malloc.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 
 #include <3ds.h>
 
@@ -304,7 +305,10 @@ static void action_paste_contents_loading_update(ui_view* view, void* data, floa
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(loadingData->popData.state.result)) {
+        // B during the listing returns success with a partial list; never offer to paste it.
+        if(loadingData->popData.state.cancelled) {
+            action_paste_contents_free_data(loadingData->pasteData);
+        } else if(R_SUCCEEDED(loadingData->popData.state.result)) {
             loadingData->pasteData->pasteInfo.total = linked_list_size(&loadingData->pasteData->contents);
             loadingData->pasteData->pasteInfo.processed = loadingData->pasteData->pasteInfo.total;
 
@@ -326,9 +330,47 @@ static void action_paste_contents_loading_update(ui_view* view, void* data, floa
     snprintf(text, PROGRESS_TEXT_MAX, "Fetching clipboard content list...");
 }
 
+// Pasting into the clipboard's own folder makes every destination its source, which open_dst deletes
+// before copying; a folder pasted into itself copies into the tree being read. Archive handles differ
+// per browser session, so only paths are compared.
+static const char* action_paste_contents_check_target(const file_info* target) {
+    const char* srcPath = clipboard_get_path();
+
+    char baseSrcPath[FILE_PATH_MAX];
+    if(clipboard_is_contents_only()) {
+        string_copy(baseSrcPath, srcPath, FILE_PATH_MAX);
+    } else {
+        string_get_parent_path(baseSrcPath, srcPath, FILE_PATH_MAX);
+    }
+
+    char baseDstPath[FILE_PATH_MAX];
+    if(target->attributes & FS_ATTRIBUTE_DIRECTORY) {
+        string_copy(baseDstPath, target->path, FILE_PATH_MAX);
+    } else {
+        string_get_parent_path(baseDstPath, target->path, FILE_PATH_MAX);
+    }
+
+    if(strcasecmp(baseDstPath, baseSrcPath) == 0) {
+        return "Cannot paste into the folder it was copied from.";
+    }
+
+    size_t srcLen = strlen(srcPath);
+    if(srcLen > 0 && srcPath[srcLen - 1] == '/' && strncasecmp(baseDstPath, srcPath, srcLen) == 0) {
+        return "Cannot paste a folder into itself.";
+    }
+
+    return NULL;
+}
+
 void action_paste_contents(linked_list* items, list_item* selected) {
     if(!clipboard_has_contents()) {
         prompt_display_notify("Failure", "Clipboard empty.", COLOR_TEXT, NULL, NULL, NULL);
+        return;
+    }
+
+    const char* refusal = action_paste_contents_check_target((file_info*) selected->data);
+    if(refusal != NULL) {
+        prompt_display_notify("Failure", refusal, COLOR_TEXT, NULL, NULL, NULL);
         return;
     }
 

@@ -16,10 +16,10 @@
 <table border="0">
 <tbody>
 <tr>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.51/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.51/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.51/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
-<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.51/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.52/FTB.cia"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/cia.svg" width="180" height="auto" alt="FTB.cia"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.52/FTB.3dsx"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3dsx.svg" width="180" height="auto" alt="FTB.3dsx"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.52/FTB.3ds"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/3ds.svg" width="180" height="auto" alt="FTB.3ds"/></a></td>
+<td valign="top"><a href="https://github.com/fosterbarnes/FTB/releases/download/v0.0.52/FTB.zip"><img src="https://raw.githubusercontent.com/fosterbarnes/res/main/btn/zip.svg" width="180" height="auto" alt="FTB.zip"/></a></td>
 </tr>
 </tbody>
 </table>
@@ -27,16 +27,14 @@
 
 ## Features
 
-- **[CIA Installer](https://github.com/fosterbarnes/FTB/wiki/CIA-Installer):** Quickly scans given folder(s) for .cia files. Faster than manually browsing to your .cia files under the old 'SD' menu.
-- **[Title Manager](https://github.com/fosterbarnes/FTB/wiki/Title-Manager):** All new layouts and UI. Icon grid, list, or icon list. Sorting options, section jumps, and a title cache that makes opening the full list pretty quick.
-- **[FTP Server](https://github.com/fosterbarnes/FTB/wiki/FTP-Server):** Easily transfer files to and from the SD card without leaving the app.
-- **[3DS Web Server](https://github.com/fosterbarnes/FTB/wiki/3DS-Web-Server):** Send links, CIAs, and any other files from a phone or PC browser (scan the QR code on screen), or download files from the SD card to it. CIAs install straight from the network.
-- **[Remote Install](https://github.com/fosterbarnes/FTB/wiki/Remote-Install):** Install from a URL or a QR code. (Same as OG FBI at the moment)
-- **[Themes](https://github.com/fosterbarnes/FTB/wiki/Theming):** Dark by default; FBI themes are supported.
-- **[In-app updates](https://github.com/fosterbarnes/FTB/wiki/Install#updating)** Easily update ftb from inside the app. Auto installs and re-launches.
+- **[CIA Installer](https://github.com/fosterbarnes/ftb/wiki/CIA-Installer):** Quickly scans given folder(s) for .cia files then presents them all in one list. Configure the folder(s) to scan once, then quickly jump in and install something next time.
+- **[Title Manager](https://github.com/fosterbarnes/ftb/wiki/Title-Manager):** All new layouts and UI. Icon grid, list, or icon list. Sorting options, section jumps, and a title cache that makes opening the full list pretty quick.
+- **[FTP Server](https://github.com/fosterbarnes/ftb/wiki/FTP-Server):** Easily transfer files to and from the SD card without leaving the app.
+- **[3DS Web Server](https://github.com/fosterbarnes/ftb/wiki/3DS-Web-Server):** Send links, CIAs, and any other files to or from a phone or PC browser (scan the QR code on screen), or download files from the SD card to it. CIAs install straight from the network.
+- **[In-app updates](https://github.com/fosterbarnes/ftb/wiki/Install#updating)** Easily update ftb from inside the app. Auto installs and re-launches.
 
 Does not interfere or override any existing FBI installs. This project is in active development. Full docs are in the
-[wiki](https://github.com/fosterbarnes/FTB/wiki).
+[wiki](https://github.com/fosterbarnes/ftb/wiki).
 
 
 ## Screenshots
@@ -84,33 +82,29 @@ Does not interfere or override any existing FBI installs. This project is in act
   </tr>
 </table>
 
-## What is FTB?
+## What is ftb?
 
-FTB is an app for a modded Nintendo 3DS that installs and manages games and apps ("titles").
-It is a fork of [FBI](https://github.com/Steveice10/FBI), the long-time 3DS title manager by
-Steveice10. FBI is now an archive and no longer gets updates, so FTB picks up where it left off:
-a dark look, faster screens, and new ways to get files onto the console.
+An app for modded Nintendo 3DSs that installs and manages game and app titles.
+It's a fork of [FBI](https://github.com/Steveice10/FBI), the OG 3DS title manager by
+Steveice10. FBI is now an archive and no longer gets updates, so ftb picks up where it left off.
+Dark theme by default, attempted improved UI, and completely new features inspired by existing 3DS homebrew apps.
 
 ## How it works
 
-- FTB runs on a 3DS with [Luma3DS](https://github.com/LumaTeam/Luma3DS) custom firmware. It
-  installs as its own app, so it sits next to FBI instead of replacing it.
-- It uses the 3DS's own system services to install CIA files (the 3DS install package format),
-  list what is installed, and manage titles, tickets, and save data.
-- The Wi-Fi features run a small server on the console. FTP Server works with any FTP app on a PC.
-  3DS Web Server serves a web page that any phone or PC browser can open by scanning the QR code on
-  screen.
-- Anything that could damage the console, like deleting system titles or writing to NAND (the
-  console's internal storage), stays locked until you turn on System changes in Settings.
+- ftb runs on a 3DS with [Luma3DS](https://github.com/LumaTeam/Luma3DS) custom firmware. It installs as its own app, so it sits alongside FBI instead of replacing it.
+- It uses the 3DS's own system services to install CIA files (the 3DS install package format),list what is installed, and manage titles, tickets, and save data.
+- The 3DS Web Server serves a web page from your console that any phone or PC browser can open by scanning the QR code on
+  screen, or entering the link. It lets you browse files, upload/download files, and install CIAs.
+- The FTP Server works with any FTP app on a PC, like FileZilla. This menu has feature parity with FTPD.
+- Anything that could damage the console, like deleting system titles or writing to NAND (the console's internal storage), stays locked until you turn on System changes in Settings.
 
 ## What it's written in
 
-FTB wasn't rewritten in a new language. Like FBI, it's C, built with devkitPro and libctru (the
-standard 3DS homebrew toolchain). FBI's code was reorganized and extended, and new parts were added:
+ftb wasn't rewritten in a new language. Like FBI, it's C, built with devkitPro and libctru (the standard 3DS homebrew toolchain). FBI's code was reorganized and extended, and new parts were added:
 
 - **C:** the app itself: screens, installers, the title cache, and the 3DS Web Server server.
 - **C++:** the FTP server, ported from [ftpd](https://github.com/mtheall/ftpd) and trimmed to run
-  inside FTB.
+  inside ftb.
 - **HTML, CSS, JavaScript:** the 3DS Web Server page. It ships inside the app and is served to your
   browser.
 - **PowerShell and Python:** build, release, theme art, and 3D banner scripts. These run on a PC,
@@ -124,4 +118,4 @@ standard 3DS homebrew toolchain). FBI's code was reorganized and extended, and n
 - **FTP server:** [ftpd](https://github.com/mtheall/ftpd) by Michael Theall, Dave Murphy, and TuxSH (GPL v3)
 
 ## License
-FTB binaries are GPL v3. See `LICENSE.txt`.
+ftb binaries are GPL v3. See `LICENSE.txt`.

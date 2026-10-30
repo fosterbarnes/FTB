@@ -483,6 +483,8 @@ static void titlemanager_update(ui_view* view, void* data, linked_list* items, l
         tmData->sortDirty = tmData->loading;
         titlemanager_load_order(tmData);
         list_set_loading(view, tmData->loading);
+        selected = NULL;
+        selectedTouched = false;
         Result res = task_populate_titles(&tmData->populateData);
         if(R_FAILED(res)) {
             error_display_res(NULL, NULL, res, "Failed to initiate title list population.");

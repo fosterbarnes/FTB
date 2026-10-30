@@ -12,7 +12,11 @@ Blender (newest install under Program Files) exports COMMON and its children to 
 %LOCALAPPDATA%\\pycgfx) converts it. Then the CGFX gets the fixes from Epic0522/ClouDS-Music-FA's
 hardware-tested banner converter: every mesh names its bone, no skinning data may remain, and
 materials are made matte (pycgfx's PBR specular washes models out under HOME's light). Textures are
-RGB565 instead of pycgfx's RGBA4 (opaque model, smoother shading).
+RGB565 instead of pycgfx's RGBA4 (opaque model, smoother shading). Materials are converted
+single-sided whatever Blender's Backface Culling says: pycgfx draws a double-sided material by
+duplicating every vertex. The double-sided v0.0.51 banner froze HOME Menu on hardware; single-sided
+output matches the older working banner's conversion path. This is a candidate fix until tested
+on hardware, not proof that double-sided geometry caused the freeze.
 """
 import os
 import re
@@ -61,6 +65,12 @@ def exportScene(blendPath, gltfPath):
                             capture_output=True, text=True)
     if result.returncode != 0 or not gltfPath.is_file():
         sys.exit(f'Blender glTF export failed ({result.returncode}):\n{result.stdout}\n{result.stderr}')
+
+
+def makeSingleSided(gltf):
+    """Blender exports doubleSided unless a material has Backface Culling on; see the docstring."""
+    for material in gltf.model.materials or []:
+        material.doubleSided = False
 
 
 def bindMeshes(model):
@@ -125,7 +135,9 @@ def main():
     with tempfile.TemporaryDirectory() as folder:
         gltfPath = Path(folder) / 'banner.gltf'
         exportScene(blendPath, gltfPath)
-        cgfx = pycgfx.convert_gltf(gltflib.GLTF.load(str(gltfPath), load_file_resources=True))
+        gltf = gltflib.GLTF.load(str(gltfPath), load_file_resources=True)
+        makeSingleSided(gltf)
+        cgfx = pycgfx.convert_gltf(gltf)
 
     model = cgfx.data.models['COMMON']
     bindMeshes(model)

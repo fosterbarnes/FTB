@@ -100,6 +100,12 @@ static Result task_populate_cias_walk(populate_cias_data* data, const char* root
         linked_list_remove_at(&dirs, tail);
 
         res = task_populate_cias_read_dir(data, dir, &dirs, found, quit);
+
+        // An unreadable subfolder is skipped; the configured folder itself and out of memory still fail.
+        if(R_FAILED(res) && res != R_APP_OUT_OF_MEMORY && strcmp(dir, root) != 0) {
+            res = 0;
+        }
+
         free(dir);
     }
 

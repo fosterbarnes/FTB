@@ -157,7 +157,10 @@ static void action_delete_loading_update(ui_view* view, void* data, float* progr
         ui_pop();
         info_destroy(view);
 
-        if(R_SUCCEEDED(loadingData->popData.state.result)) {
+        // B during the listing returns success with a partial list; never offer to delete it.
+        if(loadingData->popData.state.cancelled) {
+            action_delete_free_data(loadingData->deleteData);
+        } else if(R_SUCCEEDED(loadingData->popData.state.result)) {
             loadingData->deleteData->deleteInfo.total = linked_list_size(&loadingData->deleteData->contents);
             loadingData->deleteData->deleteInfo.processed = loadingData->deleteData->deleteInfo.total;
 

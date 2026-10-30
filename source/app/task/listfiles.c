@@ -128,7 +128,13 @@ static Result task_make_file_item(list_item** out, FS_Archive archive, const cha
 
                 size_t len = strlen(path);
                 if(len == 0 || path[len - 1] != '/') {
-                    snprintf(fileInfo->path, FILE_PATH_MAX, "%s/", path);
+                    // A cut path would name a different folder.
+                    if(snprintf(fileInfo->path, FILE_PATH_MAX, "%s/", path) >= FILE_PATH_MAX) {
+                        free(fileInfo);
+                        free(item);
+
+                        return R_APP_OUT_OF_RANGE;
+                    }
                 } else {
                     string_copy(fileInfo->path, path, FILE_PATH_MAX);
                 }
@@ -270,8 +276,13 @@ static Result task_populate_files_thread(void* arg) {
                         utf16_to_utf8((uint8_t*) name, entries[i].name, FILE_NAME_MAX - 1);
 
                         if(data->filter == NULL || data->filter(data->filterData, name, entries[i].attributes)) {
+                            // Entries whose path does not fit (with a folder's '/') are skipped: a cut
+                            // path could name a sibling.
+                            bool isDir = (entries[i].attributes & FS_ATTRIBUTE_DIRECTORY) != 0;
                             char path[FILE_PATH_MAX] = {'\0'};
-                            snprintf(path, FILE_PATH_MAX, "%s%s", curr->path, name);
+                            if(snprintf(path, FILE_PATH_MAX, "%s%s%s", curr->path, name, isDir ? "/" : "") >= FILE_PATH_MAX) {
+                                continue;
+                            }
 
                             list_item* item = NULL;
                             if(R_SUCCEEDED(res = task_create_entry_item(&item, curr->archive, path, entries[i].attributes))) {

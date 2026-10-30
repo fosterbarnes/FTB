@@ -229,13 +229,17 @@ static void webtransfer_update(ui_view* view, void* data, linked_list* items, li
     if(hidKeysDown() & KEY_B) {
         LightLock_Lock(&transferData->shared.jobLock);
         bool running = transferData->shared.job != NULL;
+        bool closing = !running && !transferData->shared.prompting;
         if(running) {
             task_cancel(&transferData->shared.op.state);
+        } else if(closing) {
+            // Under the lock: the worker checks this before it starts a prompt (webserver_ask).
+            task_cancel(&transferData->shared.state);
         }
 
         LightLock_Unlock(&transferData->shared.jobLock);
 
-        if(!running) {
+        if(closing) {
             ui_pop();
             webtransfer_free(transferData, items);
             list_destroy(view);

@@ -866,6 +866,9 @@ void FtpSession::closePasv ()
 {
 	UniqueSocket pasv;
 	LOCKED (pasv = std::move (m_pasvSocket));
+
+	// FTB: m_pasv stayed true, so PASV, a failed LIST, then LIST polled a null m_pasvSocket
+	m_pasv = false;
 }
 
 void FtpSession::closeData ()
@@ -924,6 +927,17 @@ bool FtpSession::dataAccept ()
 	if (!m_dataSocket)
 	{
 		sendResponse ("425 Failed to establish connection\r\n");
+		setState (State::COMMAND, true, true);
+		return false;
+	}
+
+	// FTB: only the client itself may connect, like PORT; anyone else could take its transfer
+	// (the command socket can close earlier in the same poll pass)
+	if (!m_commandSocket ||
+	    static_cast<sockaddr_in const &> (m_dataSocket->peerName ()).sin_addr.s_addr !=
+	        static_cast<sockaddr_in const &> (m_commandSocket->peerName ()).sin_addr.s_addr)
+	{
+		sendResponse ("425 %s\r\n", std::strerror (EACCES));
 		setState (State::COMMAND, true, true);
 		return false;
 	}
@@ -1316,6 +1330,14 @@ int FtpSession::fillDirent (std::string const &path_, char const *type_)
 
 void FtpSession::xferFile (char const *const args_, XferFileMode const mode_)
 {
+	// FTB: checked first; it came after the open, so STOR without PORT/PASV still truncated the file
+	if (!m_port && !m_pasv)
+	{
+		sendResponse ("503 Bad sequence of commands\r\n");
+		setState (State::COMMAND, true, true);
+		return;
+	}
+
 	auto const restartPosition = m_restartPosition.value_or (0);
 
 	m_zFlushed = false;
@@ -1451,13 +1473,6 @@ void FtpSession::xferFile (char const *const args_, XferFileMode const mode_)
 		m_xferRate = -1.0f;
 	}
 
-	if (!m_port && !m_pasv)
-	{
-		sendResponse ("503 Bad sequence of commands\r\n");
-		setState (State::COMMAND, true, true);
-		return;
-	}
-
 	setState (State::DATA_CONNECT, false, true);
 
 	// setup connection
@@ -1494,7 +1509,7 @@ void FtpSession::xferDir (char const *const args_, XferDirMode const mode_, bool
 	m_zFlushed    = false;
 	m_eof         = false;
 
-	m_filePosition    = 0;
+	LOCKED (m_filePosition = 0); // FTB: status () reads it under the lock
 	m_zStreamPosition = 0;
 	m_xferBuffer.clear ();
 	m_zStreamBuffer.clear ();
@@ -1816,18 +1831,22 @@ void FtpSession::readCommand (int const events_)
 
 		*delim = '\0';
 		decodePath (buffer, delim - buffer);
-		if (::strncasecmp ("USER ", buffer, 5) == 0 || ::strncasecmp ("PASS ", buffer, 5) == 0)
-			command ("%.*s ******\n", 5, buffer);
-		else
-			command ("%s\n", buffer);
-
-		char const *const command = buffer;
 
 		char *args = buffer;
 		while (*args && !std::isspace (static_cast<unsigned char> (*args)))
 			++args;
 		if (*args)
 			*args++ = 0;
+
+		// FTB: masked by the parsed name; the "PASS " prefix check logged "PASS\t<password>"
+		if (compare (buffer, "USER") == 0 || compare (buffer, "PASS") == 0)
+			command ("%s ******\n", buffer);
+		else if (*args)
+			command ("%s %s\n", buffer, args);
+		else
+			command ("%s\n", buffer);
+
+		char const *const command = buffer;
 
 		auto const it = std::lower_bound (std::begin (handlers),
 		    std::end (handlers),
@@ -2232,9 +2251,9 @@ bool FtpSession::listTransfer ()
 	return true;
 }
 
+#if FTPD_HAS_GLOB
 bool FtpSession::globTransfer ()
 {
-#if FTPD_HAS_GLOB
 	// check if we sent all available data
 	if (m_xferBuffer.empty ())
 	{
@@ -2280,13 +2299,8 @@ bool FtpSession::globTransfer ()
 
 	// we can try to send more data
 	return true;
-#else
-	/// \todo error code?
-	sendResponse ("451 Glob unsupported\r\n");
-	setState (State::COMMAND, true, true);
-	return false;
-#endif
 }
+#endif
 
 bool FtpSession::retrieveTransfer ()
 {
@@ -2450,6 +2464,14 @@ bool FtpSession::storeTransfer ()
 			if (m_asciiBuffer.usedSize ())
 			{
 				sendResponse ("426 Invalid ASCII representation\r\n");
+				setState (State::COMMAND, true, true);
+				return false;
+			}
+
+			// FTB: the stdio buffer still holds the tail; a failed flush (SD full) is not a 226
+			if (!m_devZero && !m_file.close ())
+			{
+				sendResponse ("%d %s\r\n", errno == ENOSPC ? 452 : 451, std::strerror (errno));
 				setState (State::COMMAND, true, true);
 				return false;
 			}
@@ -2953,6 +2975,15 @@ void FtpSession::OPTS (char const *args_)
 
 	if (::strncasecmp (args_, "MODE Z", 6) == 0 && (args_[6] == '\0' || args_[6] == ' '))
 	{
+		// FTB: the level is the shared config, so it needs a login and the config lock
+		if (!authorized ())
+		{
+			sendResponse ("530 Not logged in\r\n");
+			return;
+		}
+
+		auto const lock = m_config.lockGuard ();
+
 		if (args_[6] == '\0')
 		{
 			m_config.setDeflateLevel (FtpConfig::DEFAULT_DEFLATE_LEVEL);

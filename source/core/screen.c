@@ -360,15 +360,19 @@ void screen_load_texture_path(u32 id, const char* path, bool linearFilter) {
         return;
     }
 
-    screen_load_texture_file(id, fd, linearFilter);
+    bool loaded = screen_load_texture_file(id, fd, linearFilter);
 
     fclose(fd);
+
+    if(!loaded) {
+        error_panic("Failed to load PNG file \"%s\".", path);
+    }
 }
 
-void screen_load_texture_file(u32 id, FILE* fd, bool linearFilter) {
+bool screen_load_texture_file(u32 id, FILE* fd, bool linearFilter) {
     if(id >= MAX_TEXTURES) {
         error_panic("Attempted to load file to invalid texture ID \"%lu\".", id);
-        return;
+        return false;
     }
 
     int width;
@@ -377,8 +381,7 @@ void screen_load_texture_file(u32 id, FILE* fd, bool linearFilter) {
     u8* image = stbi_load_from_file(fd, &width, &height, &depth, STBI_rgb_alpha);
 
     if(image == NULL) {
-        error_panic("Failed to load PNG file to texture ID \"%lu\".", id);
-        return;
+        return false;
     }
 
     for(u32 x = 0; x < width; x++) {
@@ -400,6 +403,7 @@ void screen_load_texture_file(u32 id, FILE* fd, bool linearFilter) {
     screen_load_texture_untiled(id, image, (u32) (width * height * 4), (u32) width, (u32) height, GPU_RGBA8, linearFilter);
 
     free(image);
+    return true;
 }
 
 void screen_unload_texture(u32 id) {

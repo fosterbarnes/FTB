@@ -114,7 +114,9 @@ static Result task_data_op_copy(data_op_data* data, u32 index) {
                             if(firstRun) {
                                 firstRun = false;
 
+                                // AM and FS write *handle even when they fail; a failed open leaves nothing to close.
                                 if(R_FAILED(res = data->openDst(data->data, index, buffer, bytesRead, data->currTotal, &dstHandle))) {
+                                    dstHandle = 0;
                                     break;
                                 }
 
@@ -174,6 +176,7 @@ static Result task_data_op_download_callback(void* userData, void* buffer, size_
 
         Result res = data->openDst(data->data, downloadData->index, buffer, size, data->currTotal, &downloadData->dstHandle);
         if(R_FAILED(res)) {
+            downloadData->dstHandle = 0; // see task_data_op_copy
             return res;
         }
 

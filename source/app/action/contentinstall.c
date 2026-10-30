@@ -1,3 +1,4 @@
+#include <malloc.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -8,6 +9,8 @@
 
 #define CONTENT_MAGIC_3DSX 0x58534433
 #define CONTENT_MAGIC_SMDH 0x48444D53
+
+#define CONTENT_COPY_SIZE (64 * 1024)
 
 static bool content_part_path(char* out, const char* path) {
     return snprintf(out, FILE_PATH_MAX, "%s.part", path) < FILE_PATH_MAX;
@@ -46,15 +49,78 @@ static Result content_ensure_parents(FS_Archive archive, const char* path) {
     return 0;
 }
 
-static Result content_open_file(const char* path, u32* handle) {
+static Result content_open_file(const char* path, u32 flags, u32* handle) {
     FS_Path* fsPath = fs_make_path_utf8(path);
     if(fsPath == NULL) {
         return R_APP_OUT_OF_MEMORY;
     }
 
-    Result res = FSUSER_OpenFileDirectly(handle, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), *fsPath, FS_OPEN_WRITE | FS_OPEN_CREATE, 0);
+    Result res = FSUSER_OpenFileDirectly(handle, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""), *fsPath, flags, 0);
     fs_free_path_utf8(fsPath);
 
+    return res;
+}
+
+static Result content_copy_handles(Handle src, Handle dst) {
+    u64 size = 0;
+    Result res = 0;
+    if(R_FAILED(res = FSFILE_GetSize(src, &size))) {
+        return res;
+    }
+
+    u8* buffer = (u8*) malloc(CONTENT_COPY_SIZE);
+    if(buffer == NULL) {
+        return R_APP_OUT_OF_MEMORY;
+    }
+
+    if(R_FAILED(res = FSFILE_SetSize(dst, size))) {
+        free(buffer);
+        return res;
+    }
+
+    for(u64 offset = 0; offset < size; offset += CONTENT_COPY_SIZE) {
+        u32 length = size - offset < CONTENT_COPY_SIZE ? (u32) (size - offset) : CONTENT_COPY_SIZE;
+
+        u32 bytesRead = 0;
+        if(R_FAILED(res = FSFILE_Read(src, &bytesRead, offset, buffer, length))) {
+            break;
+        }
+
+        u32 bytesWritten = 0;
+        if(bytesRead != length || (R_SUCCEEDED(res = FSFILE_Write(dst, &bytesWritten, offset, buffer, length, 0)) && bytesWritten != length)) {
+            res = R_APP_BAD_DATA;
+        }
+
+        if(R_FAILED(res)) {
+            break;
+        }
+    }
+
+    free(buffer);
+    return res;
+}
+
+// Copies the part file over path in place: path may be the running 3DSX, which romfs keeps open, so it
+// cannot be deleted or renamed over. Downloading finishes before this copy starts; an SD error during
+// the copy can still damage the destination, so the whole part file is kept on failure.
+static Result content_copy_over(const char* partPath, const char* path) {
+    Handle src = 0;
+    Result res = content_open_file(partPath, FS_OPEN_READ, &src);
+    if(R_FAILED(res)) {
+        return res;
+    }
+
+    Handle dst = 0;
+    if(R_SUCCEEDED(res = content_open_file(path, FS_OPEN_WRITE | FS_OPEN_CREATE, &dst))) {
+        res = content_copy_handles(src, dst);
+
+        Result closeRes = FSFILE_Close(dst);
+        if(R_SUCCEEDED(res)) {
+            res = closeRes;
+        }
+    }
+
+    FSFILE_Close(src);
     return res;
 }
 
@@ -63,6 +129,7 @@ Result content_install_begin(content_install* content, const char* fileName, con
     content->type = CONTENT_CIA;
     content->path[0] = '\0';
     content->part = false;
+    content->copyOver = false;
 
     // The magic checks below read 4 bytes.
     if(blockSize < sizeof(u32)) {
@@ -99,11 +166,20 @@ Result content_install_begin(content_install* content, const char* fileName, con
         }
     }
 
+    char partPath[FILE_PATH_MAX];
+    if(!content_part_path(partPath, content->path)) {
+        return R_APP_OUT_OF_RANGE;
+    }
+
+    content->part = true;
+    content->copyOver = true;
+
     FS_Archive sdmcArchive = 0;
     Result res = FSUSER_OpenArchive(&sdmcArchive, ARCHIVE_SDMC, fsMakePath(PATH_EMPTY, ""));
     if(R_SUCCEEDED(res)) {
         if(R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, "/3ds/")) && R_SUCCEEDED(res = fs_ensure_dir(sdmcArchive, dir))) {
-            res = content_open_file(content->path, handle);
+            content_delete_file(sdmcArchive, partPath); // an earlier cut download's part file
+            res = content_open_file(partPath, FS_OPEN_WRITE | FS_OPEN_CREATE, handle);
         }
 
         FSUSER_CloseArchive(sdmcArchive);
@@ -115,6 +191,7 @@ Result content_install_begin(content_install* content, const char* fileName, con
 Result content_save_begin(content_install* content, const char* path, bool replace, u32* handle) {
     content->type = CONTENT_FILE;
     content->part = true;
+    content->copyOver = false;
     string_copy(content->path, path, FILE_PATH_MAX);
 
     char partPath[FILE_PATH_MAX];
@@ -133,7 +210,7 @@ Result content_save_begin(content_install* content, const char* path, bool repla
     } else if(R_SUCCEEDED(res = content_ensure_parents(sdmcArchive, path))) {
         // A part file left by an earlier cut transfer would keep its old tail.
         content_delete_file(sdmcArchive, partPath);
-        res = content_open_file(partPath, handle);
+        res = content_open_file(partPath, FS_OPEN_WRITE | FS_OPEN_CREATE, handle);
     }
 
     FSUSER_CloseArchive(sdmcArchive);
@@ -170,6 +247,11 @@ Result content_end(content_install* content, data_op_data* op, bool succeeded, u
 
     if(!succeeded || R_FAILED(res)) {
         content_delete_file(sdmcArchive, written);
+    } else if(content->copyOver) {
+        // A failed copy keeps the part file: it may hold the only whole copy left.
+        if(R_SUCCEEDED(res = content_copy_over(partPath, content->path))) {
+            content_delete_file(sdmcArchive, partPath);
+        }
     } else if(content->part) {
         // Without replace the file did not exist when the save began, so this deletes nothing then.
         content_delete_file(sdmcArchive, content->path);

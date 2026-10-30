@@ -252,7 +252,8 @@ function linkName(link) {
 async function ciaInfo(file) {
     try {
         const head = new DataView(await file.slice(0, 0x20).arrayBuffer());
-        if (head.byteLength < 0x20) return null;
+        // Same test as the 3DS (header size 0x2020), which goes by content, not the file name.
+        if (head.byteLength < 0x20 || head.getUint16(0, true) !== 0x2020) return null;
         const align = n => Math.ceil(n / 64) * 64;
         const tmd = align(head.getUint32(0, true)) + align(head.getUint32(8, true)) + align(head.getUint32(12, true));
         const data = new DataView(await file.slice(tmd, tmd + 0x240 + 0xA0).arrayBuffer());
@@ -312,6 +313,19 @@ function sdList(box, pick, onChange) {
         const list = el("ul");
         const dirs = view.entries.filter(entry => entry.dir);
         const fileEntries = view.entries.filter(entry => !entry.dir);
+        let all;
+        const checks = [];
+        function updateSelection() {
+            for (const [check, li, name] of checks) {
+                check.checked = view.selected.has(name);
+                li.className = check.checked ? "on" : "";
+            }
+            if (all) {
+                all.checked = view.selected.size === fileEntries.length;
+                all.indeterminate = view.selected.size > 0 && !all.checked;
+            }
+            onChange(view);
+        }
         if (view.path !== "/") list.append(folderRow("..", () => go(view.path.replace(/[^/]*\/$/, ""))));
         if (view.error) list.append(el("li", "bad", view.error));
         else if (view.entries.length === 0) list.append(el("li", "muted", "Empty folder"));
@@ -319,13 +333,13 @@ function sdList(box, pick, onChange) {
         for (const entry of dirs) list.append(folderRow(entry.name + "/", () => go(view.path + entry.name + "/")));
 
         if (pick && fileEntries.length > 1) {
-            const all = el("input");
+            all = el("input");
             all.type = "checkbox";
             all.checked = view.selected.size === fileEntries.length;
             all.indeterminate = view.selected.size > 0 && !all.checked;
             all.addEventListener("change", () => {
                 view.selected = new Set(all.checked ? fileEntries.map(entry => entry.name) : []);
-                render();
+                updateSelection();
             });
             const label = el("label", "name muted");
             label.append(all, "Select all files");
@@ -343,12 +357,13 @@ function sdList(box, pick, onChange) {
                 check.addEventListener("change", () => {
                     if (check.checked) view.selected.add(entry.name);
                     else view.selected.delete(entry.name);
-                    render();
+                    updateSelection();
                 });
                 const label = el("label", "name");
                 label.append(check, el("span", "", entry.name));
                 li.className = check.checked ? "on" : "";
                 li.append(label);
+                checks.push([check, li, entry.name]);
             } else {
                 li.append(el("span", "name", entry.name));
             }
@@ -436,8 +451,7 @@ function finish(results, total, verb) {
 
 // Sends picked files ({file, path}) to the open SD folder. With install, CIA, ticket, and 3DSX files
 // install instead of saving there.
-async function sendFiles(picked, install) {
-    const dest = browser.path;
+async function sendFiles(picked, install, dest = browser.path) {
     let items = picked.map(item => ({file: item.file, path: item.path, size: item.file.size, install: install && installable(item.path)}));
     if (items.length === 0) return;
     const tooBig = items.find(item => item.size > FILE_MAX);
@@ -446,14 +460,19 @@ async function sendFiles(picked, install) {
     if (tooBig) return show(tooBig.path + " is over 4 GiB, which the SD card cannot hold.", "bad");
     if (tooSmall) return show(tooSmall.path + " is too small to install.", "bad");
 
+    const ownBusy = !busy;
     setBusy(true);
     showResults([]);
     $("status").hidden = false;
     try {
         // Ask about anything that would be replaced before a byte moves.
-        const cias = items.filter(item => item.install && item.path.toLowerCase().endsWith(".cia"));
-        for (const item of cias) item.cia = await ciaInfo(item.file);
-        const brews = items.filter(item => item.install && item.path.toLowerCase().endsWith(".3dsx"));
+        const cias = items.filter(item => item.install);
+        for (const item of cias) {
+            item.cia = await ciaInfo(item.file);
+            const magic = new DataView(await item.file.slice(0, 4).arrayBuffer());
+            item.homebrew = magic.byteLength === 4 && magic.getUint32(0, true) === 0x58534433;
+        }
+        const brews = items.filter(item => item.homebrew);
         const check = {
             dest,
             saves: items.filter(item => !item.install).map(item => item.path),
@@ -506,13 +525,17 @@ async function sendFiles(picked, install) {
         show(error.message, "bad");
     } finally {
         $("bar").hidden = true;
-        setBusy(false);
+        if (ownBusy) setBusy(false);
     }
 }
 
+// Per line: its http(s) links when it has any (links pasted among other text), else the whole line
+// (the 3DS takes links without a scheme too).
 function linksFrom(text) {
-    const tokens = text.split(/\s+/).filter(token => /^https?:\/\//i.test(token));
-    const links = tokens.length > 0 ? tokens : text.split(/\r?\n/).map(line => line.trim()).filter(line => line !== "");
+    const links = text.split(/\r?\n/).flatMap(line => {
+        const tokens = line.split(/\s+/).filter(token => /^https?:\/\//i.test(token));
+        return tokens.length > 0 ? tokens : [line.trim()];
+    }).filter(link => link !== "");
     return [...new Set(links)];
 }
 
@@ -568,13 +591,16 @@ async function sendLinks(install) {
 // between transfers, so a slow answer means the download ran. Null when the browser never asked.
 async function waitDownload(before, name, position) {
     let idle = 0;
+    let networkErrors = 0;
     for (;;) {
         const started = Date.now();
         try {
             const status = await api("/status", undefined, "");
+            networkErrors = 0;
             if (status.downloads > before.downloads) return status;
         } catch (error) {
             if (!error.network) throw error;
+            if (++networkErrors >= 3) throw error;
             await sleep(1000); // Firefox gives up on a response after 300 s; ask again
             continue;
         }
@@ -658,16 +684,20 @@ drop.addEventListener("drop", async event => {
     const entries = [...event.dataTransfer.items].map(item => item.webkitGetAsEntry && item.webkitGetAsEntry()).filter(Boolean);
     const files = [...event.dataTransfer.files];
     const picked = [];
+    const dest = browser.path;
+    setBusy(true);
     try {
         if (entries.length > 0) {
             for (const entry of entries) await walk(entry, picked);
         } else {
             for (const file of files) picked.push({file, path: file.name});
         }
+        await sendFiles(picked, false, dest);
     } catch (error) {
         return show("Could not read the dropped files: " + error.message, "bad");
+    } finally {
+        setBusy(false);
     }
-    if (!busy) sendFiles(picked, false);
 });
 
 $("saveLinks").addEventListener("click", () => { if (!busy) sendLinks(false); });

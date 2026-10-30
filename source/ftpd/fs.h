@@ -75,7 +75,8 @@ public:
 	bool open (char const *path_, char const *mode_ = "rb");
 
 	/// \brief Close file
-	void close ();
+	/// \returns false if the final flush or close failed (FTB)
+	bool close ();
 
 	/// \brief Seek to file position
 	/// \param pos_ File position

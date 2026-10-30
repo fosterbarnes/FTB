@@ -344,6 +344,10 @@ void FtpServer::loop ()
 			mdns::setHostname (m_config->hostname ());
 		}
 
+		// FTB: drop sessions like handleNetworkLost; they kept the login they were authorized with
+		std::vector<UniqueFtpSession> sessions;
+		LOCKED (sessions = std::move (m_sessions));
+
 		UniqueSocket socket;
 		LOCKED (socket = std::move (m_socket));
 	}

@@ -157,6 +157,10 @@ FS_Path* fs_make_path_utf8(const char* path) {
     }
 
     ssize_t utf16Len = utf8_to_utf16(utf16, (const uint8_t*) path, len);
+    if(utf16Len < 0) {
+        free(utf16);
+        return NULL;
+    }
 
     FS_Path* fsPath = (FS_Path*) calloc(1, sizeof(FS_Path));
     if(fsPath == NULL) {

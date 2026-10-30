@@ -199,8 +199,12 @@ bool FtpConfig::save (char const *const path_)
 	if (!mkdirParent (path_))
 		return false;
 
+	// FTB: written to <path>.tmp and swapped in like fs_write_file_safe (core/fs.c); the old
+	// in-place "wb" write left a truncated config when a write failed
+	auto const tmpPath = std::string (path_) + ".tmp";
+
 	auto fp = fs::File ();
-	if (!fp.open (path_, "wb"))
+	if (!fp.open (tmpPath.c_str (), "wb"))
 		return false;
 
 	if (!m_user.empty ())
@@ -223,6 +227,16 @@ bool FtpConfig::save (char const *const path_)
 	if (!m_passphrase.empty ())
 		(void)std::fprintf (fp, "passphrase=%s\n", m_passphrase.c_str ());
 #endif
+
+	// a failed fprintf sets the stream error flag; close () reports the final flush. FS rename
+	// fails when the target exists, so the old file goes just before it
+	auto const failed = std::ferror (fp) != 0;
+	if (!fp.close () || failed || (std::remove (path_) != 0 && errno != ENOENT) ||
+	    std::rename (tmpPath.c_str (), path_) != 0)
+	{
+		(void)std::remove (tmpPath.c_str ());
+		return false;
+	}
 
 	return true;
 }

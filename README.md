@@ -3,14 +3,16 @@
 [FBI](https://github.com/Steveice10/FBI) with added features. 3ds title manager, FTP server, and more.
 
 ## Download
+<div align="center">
 <table>
   <tr>
     <th>CIA QR Code (Remote Install)</th>
   </tr>
   <tr>
-    <td align="center"><img src="./.res/ciaQr.svg" width="230" vspace="15"></td>
+    <td align="center"><img src="./.res/ciaQr.svg" width="280" vspace="15"></td>
   </tr>
 </table>
+</div>
 
 <!-- Quick Reference -->
 <table border="0">

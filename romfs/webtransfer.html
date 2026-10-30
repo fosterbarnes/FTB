@@ -7,7 +7,7 @@
 <style>
 /* Tokens from ciaGoober theme/colors.xaml. */
 :root { --bg: #1B1B1B; --panel: #2A2A2A; --low: #222222; --hover: #404040; --pressed: #383838; --line: #3F3F3F; --lineStrong: #5E5E5E;
-        --accent: #765E98; --accentHover: #9373C0; --accentStrong: #523E6E; --focus: #AC98C7; --text: #FFFFFF; --dim: #B3B3B3; --muted: #888888;
+        --accent: #765E98; --accentHover: #9373C0; --accentStrong: #523E6E; --accentBorder: #8363B0; --focus: #AC98C7; --text: #FFFFFF; --tertiary: #CCCCCC; --dim: #B3B3B3; --muted: #888888;
         --ok: #4CAF50; --warn: #E6C200; --bad: #F44336; --dir: #EED076; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -15,8 +15,19 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 syst
 main { max-width: 600px; margin: 0 auto; padding: 12px; display: grid; gap: 12px; }
 h1 { font-size: 18px; margin: 0; }
 h2 { font-size: 15px; margin: 0; }
-section, details { background: var(--panel); border-radius: 4px; padding: 12px; display: grid; gap: 8px; }
-summary { cursor: pointer; font-weight: 600; }
+section { background: var(--panel); border-radius: 4px; padding: 12px; display: grid; gap: 8px; }
+/* Tab strip from ciaGoober's TabControl: 32 px segment, sliding indicator, 180 ms ease-in-out, pages fade in. */
+.tabs { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; height: 32px; background: var(--panel); border-radius: 3px; overflow: hidden; }
+.tabs::before { content: ""; position: absolute; left: 50%; top: 4px; bottom: 4px; width: 1px; background: var(--line); }
+.tabs .indicator { position: absolute; top: 0; bottom: 0; left: 0; width: 50%; background: var(--accentStrong); border: 1px solid var(--accentBorder); border-radius: 3px; transition: transform 180ms ease-in-out; pointer-events: none; }
+.tabs[data-tab="1"] .indicator { transform: translateX(100%); }
+.tabs button { position: relative; background: none; border: none; border-radius: 0; min-height: 0; padding: 0 8px; font: 600 13.5px Consolas, monospace; color: var(--tertiary); transition: color 180ms ease-in-out; }
+.tabs button:hover:enabled { background: none; color: var(--text); }
+.tabs button[aria-selected=true] { color: var(--text); }
+.tabs button:focus-visible { outline-offset: -2px; }
+.page { display: grid; gap: 12px; animation: pageIn 180ms ease-in-out; }
+@keyframes pageIn { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tabs .indicator, .tabs button { transition: none; } .page { animation: none; } }
 input[type=text], textarea { width: 100%; background: var(--low); color: var(--text); border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; font: inherit; }
 input[type=text], textarea { font-family: Consolas, monospace; }
 textarea { min-height: 72px; resize: vertical; }
@@ -39,24 +50,27 @@ button.link { background: none; border: none; padding: 0; min-height: 0; color: 
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
 .seg button { border: none; border-radius: 0; min-width: 80px; background: var(--low); }
 .seg button[aria-pressed=true] { background: var(--accent); }
-/* SD lists draw like an FTB list on the 3DS top screen (400x240, theme colors from genTheme.ps1); narrow pages keep the height. */
-.sd { width: 400px; max-width: 100%; height: 240px; justify-self: center; display: grid; grid-template-rows: 22px 1fr 22px; overflow: hidden; background: var(--bg); border: 4px solid #111; border-radius: 4px; }
-.sd .bar { background: var(--panel); display: flex; align-items: center; min-width: 0; padding: 0 6px; font-size: 13px; white-space: nowrap; position: relative; z-index: 1; }
+/* SD lists draw like an FTB list on the 3DS top screen (5:3, theme colors from genTheme.ps1). They fill the section width and
+   scale by --u (one 3DS pixel, never below 1 CSS px), so narrow pages keep a 240 px tall frame and full-size text. */
+.sd { container-type: inline-size; width: 100%; aspect-ratio: 5 / 3; min-height: 240px; display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; background: var(--bg); border: 4px solid #111; border-radius: 4px; }
+.sd > * { --u: max(1px, 100cqw / 400); }
+.sd .bar { background: var(--panel); display: flex; align-items: center; min-width: 0; height: calc(var(--u) * 22); padding: 0 calc(var(--u) * 6); font-size: calc(var(--u) * 13); white-space: nowrap; position: relative; z-index: 1; }
 .sd .top { box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6); font-family: Consolas, monospace; }
 /* rtl puts the ellipsis on the left so the current folder stays visible; the bdi keeps the path itself ltr. */
 .sd .top span { overflow: hidden; text-overflow: ellipsis; direction: rtl; }
 .sd .bottom { box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.6); justify-content: center; }
 .sd ul { list-style: none; margin: 0; padding: 0; overflow-y: auto; scrollbar-color: #545454 transparent; }
-.sd li { display: flex; align-items: center; gap: 8px; padding: 0 6px; min-height: 24px; }
+.sd li { display: flex; align-items: center; gap: calc(var(--u) * 8); padding: 0 calc(var(--u) * 6); min-height: calc(var(--u) * 24); font-size: calc(var(--u) * 15); }
 .sd li:hover { background: var(--hover); }
 .sd li.on { background: var(--accent); }
 .sd li.on .dim { color: var(--text); }
-.sd li > .dim { flex: none; font-size: 13px; }
+.sd li > .dim { flex: none; font-size: calc(var(--u) * 13); }
 .sd li :focus-visible { outline-offset: -2px; }
 .sd .name { flex: 1; min-width: 0; align-self: stretch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 .sd button.name { background: none; border: none; padding: 0; min-height: 0; border-radius: 0; color: var(--dir); }
 .sd button.name.base { color: var(--focus); }
-.sd label.name { cursor: pointer; display: flex; gap: 8px; align-items: center; }
+.sd label.name { cursor: pointer; display: flex; gap: calc(var(--u) * 8); align-items: center; }
+.sd input[type=checkbox] { width: calc(var(--u) * 13); height: calc(var(--u) * 13); margin: 0; }
 .sd label.name span { overflow: hidden; text-overflow: ellipsis; }
 #drop { border: 2px dashed var(--lineStrong); border-radius: 4px; padding: 14px; text-align: center; color: var(--dim); }
 #drop.over { border-color: var(--accent); color: var(--text); }
@@ -78,14 +92,20 @@ dialog .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: fle
 <main>
 <h1>FTB Web Transfer</h1>
 
-<section aria-labelledby="sendTitle">
+<div class="tabs" role="tablist" aria-label="Transfer direction" data-tab="0">
+<span class="indicator"></span>
+<button type="button" role="tab" id="tabSend" aria-controls="pageSend" aria-selected="true">Send to 3DS</button>
+<button type="button" role="tab" id="tabDownload" aria-controls="pageDownload" aria-selected="false" tabindex="-1">Download from 3DS</button>
+</div>
+
+<div class="page" id="pageSend" role="tabpanel" aria-labelledby="tabSend">
+<section aria-labelledby="destLabel">
 <div class="split">
-<h2 id="sendTitle">Send to 3DS</h2>
+<label for="dest" id="destLabel" class="dim">Save to</label>
 <div class="seg" role="group" aria-label="What the 3DS does with sent files and links" title="Save: files and link downloads go to the SD folder below. Install: CIA, ticket, and 3DSX files and links install; other files still save to the folder.">
 <button type="button" id="modeSave">Save</button><button type="button" id="modeInstall">Install</button>
 </div>
 </div>
-<label for="dest" id="destLabel" class="dim">Save to</label>
 <div class="row">
 <input id="dest" type="text" spellcheck="false" autocomplete="off" title="Folders that do not exist yet are made when files are saved.">
 <button type="button" id="browse" aria-expanded="false" aria-controls="browser" title="Pick a folder on the 3DS SD card">Browse</button>
@@ -108,12 +128,14 @@ dialog .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: fle
 <textarea id="links" spellcheck="false" autocomplete="off" placeholder="https://example.com/game.cia"></textarea>
 <button type="button" class="primary wide" id="sendLinks"></button>
 </section>
+</div>
 
-<details id="download">
-<summary>Download from 3DS</summary>
+<div class="page" id="pageDownload" role="tabpanel" aria-labelledby="tabDownload" hidden>
+<section>
 <div id="downloadList" class="sd"></div>
 <button type="button" class="primary wide" id="downloadFiles" disabled title="Each file is a separate download; the browser may ask to allow multiple downloads.">Download files</button>
-</details>
+</section>
+</div>
 
 <section id="status" aria-live="polite" hidden>
 <div id="statusText"></div>
@@ -730,18 +752,37 @@ $("sendFiles").addEventListener("click", () => { if (!busy && chosen.length > 0)
 $("sendLinks").addEventListener("click", () => { if (!busy) sendLinks(); });
 $("downloadFiles").addEventListener("click", () => { if (!busy) downloadFiles(); });
 
-// The listing loads on first open, so pages that only upload never ask the 3DS to approve early.
-$("download").addEventListener("toggle", () => {
-    if (!$("download").open || downloads.loaded) return;
+const TABS = [{tab: "tabSend", page: "pageSend"}, {tab: "tabDownload", page: "pageDownload"}];
+
+// The download listing loads on the tab's first open, so pages that only upload never ask the 3DS to approve early.
+function showTab(index, focus) {
+    TABS.forEach((entry, i) => {
+        $(entry.tab).setAttribute("aria-selected", i === index);
+        $(entry.tab).tabIndex = i === index ? 0 : -1;
+        $(entry.page).hidden = i !== index;
+    });
+    document.querySelector(".tabs").dataset.tab = index;
+    localStorage.setItem("ftbTab", index);
+    if (focus) $(TABS[index].tab).focus();
+    if (index !== 1 || downloads.loaded) return;
     whenIdle(async () => {
         if (downloads.loaded) return;
         setBusy(true);
         await downloads.load(localStorage.getItem("ftbDownloadPath") || "/", true);
         setBusy(false);
     });
+}
+
+TABS.forEach((entry, i) => {
+    $(entry.tab).addEventListener("click", () => showTab(i, false));
+    $(entry.tab).addEventListener("keydown", event => {
+        const step = {ArrowLeft: -1, ArrowRight: 1}[event.key];
+        if (step) showTab((i + step + TABS.length) % TABS.length, true);
+    });
 });
 
 setMode(installMode);
+showTab(localStorage.getItem("ftbTab") === "1" ? 1 : 0, false);
 </script>
 </body>
 </html>

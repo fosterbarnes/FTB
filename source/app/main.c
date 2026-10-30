@@ -13,6 +13,7 @@
 #include "../core/ui/ui.h"
 #include "../ftpd/ftpd.h"
 #include "screens.h"
+#include "screenshot.h"
 #include "task/uitask.h"
 
 #define SOC_BUFFER_SIZE 0x100000
@@ -205,7 +206,18 @@ int main(int argc, const char* argv[]) {
     init();
 
     mainmenu_open();
-    while(aptMainLoop() && !restart_requested && ui_update());
+    while(aptMainLoop() && !restart_requested) {
+        // Screenshot mode must be on both before and after the frame's input, so the START press
+        // that toggles it never takes a shot.
+        bool screenshots = screenshot_mode_on();
+        if(!ui_update()) {
+            break;
+        }
+
+        if(screenshots && screenshot_mode_on() && (hidKeysDown() & KEY_START)) {
+            screenshot_take();
+        }
+    }
 
     cleanup();
 

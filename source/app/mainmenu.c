@@ -6,6 +6,7 @@
 #include "ciafolders.h"
 #include "resources.h"
 #include "screens.h"
+#include "screenshot.h"
 #include "settings.h"
 #include "../core/core.h"
 
@@ -48,7 +49,11 @@ static void mainmenu_draw_top(ui_view* view, void* data, float x1, float y1, flo
 }
 
 static void mainmenu_update(ui_view* view, void* data, linked_list* items, list_item* selected, bool selectedTouched) {
-    if(hidKeysDown() & KEY_START) {
+    // Screenshot mode takes START over (main.c saves the shot).
+    bool screenshots = screenshot_mode_on();
+    view->info = screenshots ? "A: Select" : "A: Select, START: Exit";
+
+    if(!screenshots && (hidKeysDown() & KEY_START)) {
         ui_pop();
         list_destroy(view);
 

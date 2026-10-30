@@ -10,6 +10,7 @@
 #define PATHS_WEB_DEVICES PATHS_DATA_DIR "/webDevices.cfg"
 #define PATHS_TITLE_CACHE_DIR PATHS_DATA_DIR "/cache"
 #define PATHS_THEME_DIR PATHS_DATA_DIR "/theme/"
+#define PATHS_SCREENSHOTS_DIR PATHS_DATA_DIR "/screenshots"
 #define PATHS_FS_DATA_DIR "/ftb/"
 #define PATHS_FS_LAST_URLS PATHS_FS_DATA_DIR "lasturls"
 #define PATHS_FS_NAND_DIR PATHS_FS_DATA_DIR "nand/"

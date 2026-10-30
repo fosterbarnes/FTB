@@ -26,6 +26,10 @@ void screen_unload_texture(u32 id);
 void screen_get_texture_size(u32* width, u32* height, u32 id);
 void screen_begin_frame();
 void screen_end_frame();
+// The screen's last finished frame in framebuffer layout (one 240-pixel BGR column per x, bottom
+// pixel first), in linear memory the caller frees with linearFree. Call between frames; NULL when
+// out of linear memory.
+u8* screen_capture(gfxScreen_t screen);
 void screen_select(gfxScreen_t screen);
 void screen_draw_texture(u32 id, float x, float y, float width, float height);
 void screen_draw_texture_crop(u32 id, float x, float y, float width, float height);

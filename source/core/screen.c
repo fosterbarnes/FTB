@@ -446,6 +446,26 @@ void screen_end_frame() {
     C3D_FrameEnd(0);
 }
 
+u8* screen_capture(gfxScreen_t screen) {
+    C3D_RenderTarget* target = screen == GFX_TOP ? target_top : target_bottom;
+    u32 size = target->frameBuf.width * target->frameBuf.height * 3;
+
+    u8* pixels = (u8*) linearAlloc(size);
+    if(pixels == NULL) {
+        return NULL;
+    }
+
+    // Outside a frame the sync transfer waits for the last frame's queue first. Flush first so no
+    // dirty line from this memory's last use lands on top of the GPU's output.
+    GSPGPU_FlushDataCache(pixels, size);
+
+    u32 dim = GX_BUFFER_DIM(target->frameBuf.width, target->frameBuf.height);
+    C3D_SyncDisplayTransfer((u32*) target->frameBuf.colorBuf, dim, (u32*) pixels, dim, target->transferFlags);
+
+    GSPGPU_InvalidateDataCache(pixels, size);
+    return pixels;
+}
+
 void screen_select(gfxScreen_t screen) {
     C3D_RenderTarget* target = screen == GFX_TOP ? target_top : target_bottom;
 

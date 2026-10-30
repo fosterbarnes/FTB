@@ -31,6 +31,22 @@ bool fs_is_dir(FS_Archive archive, const char* path) {
     return R_SUCCEEDED(res);
 }
 
+bool fs_file_exists(FS_Archive archive, const char* path) {
+    FS_Path* fsPath = fs_make_path_utf8(path);
+    if(fsPath == NULL) {
+        return false;
+    }
+
+    Handle file = 0;
+    bool exists = R_SUCCEEDED(FSUSER_OpenFile(&file, archive, *fsPath, FS_OPEN_READ, 0));
+    if(exists) {
+        FSFILE_Close(file);
+    }
+
+    fs_free_path_utf8(fsPath);
+    return exists;
+}
+
 Result fs_ensure_dir(FS_Archive archive, const char* path) {
     Result res = 0;
 

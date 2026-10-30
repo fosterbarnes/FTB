@@ -25,22 +25,6 @@ static Result content_delete_file(FS_Archive archive, const char* path) {
     return res;
 }
 
-static bool content_file_exists(FS_Archive archive, const char* path) {
-    FS_Path* fsPath = fs_make_path_utf8(path);
-    if(fsPath == NULL) {
-        return false;
-    }
-
-    Handle file = 0;
-    bool exists = R_SUCCEEDED(FSUSER_OpenFile(&file, archive, *fsPath, FS_OPEN_READ, 0));
-    if(exists) {
-        FSFILE_Close(file);
-    }
-
-    fs_free_path_utf8(fsPath);
-    return exists;
-}
-
 // Every folder above path, from the root down.
 static Result content_ensure_parents(FS_Archive archive, const char* path) {
     char dir[FILE_PATH_MAX];
@@ -144,7 +128,7 @@ Result content_save_begin(content_install* content, const char* path, bool repla
         return res;
     }
 
-    if(!replace && content_file_exists(sdmcArchive, path)) {
+    if(!replace && fs_file_exists(sdmcArchive, path)) {
         res = R_APP_SKIPPED;
     } else if(R_SUCCEEDED(res = content_ensure_parents(sdmcArchive, path))) {
         // A part file left by an earlier cut transfer would keep its old tail.

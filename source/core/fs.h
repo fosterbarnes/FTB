@@ -11,6 +11,8 @@ typedef struct fs_filter_data_s {
 } fs_filter_data;
 
 bool fs_is_dir(FS_Archive archive, const char* path);
+// A file (not a directory) at path that opens for reading.
+bool fs_file_exists(FS_Archive archive, const char* path);
 // Creates the directory when it is missing. A file at that path is an error, never deleted.
 Result fs_ensure_dir(FS_Archive archive, const char* path);
 // Every entry of a directory, unsorted, however many there are (read in chunks). *entries is

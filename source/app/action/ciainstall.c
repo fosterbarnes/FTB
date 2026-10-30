@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include <3ds.h>
 
 #include "ciainstall.h"
@@ -23,6 +25,28 @@ Result cia_install_begin(cia_install* install, void* block, u32 blockSize, void*
     }
 
     FS_MediaType dest = fs_get_title_destination(titleId);
+
+    AM_TitleEntry installed;
+    if(install->askInstalled && R_SUCCEEDED(AM_GetTitleInfo(dest, 1, &titleId, &installed))) {
+        char version[16];
+        ui_format_version(version, sizeof(version), installed.version);
+
+        // Reinstalling deletes the title first (below); whether its save data survives that is not
+        // confirmed on hardware, hence "may".
+        char text[192];
+        snprintf(text, sizeof(text),
+                 "%016llX (v%s)\n"
+                 "is already installed. Reinstalling\n"
+                 "deletes it first; its save data may\n"
+                 "be deleted too.\n"
+                 "\n"
+                 "Reinstall?",
+                 titleId, version);
+
+        if(!prompt_wait_yes_no("Confirmation", text, COLOR_WARNING, data, drawTop)) {
+            return R_APP_SKIPPED;
+        }
+    }
 
     // Deleting the running app before it reinstalls itself causes issues.
     u64 currTitleId = 0;

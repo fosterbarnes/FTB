@@ -4,8 +4,8 @@
 #include "ticketinstall.h"
 #include "../../core/fs.h"
 
-// Destinations for streamed items, shared by URL installs (installurl.c) and Receive
-// (receive/receiver.c): install by content, or save the bytes to an SD file. Worker thread only.
+// Destinations for streamed items, shared by URL installs (installurl.c) and Web Transfer
+// (webtransfer/webserver.c): install by content, or save the bytes to an SD file. Worker thread only.
 // Items are written with FSFILE_Write on the returned handle.
 
 typedef enum {

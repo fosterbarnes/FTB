@@ -12,4 +12,4 @@ On the 3DS, open FTB > FBI Legacy > Receive URLs over the network (or FBI's Remo
 
 **Drop scripts**: drag CIAs or a folder onto `drop cias or folder here.bat` (Windows), or run `drop cias or folder here.sh` to send the current folder. Both ask for the 3DS IP and run `servefiles.py`.
 
-To send any file from a browser instead, use FTB's Receive screen.
+To send any file from a browser instead, use FTB's Web Transfer screen.

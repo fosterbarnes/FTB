@@ -1,3 +1,4 @@
+<!-- User-owned file. Agents: do not edit unless the user explicitly asks, then change only the requested lines. -->
 # ftb
 
 A 3DS title manager, CIA installer, FTP server, and more. Built on [FBI](https://github.com/Steveice10/FBI).
@@ -29,13 +30,13 @@ A 3DS title manager, CIA installer, FTP server, and more. Built on [FBI](https:/
 
 ## Features
 
-- **[CIA Installer](https://github.com/fosterbarnes/ftb/wiki/CIA-Installer):** Scans the folders you choose for .cia files and shows them all in one list. Set the folders once, then install from them anytime.
-- **[Title Manager](https://github.com/fosterbarnes/ftb/wiki/Title-Manager):** New layouts: icon grid, list, or icon list. Includes sorting, section jumps, and a title cache so the full list opens fast.
-- **[FTP Server](https://github.com/fosterbarnes/ftb/wiki/FTP-Server):** Transfer files to and from the SD card without leaving the app.
-- **[3DS Web Server](https://github.com/fosterbarnes/ftb/wiki/3DS-Web-Server):** Scan the on-screen QR code with a phone or PC browser to send links, CIAs, and other files to the 3DS, or download files from its SD card. CIAs install straight over the network.
-- **[In-app updates](https://github.com/fosterbarnes/ftb/wiki/Install#updating):** Update ftb from inside the app. It installs the update and relaunches itself.
+- **[CIA Installer](https://github.com/fosterbarnes/ftb/wiki/CIA-Installer):** Quick CIA installer. Pick one or more folders for the app to scan on first launch, then it'll automatically scan those folders moving forward when entering the menu. Configurable.
+- **[Title Manager](https://github.com/fosterbarnes/ftb/wiki/Title-Manager):** Redesigned title manager. 2 new layouts (grid, icon list) as well as the classic list view. Can be configured to show primary content on top or bottom screen.
+- **[3DS Web Server](https://github.com/fosterbarnes/ftb/wiki/3DS-Web-Server):** Runs a local web server that you can access in basically any web browser. Send, receive, and install files without having to install an FTP client.
+- **[FTP Server](https://github.com/fosterbarnes/ftb/wiki/FTP-Server):** This is literally just FTPD inside of FBI.
+- **[Self-Updating](https://github.com/fosterbarnes/ftb/wiki/Install#updating):** Updates install and relaunch the app automatically.
 
-Installs alongside FBI without changing or replacing it. This project is in active development. Full docs are in the
+Can be installed alongside FBI without changing or replacing it. This project is in active development. Full docs are in the
 [wiki](https://github.com/fosterbarnes/ftb/wiki).
 
 
@@ -86,19 +87,13 @@ Installs alongside FBI without changing or replacing it. This project is in acti
 
 ## Why does this exist?
 
-[FBI](https://github.com/Steveice10/FBI) by Steveice10 was the standard title manager for modded
-3DS consoles, but it has been archived and no longer gets updates. ftb is a fork that keeps it
-going. It does everything FBI does, and adds a dark theme, a reworked UI, and new features
-inspired by other 3DS homebrew apps.
+[FBI](https://github.com/Steveice10/FBI) is great. I used it for a long time, but found it slightly annoying to swap back and forth between FTPD and FBI when installing new CIAs after receiving them from a transfer. I figured 'just combine the open source apps to do both functions under one app'. Things just kind of snowballed from there, adding the web server, customizing progress and menu UI, etc. etc.
 
-## How it works
+What I ended up with is an amalgamation of community projects that already existed, but worked together under one cohesive 'roof'. My individual contributions essentially boil down to:
 
-- ftb runs on a 3DS with [Luma3DS](https://github.com/LumaTeam/Luma3DS) custom firmware. It installs as its own app, so it sits alongside FBI instead of replacing it.
-- It uses the 3DS's own system services to install CIA files (the 3DS install package format), list what is installed, and manage titles, tickets, and save data.
-- The 3DS Web Server serves a web page from your console that any phone or PC browser can open by scanning the QR code on
-  screen, or entering the link. It lets you browse files, upload/download files, and install CIAs.
-- The FTP Server works with any FTP app on a PC, like FileZilla. It's built on ftpd, so it supports the same transfers.
-- Anything that could damage the console, like deleting system titles or writing to NAND (the console's internal storage), stays locked until you turn on System changes in Settings.
+- Creating all new menus, color themes & UI elements.
+- Custom Web UI designed for phone or PC, facilitating file transfer and installing .cia files OTA.
+- Custom 3D banner.
 
 ## Credit
 - **FBI:** [Steveice10](https://github.com/Steveice10/FBI)
